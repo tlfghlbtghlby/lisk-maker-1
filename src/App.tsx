@@ -18,6 +18,7 @@ import { EndShiftModal } from './components/EndShiftModal';
 import { ShiftDetailsModal } from './components/ShiftDetailsModal';
 import { AuthView } from './components/AuthView';
 import { SplashScreen } from './components/SplashScreen';
+import { CustomerPriceChecker } from './components/CustomerPriceChecker';
 import { Product, Invoice } from './types';
 import { 
   Boxes, 
@@ -63,6 +64,7 @@ const MainContent: React.FC = () => {
       setActiveTab('pos');
     }
   }, [sessionRole, activeTab, hasPermission]);
+
   const isMobile = settings.deviceMode === 'mobile';
   const isFullComputerMode = !isMobile && (settings.desktopLayout === 'full');
   
@@ -97,7 +99,6 @@ const MainContent: React.FC = () => {
   // معالجة إنشاء الفاتورة: إذا ضغط "حفظ فقط" لا يطبع، وإذا ضغط "حفظ وطباعة" يرسل أمراً واحداً فقط
   const handleInvoiceCreated = (invoice: Invoice, andPrint: boolean) => {
     if (!andPrint) {
-      // تم حفظ الفاتورة بنجاح في قاعدة البيانات، ولا يتم إرسال أي أمر للطابعة
       return;
     }
 
@@ -129,7 +130,7 @@ const MainContent: React.FC = () => {
           if (typeof electronBridge.printDirect === 'function') {
             await electronBridge.printDirect({
               silent: true,
-              deviceName: (settings as any).selectedPrinterName || '', // إرسال مباشر للطابعة المحددة بالاسم
+              deviceName: (settings as any).selectedPrinterName || '',
               paperSize,
               pageSize,
             });
@@ -138,6 +139,7 @@ const MainContent: React.FC = () => {
               silent: true,
               deviceName: (settings as any).selectedPrinterName || '',
               paperSize,
+              pageSize,
             });
           }
         } catch (err) {
@@ -147,7 +149,7 @@ const MainContent: React.FC = () => {
             setDirectInvoice(null);
             setTimeout(() => {
               isPrintingRef.current = false;
-            }, 80); // تحرير سريع للقفل
+            }, 80);
           }
         }
       } else {
@@ -423,6 +425,17 @@ const MainContent: React.FC = () => {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
+
+  // فحص مباشر لمعاملات الرابط لتحديد ما إذا كان الزائر زبوناً لمسح الأسعار
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const hash = typeof window !== 'undefined' ? window.location.hash : '';
+  const isPriceChecker = searchParams?.get('view') === 'price-checker' || hash.includes('price-checker');
+  const storeId = searchParams?.get('store') || null;
+
+  // إذا كان الرابط هو رابط مدقق الأسعار للزبائن، يتم عرضه فوراً وبشكل مستقل تماماً
+  if (isPriceChecker) {
+    return <CustomerPriceChecker storeId={storeId} />;
+  }
 
   return (
     <AppProvider>
