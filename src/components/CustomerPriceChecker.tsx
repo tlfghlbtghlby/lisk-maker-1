@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, RefreshCw, AlertCircle, CheckCircle, Wifi, WifiOff, Camera, Store, X } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { supabase } from '../supabase';
 
 interface CustomerProduct {
@@ -13,11 +13,7 @@ interface CustomerProduct {
   stock?: number;
 }
 
-interface CustomerPriceCheckerProps {
-  storeId?: string | null;
-}
-
-export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ storeId }) => {
+export const CustomerPriceChecker: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [products, setProducts] = useState<CustomerProduct[]>([]);
   const [storeName, setStoreName] = useState<string>('');
@@ -29,9 +25,8 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   const qrScannerRef = useRef<Html5Qrcode | null>(null);
-  const scannerContainerId = 'interactive-barcode-scanner';
+  const scannerContainerId = 'reader-barcode-box';
 
-  // 1. مراقبة الاتصال
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -43,11 +38,11 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
     };
   }, []);
 
-  // 2. جلب المواد من المتجر
+  // جلب المواد بدقة وحفظها محلياً
   const fetchProducts = async () => {
     setLoading(true);
     const params = new URLSearchParams(window.location.search);
-    const storeParam = storeId || params.get('store');
+    const storeParam = params.get('store');
 
     try {
       let storeRecord: any = null;
@@ -75,7 +70,6 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
         }
       }
 
-      // إذا لم يحدد المتجر أو لم يتم العثور عليه، نجلب أول متجر متوفر
       if (!storeRecord) {
         const { data: fallback } = await supabase.from('stores').select('id, products, settings').limit(1).maybeSingle();
         storeRecord = fallback;
@@ -103,7 +97,7 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
     fetchProducts();
   }, []);
 
-  // 3. تشغيل الكاميرا عبر Html5Qrcode
+  // تشغيل ماسح الباركود الرسمي مع دعم كامل للباركودات الخطية والمائلة
   const startCamera = async () => {
     setCameraError(null);
     setCameraActive(true);
@@ -111,28 +105,40 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
     setTimeout(async () => {
       try {
         if (!qrScannerRef.current) {
-          qrScannerRef.current = new Html5Qrcode(scannerContainerId);
+          qrScannerRef.current = new Html5Qrcode(scannerContainerId, {
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E,
+              Html5QrcodeSupportedFormats.QR_CODE
+            ],
+            verbose: false
+          });
         }
 
         const config = {
-          fps: 20,
-          qrbox: { width: 300, height: 160 },
+          fps: 25,
+          qrbox: { width: 320, height: 180 },
           aspectRatio: 1.777778,
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: false // إيقاف الواجهة الضعيفة والاعتماد على المحرك الداخلي
+          }
         };
 
         await qrScannerRef.current.start(
           { facingMode: 'environment' },
           config,
           (decodedText) => {
-            // التقاط الباركود فوراً
             findAndDisplayProduct(decodedText);
             stopCamera();
           },
           () => {}
         );
       } catch (err: any) {
-        console.error('Camera Init Error:', err);
-        setCameraError('يرجى التأكد من إعطاء صلاحية الكاميرا للمتصفح.');
+        setCameraError('يرجى منح الإذن للكاميرا في المتصفح لمسح الباركود.');
         setCameraActive(false);
       }
     }, 150);
@@ -145,9 +151,7 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
           await qrScannerRef.current.stop();
         }
         qrScannerRef.current.clear();
-      } catch (e) {
-        console.warn('Stop Camera Error:', e);
-      }
+      } catch (e) {}
       qrScannerRef.current = null;
     }
     setCameraActive(false);
@@ -159,7 +163,7 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
     };
   }, []);
 
-  // 4. مطابقة السلعة وعرض السعر
+  // فحص السلعة بالباركود أو الاسم
   const findAndDisplayProduct = (term: string) => {
     const q = term.trim().toLowerCase();
     if (!q) return;
@@ -180,7 +184,7 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
     }
   };
 
-  // 5. البحث الحي اللحظي أثناء كتابة الحروف
+  // قائمة البحث الحي اللحظي (تتقلص وتتصفى مع كتابة كل حرف)
   const liveSuggestions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
@@ -227,14 +231,14 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
             <button
               onClick={fetchProducts}
               className="p-1 rounded bg-slate-700 hover:bg-slate-600 transition"
-              title="تحديث قائمة المواد"
+              title="تحديث البيانات"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
 
-        {/* الكاميرا */}
+        {/* الكاميرا ومسح الباركود */}
         <div className="mb-6 text-center">
           {!cameraActive ? (
             <button
@@ -248,7 +252,7 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
           ) : (
             <div className="flex flex-col items-center">
               <div className="relative w-full overflow-hidden rounded-xl border-2 border-amber-400 bg-black shadow-inner mb-3">
-                <div id={scannerContainerId} className="w-full min-h-[240px]"></div>
+                <div id={scannerContainerId} className="w-full min-h-[250px]"></div>
               </div>
               <button
                 type="button"
@@ -292,7 +296,7 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
             )}
           </div>
 
-          {/* قائمة النتائج المتطابقة اللحظية */}
+          {/* قائمة الاقتراحات الحية المتطابقة فورياً */}
           {liveSuggestions.length > 0 && (
             <div className="absolute z-30 w-full mt-1.5 bg-slate-950 border border-slate-700 rounded-xl shadow-2xl overflow-hidden divide-y divide-slate-800 max-h-64 overflow-y-auto">
               {liveSuggestions.map((item) => (
@@ -315,7 +319,7 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
           )}
         </div>
 
-        {/* بطاقة عرض السلعة المحددة */}
+        {/* عرض السلعة المحددة */}
         {scannedProduct && (
           <div className="bg-slate-950/80 border border-emerald-500/40 rounded-xl p-5 text-center shadow-lg">
             <CheckCircle className="mx-auto text-emerald-400 mb-2" size={40} />
