@@ -71,7 +71,6 @@ import { WipeProductsModal } from './WipeProductsModal';
 import { ModernInvoiceHeader } from './ModernInvoiceHeader';
 import { DuplicateProductsModal } from './DuplicateProductsModal';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
-import { CustomerQRSettingsCard } from './CustomerQRSettingsCard';
 
 // Dynamic lazy import to completely exclude AdminPanel code chunk for regular clients
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
@@ -902,93 +901,148 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       {/* Customer QR Price Checker Section */}
       {(activeSettingsTab === 'customer-qr' || activeSettingsTab === 'all') && (
         <>
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl mb-6 text-white" dir="rtl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl">
-                <QrCode size={24} />
-              </div>
+          {/* قسم رابط ورمز QR المطور مع التشفير والتنزيل */}
+          <div className="bg-[#0b1728] border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5 mb-6" dir="rtl">
+            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
               <div>
-                <h3 className="text-lg font-bold text-white">رابط ورمز QR قارئ الأسعار للزبائن</h3>
-                <p className="text-xs text-slate-400">امسح الرمز أو انسخ الرابط لتمكين الزبائن من فحص الأسعار مباشرة بهواتفهم</p>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <span className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-sm">📱</span>
+                  <span>رابط ورمز QR قارئ الأسعار المشفر للزبائن</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  امسح الرمز أو انسخه لتمكين الزبائن من فحص الأسعار دون الوصول لبيانات الإدارة
+                </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-              {/* عرض رمز QR */}
-              <div className="flex flex-col items-center justify-center p-4 bg-slate-900/60 rounded-xl border border-slate-700/60">
-                {qrCodeDataUrl ? (
-                  <div className="p-3 bg-white rounded-xl shadow-lg">
-                    <img src={qrCodeDataUrl} alt="QR Code" className="w-44 h-44 object-contain" />
-                  </div>
-                ) : (
-                  <div className="w-44 h-44 flex items-center justify-center text-slate-500 text-sm">
-                    جاري توليد الرمز...
-                  </div>
-                )}
-                <span className="text-xs text-slate-400 mt-2 font-medium">امسح بكاميرا الهاتف</span>
-              </div>
+            {/* توليد الرابط المشفر النظيف تلقائياً */}
+            {(() => {
+              const activeStoreKey = (currentUser as any)?.id
+                ? `store_user_${(currentUser as any).id}`
+                : (currentUser?.uid ? `store_user_${currentUser.uid}` : 'store_user_azarstore');
+              const encryptedToken = typeof window !== 'undefined' ? btoa(activeStoreKey) : '';
+              const encryptedCheckerUrl = typeof window !== 'undefined'
+                ? `${window.location.origin}${window.location.pathname}#${encryptedToken}`
+                : '';
+              const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(encryptedCheckerUrl)}&margin=10`;
 
-              {/* الرابط وخيارات النسخ */}
-              <div className="md:col-span-2 space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    الرابط المخصص لمتجرك (يعمل عبر الإنترنت وأوفلاين معاً)
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={customStoreUrl}
-                      className="flex-1 bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none select-all font-mono text-left"
-                      dir="ltr"
-                    />
+              const handleDownloadQR = async () => {
+                try {
+                  const response = await fetch(qrImageUrl);
+                  const blob = await response.blob();
+                  const url = window.URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `QR-PriceChecker-${settings.storeName || 'Store'}.png`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  window.URL.revokeObjectURL(url);
+                } catch (e) {
+                  const a = document.createElement('a');
+                  a.href = qrImageUrl;
+                  a.download = `QR-PriceChecker-${settings.storeName || 'Store'}.png`;
+                  a.target = '_blank';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                }
+              };
+
+              const handleCopy = () => {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(encryptedCheckerUrl);
+                } else {
+                  const ta = document.createElement('textarea');
+                  ta.value = encryptedCheckerUrl;
+                  document.body.appendChild(ta);
+                  ta.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(ta);
+                }
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2500);
+              };
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                  {/* رمز الـ QR مع زر التنزيل */}
+                  <div className="flex flex-col items-center justify-center p-4 bg-slate-900/80 rounded-2xl border border-slate-800 space-y-3">
+                    <div className="p-3 bg-white rounded-2xl shadow-xl flex items-center justify-center">
+                      <img
+                        src={qrImageUrl}
+                        alt="Customer Price Checker QR"
+                        className="w-48 h-48 object-contain"
+                      />
+                    </div>
                     <button
                       type="button"
-                      onClick={copyToClipboard}
-                      className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition cursor-pointer shrink-0 ${
-                        copied
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md'
-                      }`}
+                      onClick={handleDownloadQR}
+                      className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition cursor-pointer"
                     >
-                      {copied ? (
-                        <>
-                          <Check size={16} />
-                          <span>تم النسخ!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={16} />
-                          <span>نسخ الرابط</span>
-                        </>
-                      )}
+                      <Download size={14} className="text-amber-400" />
+                      <span>تنزيل الرمز كصورة (PNG)</span>
                     </button>
+                    <span className="text-[11px] text-slate-400 font-medium text-center">
+                      يمكنك طباعة هذا الرمز وتعليقه في المتجر
+                    </span>
                   </div>
-                </div>
 
-                <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-700/50 space-y-2 text-xs text-slate-300">
-                  <div className="flex items-center gap-2 text-amber-400 font-bold">
-                    <span>✨ ميزة القارئ الذكي:</span>
+                  {/* حقل الرابط وزر النسخ والشرح */}
+                  <div className="md:col-span-2 space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                        رابط الزبائن المباشر (مشفر بدون إظهار بيانات الحساب أو المنصة)
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={encryptedCheckerUrl}
+                          className="flex-1 bg-slate-900 border border-slate-800 text-slate-200 text-xs rounded-xl px-3.5 py-2.5 focus:outline-none select-all font-mono text-left"
+                          dir="ltr"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleCopy}
+                          className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition cursor-pointer shrink-0 ${
+                            copied
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md'
+                          }`}
+                        >
+                          {copied ? (
+                            <>
+                              <Check size={16} />
+                              <span>تم النسخ!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={16} />
+                              <span>نسخ الرابط</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-900/50 rounded-xl border border-slate-800/80 space-y-2 text-xs text-slate-300">
+                      <div className="flex items-center gap-2 text-amber-400 font-bold">
+                        <span>✨ ميزة القارئ الذكي المشفر:</span>
+                      </div>
+                      <p className="leading-relaxed">
+                        • يستطيع الزبون مسح هذا الرمز والتجول في محلك لمعرفة سعر أي مادة فوراً بمجرد توجيه الكاميرا.
+                      </p>
+                      <p className="leading-relaxed">
+                        • الرابط مشفر ونظيف تماماً ولا يظهر أي معلومات حساسة، ويعمل على تخزين المواد في ذاكرة هاتف الزبون ليعمل أوفلاين وأونلاين بدون توقف.
+                      </p>
+                    </div>
                   </div>
-                  <p className="leading-relaxed">
-                    • يستطيع الزبون مسح هذا الرمز والتجول في محلك لمعرفة سعر أي مادة فوراً بمجرد توجيه الكاميرا.
-                  </p>
-                  <p className="leading-relaxed">
-                    • تم دمج النظامين: يعمل <span className="text-emerald-400 font-semibold">أونلاين سحابياً</span> ومباشرة يحفظ البيانات في <span className="text-sky-400 font-semibold">ذاكرة المتصفح المحلية</span> ليعمل بسلاسة حتى لو انقطع الإنترنت داخل المحل.
-                  </p>
                 </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
 
-          <CustomerQRSettingsCard
-            storeName={storeName || settings.storeName || 'المتجر'}
-            phone={phone || settings.phone}
-            currency={currency || settings.currency || 'د.ع'}
-            productsCount={products.length}
-            products={products}
-            storeId={storeId}
-          />
         </>
       )}
 
