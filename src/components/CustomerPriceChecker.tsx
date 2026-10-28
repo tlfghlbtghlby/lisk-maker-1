@@ -12,7 +12,11 @@ interface CustomerProduct {
   stock?: number;
 }
 
-export const CustomerPriceChecker: React.FC = () => {
+interface CustomerPriceCheckerProps {
+  storeId?: string | null;
+}
+
+export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ storeId }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [products, setProducts] = useState<CustomerProduct[]>([]);
   const [scannedProduct, setScannedProduct] = useState<CustomerProduct | null>(null);

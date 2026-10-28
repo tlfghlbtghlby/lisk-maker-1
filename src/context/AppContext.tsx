@@ -265,6 +265,8 @@ export const sanitizePayload = <T = any>(obj: T): T => {
   return obj;
 };
 
+export const sanitizeForFirestore = sanitizePayload;
+
 export const createDefaultDraftOrder = (orderNumber: number = 1): POSDraftOrder => {
   const d = new Date();
   d.setDate(d.getDate() + 15);
