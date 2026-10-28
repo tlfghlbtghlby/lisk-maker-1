@@ -62,6 +62,7 @@ import {
   Sun,
   Moon
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { PresetShift, StoreSupervisor } from '../types';
 import { QuickAddItemsSection } from './QuickAddItemsSection';
 import { ExportBackupModal } from './ExportBackupModal';
@@ -94,7 +95,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     exportDataJSON, 
     exportCustomBackup,
     importDataJSON, 
-    importProductsOnly,
+    importProductsOnly, 
     currentUser,
     logout,
     products,
@@ -245,7 +246,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [editPresetCode, setEditPresetCode] = useState('');
   const [editPresetNotes, setEditPresetNotes] = useState('');
 
-  // قالب وتصميم القائمة (عصري ملون كالصورة أم كلاسيكي)
+  // قالب وتصميم القائمة
   const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplateType>(
     settings.invoiceTemplate || 'modern'
   );
@@ -1098,6 +1099,112 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
+          {/* قسم مدقق الأسعار الذاتي للزبائن وتوليد رمز QR الخاص بالمحل */}
+          {(() => {
+            const currentStoreId = currentUser?.uid || currentUser?.id || 'default_store';
+            const priceCheckerUrl = `https://tlfghlbtghlby.github.io/lisk-maker-1/?view=price-checker&store=${currentStoreId}`;
+
+            return (
+              <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl border border-slate-700/80 p-5 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/60 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold border border-amber-500/30">
+                      <QrCodeIcon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+                        <span>🔍 مدقق الأسعار الذاتي للزبائن (Self Price-Checker)</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                          أوفلاين وأونلاين
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        اطبع هذا الرمز وضعه على رفوف وطاولات المحل ليتجول الزبون ويفحص أسعار المواد عبر كاميرا هاتفه مباشرة
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-amber-300 self-start sm:self-auto">
+                    رمز المحل: {currentStoreId.slice(0, 8)}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-5 pt-1">
+                  {/* رمز الـ QR المخصص لهذا المتجر */}
+                  <div className="bg-white p-3.5 rounded-2xl border-2 border-amber-400/40 shadow-md shrink-0 flex flex-col items-center">
+                    <QRCodeSVG 
+                      value={priceCheckerUrl} 
+                      size={140} 
+                      level="M"
+                      includeMargin={false}
+                    />
+                    <span className="text-[9px] font-bold text-slate-800 mt-2 font-mono">
+                      امسح لمعرفة السعر
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 flex-1 text-right">
+                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-700/60 space-y-1">
+                      <div className="text-[11px] text-slate-400 font-bold">رابط فحص الأسعار المخصص لمتجرك:</div>
+                      <div className="text-xs font-mono text-emerald-300 break-all select-all bg-black/40 px-2 py-1.5 rounded-lg border border-slate-800">
+                        {priceCheckerUrl}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const printWindow = window.open('', '_blank');
+                          if (printWindow) {
+                            printWindow.document.write(`
+                              <html dir="rtl">
+                                <head>
+                                  <title>طباعة رمز فحص الأسعار - ${storeName || 'المحل'}</title>
+                                  <style>
+                                    body { font-family: sans-serif; text-align: center; padding: 40px; }
+                                    .card { border: 3px solid #000; border-radius: 24px; padding: 30px; display: inline-block; max-width: 350px; }
+                                    h1 { margin: 0 0 10px 0; font-size: 24px; }
+                                    p { margin: 0 0 20px 0; color: #555; font-size: 14px; }
+                                    .qr { margin: 20px auto; }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="card">
+                                    <h1>${storeName || 'المحل'}</h1>
+                                    <p>وجّه كاميرا هاتفك نحو الرمز لفحص سعر أي مادة فوراً</p>
+                                    <img class="qr" src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(priceCheckerUrl)}" />
+                                    <p style="font-weight: bold; margin-top: 15px;">خدمة مدقق الأسعار الذاتي</p>
+                                  </div>
+                                  <script>window.onload = () => { window.print(); window.close(); };</script>
+                                </body>
+                              </html>
+                            `);
+                            printWindow.document.close();
+                          }
+                        }}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>طباعة ملصق الـ QR للرفوف</span>
+                      </button>
+
+                      <a
+                        href={priceCheckerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-amber-400" />
+                        <span>معاينة واجهة الزبون</span>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Wholesale Mode Toggle */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
             <div>
@@ -1690,7 +1797,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                         الباركود وصورته في وسط الفاتورة
                       </label>
                       <p className="text-[11px] text-slate-500">
-                        كما طلبت: صورة الباركود تُرفع من جهازك مباشرة أو يمكنك الاعتماد على رمز الاستجابة السريع
+                        صورة الباركود تُرفع من جهازك مباشرة أو يمكنك الاعتماد على رمز الاستجابة السريع
                       </p>
                     </div>
                   </div>
@@ -2583,6 +2690,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   </div>
                 </div>
               </button>
+              
               {/* 5. Duplicate Products Review & Cleaner */}
               <button
                 type="button"
@@ -2827,7 +2935,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
-          {/* Multiple Supervisors Section (إدارة المشرفين المتعددين) */}
+          {/* Multiple Supervisors Section */}
           {sessionRole === 'admin' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -3057,7 +3165,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           )}
 
-          {/* Preset Shifts Management Section (إعداد الشفتات المسبقة) */}
+          {/* Preset Shifts Management Section */}
           {(sessionRole === 'admin' || hasPermission('canConfigureShifts')) && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -3301,7 +3409,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               <div className="space-y-2.5">
                 {[
                   { key: 'canSell' as const, label: 'البيع وإعداد الفواتير الجديدة (POS)', desc: 'إنشاء وحفظ وطباعة القوائم' },
-                  { key: 'canAddNewProduct' as const, label: 'إضافة مواد جديدة للمخزن', desc: 'إدخال المواد الجديدة وتحديد أسعارها' },
+                  { key: 'canAddNewProduct' as const, label: 'إضافة مواد جديدة للمخزن', desc: 'إدخال المواد وتحديد أسعارها' },
                   { key: 'canEditProductPrice' as const, label: 'تعديل السعر في القائمة للزبون (أيقونة القلم الصغير)', desc: 'تعديل سعر المادة في القائمة النشطة فقط' },
                   { key: 'canViewInvoices' as const, label: 'الدخول لسجل الفواتير ومعاينة القوائم', desc: 'معاينة وطباعة القوائم السابقة دون تعديل' },
                   { key: 'canAccessInventory' as const, label: 'الدخول لقسم المواد والمخزون', desc: 'معاينة الأصناف وجرد الكميات' },
