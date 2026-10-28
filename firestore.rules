@@ -1,0 +1,9 @@
+rules_version = '2';
+// تم إيقاف وإلغاء قواعد فايربيس بالكامل والاعتماد بنسبة 100% على ساب بيس (Supabase)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

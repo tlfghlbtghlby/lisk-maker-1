@@ -1,0 +1,13 @@
+{
+  "name": "listmaker",
+  "description": "Imported from GitHub: tlfghlbtghlby/listmaker",
+  "requestFramePermissions": [],
+  "github": {
+    "owner": "tlfghlbtghlby",
+    "repo": "listmaker",
+    "branch": "main"
+  },
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
