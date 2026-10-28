@@ -62,6 +62,7 @@ const MainContent: React.FC = () => {
     }
   };
 
+  // إعادة التوجيه لشاشة المبيعات إذا تحولت الجلسة لقسم غير مصرح به
   useEffect(() => {
     const isTabPermitted = () => {
       switch (activeTab) {
@@ -84,12 +85,21 @@ const MainContent: React.FC = () => {
   const isMobile = settings.deviceMode === 'mobile';
   const isFullComputerMode = !isMobile && (settings.desktopLayout === 'full');
   
+  // Product modal
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [initialBarcodeForNewProduct, setInitialBarcodeForNewProduct] = useState<string | undefined>(undefined);
+
+  // Invoice print modal (للمعاينة اليدوية)
   const [invoiceToPrint, setInvoiceToPrint] = useState<Invoice | null>(null);
+
+  // فاتورة الطباعة الصامتة المباشرة لتطبيق Electron
   const [directInvoice, setDirectInvoice] = useState<Invoice | null>(null);
+
+  // قفل لمنع إرسال أمر الطباعة مرتين لنفس الفاتورة
   const isPrintingRef = useRef(false);
+
+  // Settings initial tab
   const [settingsInitialTab, setSettingsInitialTab] = useState<'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'all'>('store');
 
   const handleOpenNewProduct = (initialBarcode?: string) => {
@@ -103,6 +113,7 @@ const MainContent: React.FC = () => {
     setIsProductModalOpen(true);
   };
 
+  // معالجة إنشاء الفاتورة: إذا ضغط "حفظ فقط" لا يطبع، وإذا ضغط "حفظ وطباعة" يرسل أمراً واحداً فقط
   const handleInvoiceCreated = (invoice: Invoice, andPrint: boolean) => {
     if (!andPrint) return;
 
@@ -116,6 +127,7 @@ const MainContent: React.FC = () => {
     }
   };
 
+  // تنفيذ الطباعة الصامتة اللحظية المباشرة (دون أي انتظار زمني)
   useEffect(() => {
     if (!directInvoice || isPrintingRef.current) return;
 
@@ -219,7 +231,7 @@ const MainContent: React.FC = () => {
           : 'max-w-[1650px] px-3 sm:px-6 py-3 sm:py-4'
       }`}>
         
-        {/* شريط الأدوات العلوية وزر نسخ رابط قارئ الأسعار المشفر */}
+        {/* شريط الإدارة وزر نسخ رابط فاحص الأسعار */}
         <div className="flex items-center justify-between gap-2 mb-3 bg-white dark:bg-[#0b1728] p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs shadow-2xs">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -436,6 +448,15 @@ const MainContent: React.FC = () => {
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [enteredPass, setEnteredPass] = useState('');
+  const [errorMsg, setErrorMsg] = useState(false);
+  
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('admin') === 'true' || localStorage.getItem('is_admin_mode') === 'true';
+  });
 
   if (typeof window === 'undefined') return null;
 
@@ -458,43 +479,101 @@ export default function App() {
     }
   }
 
-  // إذا لم يتم تمرير معرف، يتم استخدام المتجر الافتراضي لتجنب شاشات الخطأ
   if (!storeId) {
     storeId = 'store_user_azarstore';
   }
 
-  // 2. التحقق من صلاحيات المدير
-  const isAdmin = 
-    searchParams.get('admin') === 'true' || 
-    localStorage.getItem('is_admin_mode') === 'true';
+  // التحقق من الرمز السري للإدارة
+  const handleVerifyPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (enteredPass.trim() === '8188671219') {
+      localStorage.setItem('is_admin_mode', 'true');
+      setIsAdminMode(true);
+      setShowPasswordModal(false);
+      setErrorMsg(false);
+    } else {
+      setErrorMsg(true);
+      setEnteredPass('');
+    }
+  };
 
-  // 3. الموقع يفتح دائماً على قارئ الأسعار لحماية البرنامج المحاسبي
-  if (!isAdmin) {
+  // 2. إذا لم يكن بوضع الإدارة: عرض قارئ الأسعار الافتراضي للجميع
+  if (!isAdminMode) {
     return (
-      <div className="relative">
+      <div className="relative min-h-screen">
         <CustomerPriceChecker storeId={storeId} />
 
-        {/* زر سري في الزاوية لإدخال الرمز السري */}
+        {/* زر القفل المحمي في الزاوية السفلية */}
         <button
+          type="button"
           onClick={() => {
-            const pass = prompt('أدخل رمز دخول الإدارة:');
-            if (pass === '8188671219qmzpal10@') {
-              localStorage.setItem('is_admin_mode', 'true');
-              window.location.href = window.location.pathname + '?admin=true';
-            } else if (pass !== null) {
-              alert('الرمز السري غير صحيح!');
-            }
+            setShowPasswordModal(true);
+            setErrorMsg(false);
+            setEnteredPass('');
           }}
-          className="fixed bottom-2 left-2 opacity-10 hover:opacity-80 text-[10px] text-slate-500 bg-slate-900/60 p-1.5 rounded transition"
+          className="fixed bottom-3 left-3 w-10 h-10 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-400 hover:text-white flex items-center justify-center text-sm shadow-xl z-50 cursor-pointer active:scale-95 transition"
           title="دخول الإدارة"
         >
           🔒
         </button>
+
+        {/* نافذة إدخال الرمز السري التفاعلية */}
+        {showPasswordModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50" dir="rtl">
+            <div className="bg-[#0b1728] border border-slate-700 rounded-2xl p-5 w-full max-w-xs shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <span>🔒</span> دخول الإدارة والمحاسبة
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowPasswordModal(false)}
+                  className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded-md bg-slate-800"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleVerifyPassword} className="space-y-3">
+                <input
+                  type="password"
+                  autoFocus
+                  placeholder="أدخل الرمز السري..."
+                  value={enteredPass}
+                  onChange={(e) => setEnteredPass(e.target.value)}
+                  className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3.5 py-2.5 text-center text-sm text-white tracking-widest focus:outline-none focus:border-emerald-500 font-mono"
+                />
+
+                {errorMsg && (
+                  <div className="text-[11px] text-rose-400 text-center font-bold">
+                    الرمز السري غير صحيح!
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition cursor-pointer"
+                  >
+                    تأكيد الدخول
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordModal(false)}
+                    className="px-3 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl text-xs transition cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
-  // 4. لا يفتح برنامج المحاسبة إلا للمدير المصرح له
+  // 3. عرض البرنامج المحاسبي بالكامل بعد تأكيد الهوية
   return (
     <AppProvider>
       {showSplash ? (
