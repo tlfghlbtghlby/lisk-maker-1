@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Search, Camera, RefreshCw, AlertCircle, X } from 'lucide-react';
+import { Search, Camera, RefreshCw, AlertCircle, CheckCircle, X } from 'lucide-react';
 
 const SUPABASE_URL = "https://obodoxxzolgcwvzkkoua.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_0aNPlD59KqYsmVr8r_tMEw_wpgmlj2o";
@@ -13,10 +13,12 @@ interface ProductItem {
 }
 
 export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ storeId }) => {
-  const [storeName, setStoreName] = useState<string>('المتجر');
+  const [storeName, setStoreName] = useState<string>('جاري التحميل...');
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [scannedProduct, setScannedProduct] = useState<ProductItem | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
@@ -52,7 +54,7 @@ export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ sto
             const name = data.settings?.storeName || data.storeName || cleanStore;
             setStoreName(name);
 
-            // 1. استخراج المواد من المنتجات المباشرة
+            // 1. المواد من المنتجات المباشرة
             if (Array.isArray(data.products)) {
               data.products.forEach((p: any) => {
                 const code = String(p.barcode || p.code || p.id || '').trim();
@@ -65,7 +67,7 @@ export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ sto
               });
             }
 
-            // 2. استخراج المواد من الفواتير
+            // 2. المواد من الفواتير
             if (Array.isArray(data.invoices)) {
               data.invoices.forEach((inv: any) => {
                 if (Array.isArray(inv.items)) {
@@ -98,7 +100,52 @@ export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ sto
     loadCatalog();
   }, [storeId]);
 
-  // تشغيل الكاميرا لمسح الباركود
+  // فحص المدخلات
+  const handleInputChange = (val: string) => {
+    setSearchTerm(val);
+    const query = val.trim().toLowerCase();
+
+    if (!query) {
+      setScannedProduct(null);
+      setNotFound(false);
+      return;
+    }
+
+    // إذا كان المدخل باركود تام أو أرقام كاملة، نفعّل كارت العرض القديم
+    const exactBarcodeMatch = products.find((p) => p.barcode?.toLowerCase() === query);
+    if (exactBarcodeMatch) {
+      setScannedProduct(exactBarcodeMatch);
+      setNotFound(false);
+      playBeep();
+      return;
+    }
+
+    // إذا لم يكن باركود تام، نتحقق إن كانت أرقام باركود غير موجودة
+    const isBarcodeLike = /^\d{5,}$/.test(query);
+    if (isBarcodeLike) {
+      setScannedProduct(null);
+      setNotFound(true);
+    } else {
+      setScannedProduct(null);
+      setNotFound(false);
+    }
+  };
+
+  const playBeep = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        osc.frequency.value = 950;
+        osc.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.12);
+      }
+    } catch (e) {}
+  };
+
+  // تشغيل الكاميرا
   const startCamera = async () => {
     try {
       const html5QrCode = new Html5Qrcode('barcode-reader');
@@ -110,6 +157,7 @@ export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ sto
         { fps: 10, qrbox: { width: 250, height: 150 } },
         (decodedText) => {
           setSearchTerm(decodedText);
+          handleInputChange(decodedText);
           stopCamera();
         },
         () => {}
@@ -130,8 +178,8 @@ export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ sto
     setScannerActive(false);
   };
 
-  // فلترة المواد لحظياً بناءً على ما يكتبه المستخدم في حقل البحث
-  const filteredProducts = searchTerm.trim()
+  // فلترة المواد عند البحث بالاسم
+  const filteredProducts = searchTerm.trim() && !scannedProduct
     ? products.filter(
         (p) =>
           p.name.toLowerCase().includes(searchTerm.trim().toLowerCase()) ||
@@ -150,13 +198,13 @@ export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ sto
   }
 
   return (
-    <div className="min-h-screen bg-[#060b13] text-white p-4 font-sans flex flex-col items-center" dir="rtl">
+    <div className="min-h-screen bg-[#060b13] text-white p-4 font-sans flex flex-col items-center selection:bg-emerald-500" dir="rtl">
       <div className="w-full max-w-md space-y-4">
         
-        {/* رأس الصفحة: اسم المتجر وعدد المواد المتاحة */}
+        {/* 1. الترويسة العصرية (اسم المحل وعدد المواد) */}
         <div className="flex items-center justify-between pt-2 pb-1">
           <div>
-            <h1 className="text-xl font-black text-slate-100">{storeName}</h1>
+            <h1 className="text-xl font-black text-slate-100 tracking-tight">{storeName}</h1>
             <p className="text-xs text-emerald-400 font-medium">فحص أسعار المواد بالباركود</p>
           </div>
           <div className="px-3 py-1 rounded-full bg-emerald-950/70 border border-emerald-500/30 text-emerald-400 text-xs font-bold">
@@ -164,13 +212,17 @@ export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ sto
           </div>
         </div>
 
-        {/* صندوق الكاميرا */}
+        {/* 2. قسم كاميرا فحص الباركود */}
         <div className="bg-[#0b1424] border border-slate-800 rounded-2xl p-4 shadow-lg">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm font-bold text-slate-200">كاميرا فحص الباركود</span>
             <button
               onClick={scannerActive ? stopCamera : startCamera}
-              className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                scannerActive 
+                  ? 'bg-rose-600 hover:bg-rose-500 text-white' 
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              }`}
             >
               <Camera className="w-3.5 h-3.5" />
               <span>{scannerActive ? 'إيقاف الكاميرا' : 'تشغيل الكاميرا'}</span>
@@ -185,14 +237,14 @@ export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ sto
           {!scannerActive && (
             <div 
               onClick={startCamera}
-              className="w-full h-44 rounded-xl border border-slate-800 bg-[#070d18] flex items-center justify-center text-slate-500 text-xs cursor-pointer hover:border-slate-700 transition"
+              className="w-full h-44 rounded-xl border border-slate-800/80 bg-[#070d18] flex items-center justify-center text-slate-500 text-xs cursor-pointer hover:border-slate-700 transition"
             >
               اضغط تشغيل الكاميرا لمسح الباركود بهاتفك
             </div>
           )}
         </div>
 
-        {/* صندوق البحث وقائمة المواد المشابهة للصورة الأولى */}
+        {/* 3. صندوق البحث بالاسم أو كتابة الباركود */}
         <div className="bg-[#0b1424] border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
           <div className="text-xs font-bold text-slate-300">البحث بالاسم أو كتابة الباركود</div>
           
@@ -201,12 +253,16 @@ export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ sto
               type="text"
               placeholder="اكتب هنا..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-[#060b13] border border-emerald-500/40 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-400 font-medium"
+              onChange={(e) => handleInputChange(e.target.value)}
+              className="w-full bg-[#060b13] border border-emerald-500/40 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-400 font-medium font-mono"
             />
             {searchTerm ? (
               <button
-                onClick={() => setSearchTerm('')}
+                onClick={() => {
+                  setSearchTerm('');
+                  setScannedProduct(null);
+                  setNotFound(false);
+                }}
                 className="absolute left-3 top-2.5 text-slate-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
@@ -216,28 +272,49 @@ export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ sto
             )}
           </div>
 
-          {/* قائمة المواد الناتجة مثل الصورة الأولى */}
-          {searchTerm.trim() !== '' && (
+          {/* أ) الشكل القديم: بطاقة النتيجة الكبيرة عند قراءة الباركود بنجاح */}
+          {scannedProduct && (
+            <div className="bg-[#06241b] border border-emerald-500/60 rounded-2xl p-6 text-center shadow-xl">
+              <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-2" />
+              <div className="text-xs text-slate-400 mb-1">اسم المادة</div>
+              <h2 className="text-xl font-bold text-white mb-4">{scannedProduct.name}</h2>
+              <div className="text-xs text-slate-400 mb-1">السعر المعتمد</div>
+              <div className="text-3xl font-black text-amber-400">
+                {scannedProduct.price.toLocaleString()} <span className="text-sm font-normal text-slate-300">دينار</span>
+              </div>
+            </div>
+          )}
+
+          {/* ب) قائمة المواد المنسدلة عند البحث بالاسم */}
+          {!scannedProduct && filteredProducts.length > 0 && (
             <div className="divide-y divide-slate-800/80 max-h-72 overflow-y-auto rounded-xl border border-slate-800/60 bg-[#070d18]">
-              {filteredProducts.length > 0 ? (
-                filteredProducts.map((item) => (
-                  <div key={item.id + item.barcode} className="p-3 flex items-center justify-between hover:bg-slate-800/40 transition">
-                    <div>
-                      <div className="text-sm font-bold text-slate-100">{item.name}</div>
-                      {item.barcode && (
-                        <div className="text-[11px] text-slate-500 font-mono mt-0.5">#{item.barcode}</div>
-                      )}
-                    </div>
-                    <div className="text-sm font-black text-emerald-400 whitespace-nowrap">
-                      {item.price.toLocaleString()} دينار
-                    </div>
+              {filteredProducts.map((item) => (
+                <div 
+                  key={item.id + item.barcode} 
+                  onClick={() => {
+                    setScannedProduct(item);
+                    playBeep();
+                  }}
+                  className="p-3 flex items-center justify-between hover:bg-slate-800/50 cursor-pointer transition"
+                >
+                  <div>
+                    <div className="text-sm font-bold text-slate-100">{item.name}</div>
+                    {item.barcode && (
+                      <div className="text-[11px] text-slate-500 font-mono mt-0.5">#{item.barcode}</div>
+                    )}
                   </div>
-                ))
-              ) : (
-                <div className="p-4 text-center text-xs text-rose-400">
-                  عذراً، هذه المادة غير مسجلة في هذا المتجر.
+                  <div className="text-sm font-black text-emerald-400 whitespace-nowrap">
+                    {item.price.toLocaleString()} دينار
+                  </div>
                 </div>
-              )}
+              ))}
+            </div>
+          )}
+
+          {/* ج) تنبيه في حال عدم وجود المادة */}
+          {notFound && (
+            <div className="bg-rose-950/40 border border-rose-500/30 rounded-xl p-3.5 text-center text-xs text-rose-300">
+              عذراً، هذه المادة غير مسجلة في هذا المتجر.
             </div>
           )}
 
