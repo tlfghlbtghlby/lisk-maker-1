@@ -28,7 +28,9 @@ import {
   Settings, 
   ArrowRight,
   Clock,
-  Briefcase
+  Briefcase,
+  Share2,
+  Check
 } from 'lucide-react';
 
 const MainContent: React.FC = () => {
@@ -44,8 +46,22 @@ const MainContent: React.FC = () => {
   } = useApp();
   const [isGuest, setIsGuest] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('pos');
+  const [copiedLink, setCopiedLink] = useState(false);
 
-  // إعادة التوجيه لشاشة المبيعات إذا تحولت الجلسة لقسم غير مصرح به
+  // توليد الرابط المشفر النظيف دون أي بارامترات مكشوفة
+  const copyEncryptedCheckerLink = () => {
+    try {
+      const activeStoreKey = currentUser?.id ? `store_user_${currentUser.id}` : 'store_user_azarstore';
+      const encryptedHash = btoa(activeStoreKey);
+      const cleanUrl = `${window.location.origin}${window.location.pathname}#${encryptedHash}`;
+      navigator.clipboard.writeText(cleanUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch (e) {
+      alert('تعذر نسخ الرابط');
+    }
+  };
+
   useEffect(() => {
     const isTabPermitted = () => {
       switch (activeTab) {
@@ -68,21 +84,12 @@ const MainContent: React.FC = () => {
   const isMobile = settings.deviceMode === 'mobile';
   const isFullComputerMode = !isMobile && (settings.desktopLayout === 'full');
   
-  // Product modal
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [initialBarcodeForNewProduct, setInitialBarcodeForNewProduct] = useState<string | undefined>(undefined);
-
-  // Invoice print modal (للمعاينة اليدوية)
   const [invoiceToPrint, setInvoiceToPrint] = useState<Invoice | null>(null);
-
-  // فاتورة الطباعة الصامتة المباشرة لتطبيق Electron
   const [directInvoice, setDirectInvoice] = useState<Invoice | null>(null);
-
-  // قفل لمنع إرسال أمر الطباعة مرتين لنفس الفاتورة
   const isPrintingRef = useRef(false);
-
-  // Settings initial tab
   const [settingsInitialTab, setSettingsInitialTab] = useState<'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'all'>('store');
 
   const handleOpenNewProduct = (initialBarcode?: string) => {
@@ -96,11 +103,8 @@ const MainContent: React.FC = () => {
     setIsProductModalOpen(true);
   };
 
-  // معالجة إنشاء الفاتورة: إذا ضغط "حفظ فقط" لا يطبع، وإذا ضغط "حفظ وطباعة" يرسل أمراً واحداً فقط
   const handleInvoiceCreated = (invoice: Invoice, andPrint: boolean) => {
-    if (!andPrint) {
-      return;
-    }
+    if (!andPrint) return;
 
     if (settings.directPrintEnabled) {
       if (isPrintingRef.current) return;
@@ -112,7 +116,6 @@ const MainContent: React.FC = () => {
     }
   };
 
-  // تنفيذ الطباعة الصامتة اللحظية المباشرة (دون أي انتظار زمني)
   useEffect(() => {
     if (!directInvoice || isPrintingRef.current) return;
 
@@ -122,7 +125,6 @@ const MainContent: React.FC = () => {
     const executeSilentPrint = async () => {
       const paperSize = settings.printerPaperSize || (settings.printFormat === 'thermal' ? 'thermal80' : 'a4');
       const pageSize = paperSize === 'a4' ? 'A4' : paperSize === 'thermal58' ? '58mm' : '80mm';
-
       const electronBridge = (window as any).electronAPI || (window as any).electron;
 
       if (typeof window !== 'undefined' && electronBridge) {
@@ -143,7 +145,7 @@ const MainContent: React.FC = () => {
             });
           }
         } catch (err) {
-          console.error('فشل في تنفيذ الطباعة اللحظية المباشرة:', err);
+          console.error('فشل في تنفيذ الطباعة المباشرة:', err);
         } finally {
           if (isMounted) {
             setDirectInvoice(null);
@@ -153,7 +155,6 @@ const MainContent: React.FC = () => {
           }
         }
       } else {
-        console.warn('تطبيق Electron غير متاح، فتح نافذة الطباعة الافتراضية للمتصفح.');
         window.print();
         if (isMounted) {
           setDirectInvoice(null);
@@ -203,9 +204,7 @@ const MainContent: React.FC = () => {
 
   return (
     <div className={`min-h-screen flex flex-col bg-slate-100 dark:bg-[#070d18] text-slate-800 dark:text-slate-100 transition-colors duration-200 print:min-h-0 print:h-auto print:block print:bg-white ${isMobile ? 'selection:bg-amber-500' : 'selection:bg-amber-500 selection:text-slate-950'}`}>
-      <Header 
-        onOpenAuth={() => setIsGuest(false)}
-      />
+      <Header onOpenAuth={() => setIsGuest(false)} />
 
       {!isFullComputerMode && (
         <Navigation
@@ -220,6 +219,27 @@ const MainContent: React.FC = () => {
           : 'max-w-[1650px] px-3 sm:px-6 py-3 sm:py-4'
       }`}>
         
+        {/* شريط الأدوات العلوية وزر نسخ رابط قارئ الأسعار المشفر */}
+        <div className="flex items-center justify-between gap-2 mb-3 bg-white dark:bg-[#0b1728] p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs shadow-2xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span className="font-bold text-slate-700 dark:text-slate-200">لوحة الإدارة والمحاسبة</span>
+          </div>
+
+          <button
+            onClick={copyEncryptedCheckerLink}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              copiedLink 
+                ? 'bg-emerald-600 text-white' 
+                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs'
+            }`}
+            title="نسخ رابط فاحص الأسعار المشفر المخصص للزبائن"
+          >
+            {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
+            <span>{copiedLink ? 'تم نسخ الرابط المشفر!' : 'نسخ رابط فحص الأسعار للزبائن'}</span>
+          </button>
+        </div>
+
         {isFullComputerMode && activeTab !== 'pos' && (
           <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl flex items-center justify-between mb-4 shadow-sm border border-slate-800">
             <div className="flex items-center gap-2 text-xs font-bold">
@@ -251,7 +271,6 @@ const MainContent: React.FC = () => {
                 type="button"
                 onClick={() => setActiveTab('inventory')}
                 className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1 cursor-pointer"
-                title="عرض جدول المواد والمخزون الكامل"
               >
                 <Boxes className="w-3.5 h-3.5 text-slate-500 dark:text-amber-400" />
                 <span>المخزون الكامل</span>
@@ -260,7 +279,6 @@ const MainContent: React.FC = () => {
                 type="button"
                 onClick={() => setActiveTab('invoices')}
                 className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1 cursor-pointer"
-                title="عرض سجل الفواتير والقوائم السابقة"
               >
                 <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-amber-400" />
                 <span>سجل الفواتير</span>
@@ -270,7 +288,6 @@ const MainContent: React.FC = () => {
                   type="button"
                   onClick={() => setActiveTab('shifts')}
                   className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1 cursor-pointer"
-                  title="عرض سجل الشفتات وساعات العمل"
                 >
                   <Clock className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                   <span>الشفتات</span>
@@ -284,7 +301,6 @@ const MainContent: React.FC = () => {
                   type="button"
                   onClick={() => setActiveTab('sales-reps')}
                   className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1 cursor-pointer"
-                  title="عرض مبيعات وأرباح المندوبين"
                 >
                   <Briefcase className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
                   <span>المندوبين</span>
@@ -299,7 +315,6 @@ const MainContent: React.FC = () => {
                 type="button"
                 onClick={() => setActiveTab('customers')}
                 className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1 cursor-pointer"
-                title="عرض حسابات ديون العملاء والبيع الآجل"
               >
                 <Users className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 <span>الديون والعملاء</span>
@@ -308,7 +323,6 @@ const MainContent: React.FC = () => {
                 type="button"
                 onClick={() => setActiveTab('reports')}
                 className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1 cursor-pointer"
-                title="عرض الأرباح والتقارير المالية"
               >
                 <BarChart3 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 <span>التقارير</span>
@@ -317,7 +331,6 @@ const MainContent: React.FC = () => {
                 type="button"
                 onClick={() => setActiveTab('settings')}
                 className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1 cursor-pointer"
-                title="فتح إعدادات النظام والنسخ الاحتياطي"
               >
                 <Settings className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 <span>الإعدادات</span>
@@ -396,9 +409,7 @@ const MainContent: React.FC = () => {
       />
 
       <SessionSwitchModal />
-
       <StartShiftModal />
-
       <EndShiftModal onNavigateToShifts={() => setActiveTab('shifts')} />
 
       <ShiftDetailsModal
@@ -426,28 +437,64 @@ const MainContent: React.FC = () => {
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
 
-  // استخراج معلمات الرابط بدقة
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const hash = typeof window !== 'undefined' ? window.location.hash.toLowerCase() : '';
-  const view = searchParams?.get('view') || '';
-  const mode = searchParams?.get('mode') || '';
+  if (typeof window === 'undefined') return null;
 
-  const isPriceChecker = 
-    view === 'price-checker' ||
-    view === 'customer' ||
-    view === 'scanner' ||
-    mode === 'price-checker' ||
-    hash.includes('price-checker') ||
-    hash.includes('customer-scanner');
+  const searchParams = new URLSearchParams(window.location.search);
+  const hash = window.location.hash.replace(/^#/, '').trim();
 
-  // استخراج معرف المتجر من الرابط
-  const storeId = searchParams?.get('store') || null;
+  // 1. فك التشفير التلقائي للهاش أو المعاملات
+  let storeId: string | null = null;
+  const rawToken = hash || searchParams.get('k') || searchParams.get('store');
 
-  // إذا كان الرابط مخصصاً لفحص الأسعار، يتم فتح المكون فوراً مع تمرير معرف المتجر
-  if (isPriceChecker) {
-    return <CustomerPriceChecker storeId={storeId} />;
+  if (rawToken) {
+    try {
+      if (rawToken.startsWith('store_') || rawToken.startsWith('user_')) {
+        storeId = rawToken;
+      } else {
+        storeId = atob(decodeURIComponent(rawToken));
+      }
+    } catch (e) {
+      storeId = rawToken;
+    }
   }
 
+  // إذا لم يتم تمرير معرف، يتم استخدام المتجر الافتراضي لتجنب شاشات الخطأ
+  if (!storeId) {
+    storeId = 'store_user_azarstore';
+  }
+
+  // 2. التحقق من صلاحيات المدير
+  const isAdmin = 
+    searchParams.get('admin') === 'true' || 
+    localStorage.getItem('is_admin_mode') === 'true';
+
+  // 3. الموقع يفتح دائماً على قارئ الأسعار لحماية البرنامج المحاسبي
+  if (!isAdmin) {
+    return (
+      <div className="relative">
+        <CustomerPriceChecker storeId={storeId} />
+
+        {/* زر سري في الزاوية لإدخال الرمز السري */}
+        <button
+          onClick={() => {
+            const pass = prompt('أدخل رمز دخول الإدارة:');
+            if (pass === '8188671219qmzpal10@') {
+              localStorage.setItem('is_admin_mode', 'true');
+              window.location.href = window.location.pathname + '?admin=true';
+            } else if (pass !== null) {
+              alert('الرمز السري غير صحيح!');
+            }
+          }}
+          className="fixed bottom-2 left-2 opacity-10 hover:opacity-80 text-[10px] text-slate-500 bg-slate-900/60 p-1.5 rounded transition"
+          title="دخول الإدارة"
+        >
+          🔒
+        </button>
+      </div>
+    );
+  }
+
+  // 4. لا يفتح برنامج المحاسبة إلا للمدير المصرح له
   return (
     <AppProvider>
       {showSplash ? (
