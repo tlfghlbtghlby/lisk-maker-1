@@ -34,10 +34,8 @@ import { findDuplicateGroups } from '../utils/duplicateCleaner';
 import { mergeProducts, mergeInvoices, mergeShifts } from '../utils/syncEngine';
 import pkg from '../../package.json';
 
-// قراءة الإصدار تلقائياً من package.json مع حماية
 export const CURRENT_APP_VERSION = (pkg as any)?.version || '2.0.0';
 
-// دالة مقارنة الإصدارات بدقة
 export const isVersionOutdated = (current: string, minRequired: string): boolean => {
   try {
     const curParts = current.split('.').map(p => parseInt(p, 10) || 0);
@@ -267,8 +265,6 @@ export const sanitizePayload = <T = any>(obj: T): T => {
   return obj;
 };
 
-export const sanitizeForFirestore = sanitizePayload;
-
 export const createDefaultDraftOrder = (orderNumber: number = 1): POSDraftOrder => {
   const d = new Date();
   d.setDate(d.getDate() + 15);
@@ -354,41 +350,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isDuplicatesModalOpen, setIsDuplicatesModalOpen] = useState(false);
   const [isActiveSessionsModalOpen, setIsActiveSessionsModalOpen] = useState(false);
 
-  const [deletedProductsMap, setDeletedProductsMap] = useState<Record<string, string>>(() => {
-    try {
-      const raw = localStorage.getItem('cached_pos_deleted_products_map');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') return parsed;
-      }
-      const oldRaw = localStorage.getItem('cached_pos_deleted_product_ids');
-      if (oldRaw) {
-        const oldArr = JSON.parse(oldRaw);
-        if (Array.isArray(oldArr)) {
-          const converted: Record<string, string> = {};
-          const nowIso = new Date().toISOString();
-          oldArr.forEach((id: string) => { converted[id] = nowIso; });
-          return converted;
-        }
-      }
-    } catch {}
-    return {};
-  });
-
-  const mergeDeletedMaps = (mapA: Record<string, string> = {}, mapB: Record<string, string> = {}) => {
-    const res: Record<string, string> = { ...mapA };
-    for (const [k, v] of Object.entries(mapB || {})) {
-      if (!res[k]) {
-        res[k] = v;
-      } else {
-        const timeA = new Date(res[k]).getTime();
-        const timeB = new Date(v).getTime();
-        if (timeB > timeA) res[k] = v;
-      }
-    }
-    return res;
-  };
-
   const [activeShift, setActiveShift] = useState<Shift | null>(() => {
     try {
       const devId = getOrCreateDeviceId();
@@ -464,9 +425,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const cached = localStorage.getItem('cached_pos_draft_orders');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
     return [createDefaultDraftOrder(1)];
@@ -474,10 +433,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeDraftId, setActiveDraftId] = useState<string>(() => {
     try {
-      const cachedId = localStorage.getItem('cached_pos_active_draft_id');
-      if (cachedId) return cachedId;
-    } catch {}
-    return '';
+      return localStorage.getItem('cached_pos_active_draft_id') || '';
+    } catch {
+      return '';
+    }
   });
 
   const activeDraft = useMemo(() => {
@@ -499,9 +458,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     try {
-      const idToStore = activeDraft.id;
-      if (idToStore) {
-        localStorage.setItem('cached_pos_active_draft_id', idToStore);
+      if (activeDraft.id) {
+        localStorage.setItem('cached_pos_active_draft_id', activeDraft.id);
       }
     } catch (e) {}
   }, [activeDraft.id]);
@@ -511,11 +469,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const targetId = activeDraft.id;
       return prev.map(order => {
         if (order.id === targetId) {
-          return {
-            ...order,
-            ...updates,
-            updatedAt: new Date().toISOString(),
-          };
+          return { ...order, ...updates, updatedAt: new Date().toISOString() };
         }
         return order;
       });
@@ -525,18 +479,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addNewDraft = (): string => {
     const usedNumbers = new Set(draftOrders.map(d => d.orderNumber));
     let nextNum = 1;
-    while (usedNumbers.has(nextNum)) {
-      nextNum++;
-    }
+    while (usedNumbers.has(nextNum)) nextNum++;
     const newOrder = createDefaultDraftOrder(nextNum);
     setDraftOrders(prev => [...prev, newOrder]);
     setActiveDraftId(newOrder.id);
     return newOrder.id;
   };
 
-  const switchToDraft = (id: string) => {
-    setActiveDraftId(id);
-  };
+  const switchToDraft = (id: string) => setActiveDraftId(id);
 
   const clearCurrentDraft = () => {
     setDraftOrders(prev => {
@@ -577,26 +527,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const completeActiveDraft = () => {
-    setDraftOrders(prev => {
-      const targetId = activeDraft.id;
-      if (prev.length <= 1) {
-        const fresh = createDefaultDraftOrder(1);
-        setActiveDraftId(fresh.id);
-        return [fresh];
-      }
-      const remaining = prev.filter(order => order.id !== targetId);
-      setActiveDraftId(remaining[0].id);
-      return remaining;
-    });
-  };
+  const completeActiveDraft = () => deleteCurrentDraft();
 
   const [sessionRole, setSessionRole] = useState<SessionRole>(() => {
     try {
       const saved = localStorage.getItem('active_session_role') as SessionRole;
-      if (saved === 'admin' || saved === 'supervisor' || saved === 'employee') {
-        return saved;
-      }
+      if (saved === 'admin' || saved === 'supervisor' || saved === 'employee') return saved;
     } catch {}
     return 'employee';
   });
@@ -629,9 +565,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [sessionRole, activeSupervisorId, settings.supervisors]);
 
   const permissions: RolePermissions = useMemo(() => {
-    if (sessionRole === 'admin') {
-      return DEFAULT_ADMIN_PERMISSIONS;
-    }
+    if (sessionRole === 'admin') return DEFAULT_ADMIN_PERMISSIONS;
     if (sessionRole === 'supervisor') {
       const currentSup = (settings.supervisors || []).find(s => s.id === activeSupervisorId);
       const base: RolePermissions = {
@@ -650,9 +584,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [sessionRole, activeSupervisorId, settings.supervisors, settings.supervisorPermissions, settings.employeePermissions]);
 
-  const hasPermission = (action: keyof RolePermissions): boolean => {
-    return !!permissions[action];
-  };
+  const hasPermission = (action: keyof RolePermissions): boolean => !!permissions[action];
 
   const switchSession = async (
     targetRole: SessionRole,
@@ -719,9 +651,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (targetRole === 'admin') {
       const cleanPass = (passwordOrPin || '').trim();
-      if (!cleanPass) {
-        return { success: false, error: 'يرجى إدخال رمز الحساب (كلمة المرور)' };
-      }
+      if (!cleanPass) return { success: false, error: 'يرجى إدخال رمز الحساب (كلمة المرور)' };
 
       const localPass = currentUser?.password ? String(currentUser.password).trim() : null;
       let lastKnownPass: string | null = null;
@@ -769,10 +699,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
       } catch (e) {
-        console.warn('Supabase admin password check notice:', e);
+        console.warn('Supabase admin check:', e);
       }
 
-      return { success: false, error: 'رمز الحساب غير صحيح. يرجى التأكد من كلمة المرور.' };
+      return { success: false, error: 'رمز الحساب غير صحيح.' };
     }
 
     return { success: false, error: 'نوع جلسة غير صالح' };
@@ -801,57 +731,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {}
     try {
       await supabase.auth.signOut();
-    } catch (e) {
-      console.warn('Supabase signOut error:', e);
-    }
+    } catch (e) {}
   };
 
-  // نظام فحص الإصدار وحظر النسخ القديمة وطردها لحظياً
-  useEffect(() => {
-    const enforceMinimumVersion = (minVersion: string, message?: string) => {
-      if (minVersion && isVersionOutdated(CURRENT_APP_VERSION, minVersion)) {
-        const msg = message || `تم إيقاف هذا الإصدار (${CURRENT_APP_VERSION}). يرجى تحميل وتثبيت التحديث الجديد.`;
-        try { alert(msg); } catch (e) { console.warn(msg); }
-        logout();
-        return true;
-      }
-      return false;
-    };
-
-    const checkVersionOnLaunch = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('system_settings')
-          .select('min_required_version, update_message')
-          .eq('id', 'global_config')
-          .maybeSingle();
-
-        if (data && !error) {
-          enforceMinimumVersion(data.min_required_version, data.update_message);
-        }
-      } catch (err) {
-        console.warn('Version check error on launch:', err);
-      }
-    };
-
-    checkVersionOnLaunch();
-
-    const versionChannel = supabase
-      .channel('system_version_guard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_settings' }, (payload: any) => {
-        const newSettings = payload.new;
-        if (newSettings && (newSettings.id === 'global_config' || !newSettings.id)) {
-          enforceMinimumVersion(newSettings.min_required_version, newSettings.update_message);
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(versionChannel);
-    };
-  }, []);
-
-  // المزامنة والاشتراك اللحظي المباشر عبر Supabase
   useEffect(() => {
     if (!currentUser) {
       setAuthLoading(false);
@@ -866,14 +748,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const storeData = await getDocument('stores', storeDocId);
         if (storeData) {
-          // دمج سجل المحذوفات السحابي مع السجل المحلي
-          const combinedDeletedMap = mergeDeletedMaps(deletedProductsMap, storeData.deletedProductsMap || {});
-          setDeletedProductsMap(combinedDeletedMap);
-          try { localStorage.setItem('cached_pos_deleted_products_map', JSON.stringify(combinedDeletedMap)); } catch {}
-
           if (Array.isArray(storeData.products)) {
             setProducts(prevProducts => {
-              const merged = mergeProducts(prevProducts, storeData.products || [], combinedDeletedMap);
+              const merged = mergeProducts(prevProducts, storeData.products || []);
               try { localStorage.setItem('cached_pos_products', JSON.stringify(merged)); } catch {}
               return merged;
             });
@@ -917,15 +794,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
         return;
       }
-
-      // دمج وتطبيق سجل المحذوفات القادم من النافذة الأخرى فوراً
-      const updatedDeletedMap = mergeDeletedMaps(deletedProductsMap, newData.deletedProductsMap || {});
-      setDeletedProductsMap(updatedDeletedMap);
-      try { localStorage.setItem('cached_pos_deleted_products_map', JSON.stringify(updatedDeletedMap)); } catch {}
-
       if (Array.isArray(newData.products)) {
         setProducts(prevProducts => {
-          const merged = mergeProducts(prevProducts, newData.products || [], updatedDeletedMap);
+          const merged = mergeProducts(prevProducts, newData.products || []);
           try { localStorage.setItem('cached_pos_products', JSON.stringify(merged)); } catch {}
           return merged;
         });
@@ -956,17 +827,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
     });
 
-    const userSub = subscribeToDocument('users', currentUid, (userData) => {
-      if (!userData) return;
-      if (userData.isActive === false) {
-        sessionStorage.setItem('auth_logout_reason', 'disabled');
-        logout();
-      }
-    });
-
     return () => {
       storeSub.unsubscribe();
-      userSub.unsubscribe();
     };
   }, [currentUser, currentSessionId]);
 
@@ -991,14 +853,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }>,
     immediate: boolean = false
   ) => {
-    const activeUid = currentUser?.uid || localStorage.getItem('last_active_user_uid') || 'offline_store';
-    const storeDocId = `store_${activeUid}`;
+    if (!currentUser?.uid) return;
+    const storeDocId = `store_${currentUser.uid}`;
 
     if (overridePartial) {
       Object.assign(pendingCloudSyncRef.current.override, overridePartial);
     }
 
     const executeUpload = async () => {
+      if (!currentUser?.uid) return;
       const merged = { ...pendingCloudSyncRef.current.override };
       pendingCloudSyncRef.current.override = {};
 
@@ -1009,7 +872,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           invoices: merged.invoices ?? invoices,
           shifts: merged.shifts ?? shifts,
           settings: merged.settings ?? settings,
-          deletedProductsMap: (merged as any).deletedProductsMap ?? deletedProductsMap,
           lastSavedByClient: currentSessionId,
           updatedAt: new Date().toISOString()
         });
@@ -1018,7 +880,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsCloudConnected(true);
         setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
       } catch (err) {
-        console.warn('Background cloud save notice:', err);
+        console.warn('Background save notice:', err);
       }
     };
 
@@ -1039,30 +901,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 450);
   };
 
-  // المزامنة الحقيقية الشاملة ثنائية الاتجاه المعتمدة على التواريخ
   const syncNow = async () => {
+    if (!currentUser?.uid) return;
     setIsSyncing(true);
-    setSyncNotice('جاري المزامنة مع السحابة وتوحيد البيانات...');
+    setSyncNotice('جاري المزامنة مع السحابة...');
     try {
-      const activeUid = currentUser?.uid || localStorage.getItem('last_active_user_uid') || 'offline_store';
-      const storeDocId = `store_${activeUid}`;
+      const storeDocId = `store_${currentUser.uid}`;
       const cloudData = await getDocument('stores', storeDocId);
 
       if (cloudData) {
-        // دمج سجل المحذوفات السحابي والمحلي أولاً
-        const combinedDeletedMap = mergeDeletedMaps(deletedProductsMap, cloudData.deletedProductsMap || {});
-        setDeletedProductsMap(combinedDeletedMap);
-        try { localStorage.setItem('cached_pos_deleted_products_map', JSON.stringify(combinedDeletedMap)); } catch {}
-
-        // قراءة النسخ المحلية
-        const localProds = products;
-        const localInvs = invoices;
-        const localShifts = shifts;
-
-        // دمج أحدث البيانات بالاعتماد على توقيت كل عنصر مع استبعاد المحذوفات
-        const mergedProds = mergeProducts(localProds, cloudData.products || [], combinedDeletedMap);
-        const mergedInvs = mergeInvoices(localInvs, cloudData.invoices || []);
-        const mergedShs = mergeShifts(localShifts, cloudData.shifts || []);
+        const mergedProds = mergeProducts(products, cloudData.products || []);
+        const mergedInvs = mergeInvoices(invoices, cloudData.invoices || []);
+        const mergedShs = mergeShifts(shifts, cloudData.shifts || []);
         const mergedCusts = cloudData.customers || customers;
 
         setProducts(mergedProds);
@@ -1077,13 +927,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('cached_pos_customers', JSON.stringify(mergedCusts));
         } catch (e) {}
 
-        // رفع النسخة المدمجة فوراً للسحابة
         await saveStoreToCloud({
           products: mergedProds,
           invoices: mergedInvs,
           shifts: mergedShs,
           customers: mergedCusts,
-          ...({ deletedProductsMap: combinedDeletedMap } as any)
         }, true);
       } else {
         await saveStoreToCloud(undefined, true);
@@ -1091,7 +939,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       setIsCloudConnected(true);
       setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
-      setSyncNotice('✅ تم توحيد ومزامنة البيانات بنجاح.');
+      setSyncNotice('✅ اكتملت المزامنة بنجاح.');
       setTimeout(() => setSyncNotice(null), 3500);
     } catch {
       setIsCloudConnected(false);
@@ -1159,17 +1007,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteProduct = (id: string) => {
-    const nowIso = new Date().toISOString();
-    const nextMap = { ...deletedProductsMap, [id]: nowIso };
-    setDeletedProductsMap(nextMap);
-    try {
-      localStorage.setItem('cached_pos_deleted_products_map', JSON.stringify(nextMap));
-    } catch {}
-
     const updated = products.filter(p => p.id !== id);
     setProducts(updated);
     try { localStorage.setItem('cached_pos_products', JSON.stringify(updated)); } catch {}
-    saveStoreToCloud({ products: updated, ...({ deletedProductsMap: nextMap } as any) }, true);
+    saveStoreToCloud({ products: updated });
   };
 
   const batchDeleteProducts = async (
@@ -1183,17 +1024,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const deleteSet = new Set(productIdsToDelete);
       const increments = stockIncrements || {};
-      const nowIso = new Date().toISOString();
-
-      // تحديث سجل المواد المحذوفة السحابي والمحلي بالوقت اللحظي الدقيق
-      const nextMap = { ...deletedProductsMap };
-      productIdsToDelete.forEach(id => {
-        nextMap[id] = nowIso;
-      });
-      setDeletedProductsMap(nextMap);
-      try {
-        localStorage.setItem('cached_pos_deleted_products_map', JSON.stringify(nextMap));
-      } catch {}
 
       const updatedProducts = products
         .filter(p => !deleteSet.has(p.id))
@@ -1203,34 +1033,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return {
               ...p,
               stock: Math.max(0, Math.round(((p.stock || 0) + inc) * 1000) / 1000),
-              updatedAt: nowIso
+              updatedAt: new Date().toISOString()
             };
           }
           return p;
         });
 
       const deletedCount = products.length - updatedProducts.length;
-
       setProducts(updatedProducts);
-      try {
-        localStorage.setItem('cached_pos_products', JSON.stringify(updatedProducts));
-      } catch (e) {
-        console.warn('Failed to cache products to localStorage', e);
-      }
-
-      // رفع فوري شامل للمنتجات وسجل المحذوفات إلى سحابة Supabase
-      try {
-        await saveStoreToCloud({ 
-          products: updatedProducts, 
-          ...({ deletedProductsMap: nextMap } as any) 
-        }, true);
-      } catch (cloudErr) {
-        console.warn('Batch delete saved locally, cloud sync notice:', cloudErr);
-      }
+      try { localStorage.setItem('cached_pos_products', JSON.stringify(updatedProducts)); } catch {}
+      await saveStoreToCloud({ products: updatedProducts });
       return { success: true, deletedCount };
     } catch (err: any) {
-      console.error('Error in batchDeleteProducts:', err);
-      return { success: false, deletedCount: 0, error: err?.message || 'حدث خطأ أثناء حذف المواد' };
+      return { success: false, deletedCount: 0, error: err?.message || 'حدث خطأ أثناء الحذف' };
     }
   };
 
@@ -1410,7 +1225,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteInvoice = (id: string) => {
     if (!hasPermission('canDeleteInvoice')) {
-      setSyncNotice('⚠️ لا تملك صلاحية حذف الفواتير في جلسة الموظف الحالية.');
+      setSyncNotice('⚠️ لا تملك صلاحية حذف الفواتير.');
       setTimeout(() => setSyncNotice(null), 4000);
       return;
     }
@@ -1425,7 +1240,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const returnInvoice = async (id: string): Promise<boolean> => {
     if (!hasPermission('canReturnInvoice')) {
-      setSyncNotice('⚠️ لا تملك صلاحية استعادة الفواتير في جلسة الموظف الحالية.');
+      setSyncNotice('⚠️ لا تملك صلاحية استرجاع الفواتير.');
       setTimeout(() => setSyncNotice(null), 4000);
       return false;
     }
@@ -1477,13 +1292,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     notes?: string
   ): Promise<{ success: boolean; error?: string }> => {
     if (!hasPermission('canReturnInvoice')) {
-      return { success: false, error: '⚠️ لا تملك صلاحية استعادة وإرجاع الفواتير.' };
+      return { success: false, error: '⚠️ لا تملك صلاحية استرجاع المواد.' };
     }
 
     const inv = invoices.find(i => i.id === invoiceId);
-    if (!inv || inv.status === 'returned') {
-      return { success: false, error: 'القائمة غير صالحة للإرجاع.' };
-    }
+    if (!inv || inv.status === 'returned') return { success: false, error: 'القائمة غير صالحة للإرجاع.' };
 
     const validItemsToReturn = itemsToReturn.filter(it => it.quantity > 0);
     if (validItemsToReturn.length === 0) {
@@ -1697,22 +1510,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const importProductsOnly = async (
     jsonStr: string,
-    mode: 'merge' | 'replace' = 'merge',
-    onProgress?: (curr: number, total: number) => void
+    mode: 'merge' | 'replace' = 'merge'
   ): Promise<{ success: boolean; count: number; error?: string }> => {
     try {
       const data = JSON.parse(jsonStr);
-      const rawList: any[] = Array.isArray(data) 
-        ? data 
-        : Array.isArray(data.products) 
-        ? data.products 
-        : Array.isArray(data.items) 
-        ? data.items 
-        : [];
-
-      if (!rawList || rawList.length === 0) {
-        return { success: false, count: 0, error: 'الملف المختار لا يحتوي على أي مواد صالحة للاستيراد.' };
-      }
+      const rawList: any[] = Array.isArray(data) ? data : Array.isArray(data.products) ? data.products : [];
+      if (!rawList || rawList.length === 0) return { success: false, count: 0, error: 'الملف فارغ أو غير صالح.' };
 
       const now = new Date().toISOString();
       const currentUid = currentUser?.uid || '';
@@ -1735,33 +1538,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updatedAt: now,
       }));
 
-      let updatedList: Product[] = [];
-      if (mode === 'replace') {
-        updatedList = cleanList;
-      } else {
+      let updatedList = cleanList;
+      if (mode === 'merge') {
         const map = new Map<string, Product>();
         products.forEach(p => map.set(p.code, p));
-        cleanList.forEach(newP => {
-          if (map.has(newP.code)) {
-            const existing = map.get(newP.code)!;
-            map.set(newP.code, {
-              ...existing,
-              name: newP.name || existing.name,
-              category: newP.category || existing.category,
-              unit: newP.unit || existing.unit,
-              costPrice: newP.costPrice || existing.costPrice,
-              retailPrice: newP.retailPrice || existing.retailPrice,
-              wholesalePrice: newP.wholesalePrice || existing.wholesalePrice,
-              stock: (existing.stock || 0) + (newP.stock || 0),
-              piecesPerCarton: newP.piecesPerCarton ?? existing.piecesPerCarton,
-              minStock: newP.minStock ?? existing.minStock,
-              notes: newP.notes || existing.notes,
-              updatedAt: now,
-            });
-          } else {
-            map.set(newP.code, newP);
-          }
-        });
+        cleanList.forEach(p => map.set(p.code, p));
         updatedList = Array.from(map.values());
       }
 
@@ -1769,12 +1550,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try { localStorage.setItem('cached_pos_products', JSON.stringify(updatedList)); } catch {}
       await saveStoreToCloud({ products: updatedList });
 
-      setSyncNotice(`✅ تمت استعادة وتحديث ${cleanList.length} مادة بنجاح.`);
-      setTimeout(() => setSyncNotice(null), 4500);
-
       return { success: true, count: cleanList.length };
     } catch (err: any) {
-      return { success: false, count: 0, error: err.message || 'فشل استيراد وقراءة ملف المواد.' };
+      return { success: false, count: 0, error: err.message };
     }
   };
 
@@ -1782,9 +1560,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     verificationCode: string
   ): Promise<{ success: boolean; error?: string }> => {
     const cleanCode = verificationCode.trim();
-    if (!cleanCode) {
-      return { success: false, error: 'يرجى كتابة رمز الحساب لتأكيد مسح وتصفية المواد.' };
-    }
+    if (!cleanCode) return { success: false, error: 'يرجى كتابة رمز الحساب للتأكيد.' };
 
     const storedKnownPassword = localStorage.getItem('last_known_account_password');
     const userPass = currentUser?.password;
@@ -1797,16 +1573,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cleanCode === supervisorPin ||
       (isOwnerOrAdmin && (cleanCode === '1122' || cleanCode === userPass));
 
-    if (!isMatch) {
-      return { success: false, error: 'رمز الحساب غير مطابق!' };
-    }
+    if (!isMatch) return { success: false, error: 'رمز الحساب غير مطابق!' };
 
     setProducts([]);
     try { localStorage.removeItem('cached_pos_products'); } catch {}
     await saveStoreToCloud({ products: [] });
-
-    setSyncNotice('🗑️ تم مسح كافة المواد من السيرفر بنجاح.');
-    setTimeout(() => setSyncNotice(null), 5000);
     return { success: true };
   };
 
@@ -1939,7 +1710,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ): Promise<{ success: boolean; error?: string; shift?: Shift }> => {
     const presets = settings.presetShifts || [];
     if (presets.length === 0 || !presetShiftId) {
-      return { success: false, error: 'يرجى اختيار شفت معد مسبقاً لبدء العمل.' };
+      return { success: false, error: 'يرجى اختيار شفت معد مسبقاً.' };
     }
 
     const selectedPreset = presets.find(p => p.id === presetShiftId);
@@ -1960,7 +1731,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cashierName = sessionRole === 'supervisor' && activeSupervisorName
       ? `المشرف: ${activeSupervisorName}`
       : currentUser?.displayName || currentUser?.storeName || (
-          sessionRole === 'admin' ? 'المدير العام (أدمن)' : sessionRole === 'supervisor' ? 'المشرف' : 'الموظف (الكاشير)'
+          sessionRole === 'admin' ? 'المدير العام' : sessionRole === 'supervisor' ? 'المشرف' : 'الكاشير'
         );
 
     const detected = detectSystemInfo();
@@ -2008,7 +1779,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const stats = getShiftStats(activeShift);
 
     const cashierName = currentUser?.displayName || currentUser?.storeName || (
-      sessionRole === 'admin' ? 'المدير' : sessionRole === 'supervisor' ? 'المشرف' : 'الموظف (الكاشير)'
+      sessionRole === 'admin' ? 'المدير' : sessionRole === 'supervisor' ? 'المشرف' : 'الكاشير'
     );
 
     const closedShift: Shift = {
@@ -2097,24 +1868,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const loginUser = async (user: any): Promise<{ success: boolean; error?: string } | void> => {
-    try {
-      const { data, error } = await supabase
-        .from('system_settings')
-        .select('min_required_version, update_message')
-        .eq('id', 'global_config')
-        .maybeSingle();
-
-      if (data && !error) {
-        if (isVersionOutdated(CURRENT_APP_VERSION, data.min_required_version)) {
-          const msg = data.update_message || `عذراً، إصدار البرنامج لديك (${CURRENT_APP_VERSION}) قديم جداً وتم إيقافه. يرجى تثبيت الإصدار الجديد.`;
-          try { alert(msg); } catch (e) { console.warn(msg); }
-          return { success: false, error: msg };
-        }
-      }
-    } catch (e) {
-      console.warn('Login version check error:', e);
-    }
-
     setCurrentUser(user);
     setAuthLoading(false);
     return { success: true };

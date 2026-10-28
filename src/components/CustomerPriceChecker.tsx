@@ -1,233 +1,235 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
-import { Search, Camera, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
+import { Search, RefreshCw, AlertCircle, CheckCircle, Wifi, WifiOff, Camera } from 'lucide-react';
+import { supabase } from '../supabase';
 
-const SUPABASE_URL = "https://obodoxxzolgcwvzkkoua.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_0aNPlD59KqYsmVr8r_tMEw_wpgmlj2o";
-
-interface ProductItem {
+interface CustomerProduct {
   id: string;
   name: string;
-  barcode: string;
-  price: number;
+  barcode?: string;
+  code?: string;
+  retailPrice?: number;
+  price?: number;
+  stock?: number;
 }
 
-export const CustomerPriceChecker: React.FC<{ storeId: string | null }> = ({ storeId }) => {
-  const [products, setProducts] = useState<ProductItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [scannedProduct, setScannedProduct] = useState<ProductItem | null>(null);
+export const CustomerPriceChecker: React.FC = () => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [products, setProducts] = useState<CustomerProduct[]>([]);
+  const [scannedProduct, setScannedProduct] = useState<CustomerProduct | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
-  const [scannerActive, setScannerActive] = useState(false);
-  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
-  // 1. استرجاع قائمة أسعار المتجر من جدول documents وحفظها للعمل دون اتصال
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   useEffect(() => {
-    async function loadProducts() {
-      if (!storeId) {
-        setLoading(false);
-        return;
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const { data } = await supabase.from('stores').select('products').maybeSingle();
+      if (data && data.products && Array.isArray(data.products)) {
+        setProducts(data.products);
+        localStorage.setItem('cached_customer_products', JSON.stringify(data.products));
+      } else {
+        const cached = localStorage.getItem('cached_customer_products') || localStorage.getItem('cached_pos_products');
+        if (cached) setProducts(JSON.parse(cached));
       }
-
-      // القراءة من الكاش المحلي أولاً للعمل بسرعة وبدون إنترنت
-      const cached = localStorage.getItem(`cache_catalog_${storeId}`);
-      if (cached) {
-        try {
-          setProducts(JSON.parse(cached));
-        } catch (e) {}
-      }
-
-      try {
-        const docId = storeId.startsWith('store_') ? storeId : `store_${storeId}`;
-
-        const response = await fetch(
-          `${SUPABASE_URL}/rest/v1/documents?collection=eq.stores&id=eq.${encodeURIComponent(docId)}&select=data`,
-          {
-            headers: {
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-            },
-          }
-        );
-
-        if (response.ok) {
-          const rows = await response.json();
-          if (rows && rows.length > 0 && rows[0].data?.products) {
-            const rawProducts = rows[0].data.products;
-
-            const formatted: ProductItem[] = rawProducts.map((p: any) => ({
-              id: String(p.id || ''),
-              name: String(p.name || 'مادة بدون اسم'),
-              barcode: String(p.barcode || p.code || ''),
-              price: Number(p.price || p.retailPrice || 0),
-            }));
-
-            setProducts(formatted);
-            localStorage.setItem(`cache_catalog_${storeId}`, JSON.stringify(formatted));
-          }
-        }
-      } catch (err) {
-        console.log('يعمل التطبيق في وضع عدم الاتصال بالإنترنت');
-      } finally {
-        setLoading(false);
-      }
+    } catch {
+      const cached = localStorage.getItem('cached_customer_products') || localStorage.getItem('cached_pos_products');
+      if (cached) setProducts(JSON.parse(cached));
+    } finally {
+      setLoading(false);
     }
+  };
 
-    loadProducts();
-  }, [storeId]);
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
-  // 2. فحص الباركود ومطابقة السعر
-  const handleCheckCode = (code: string) => {
-    const trimmed = code.trim();
-    if (!trimmed) {
-      setScannedProduct(null);
-      setNotFound(false);
-      return;
+  const startCamera = async () => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+      setCameraActive(true);
+
+      if ('BarcodeDetector' in window) {
+        const barcodeDetector = new (window as any).BarcodeDetector({
+          formats: ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_a']
+        });
+
+        const detectLoop = async () => {
+          if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
+          try {
+            const barcodes = await barcodeDetector.detect(videoRef.current);
+            if (barcodes.length > 0) {
+              const detectedCode = barcodes[0].rawValue;
+              findAndDisplayProduct(detectedCode);
+              stopCamera();
+              return;
+            }
+          } catch (e) {}
+          if (streamRef.current) {
+            requestAnimationFrame(detectLoop);
+          }
+        };
+        requestAnimationFrame(detectLoop);
+      }
+    } catch {
+      setCameraError('يرجى منح إذن استخدام الكاميرا من إعدادات المتصفح.');
+      setCameraActive(false);
     }
+  };
 
-    const found = products.find((p) => p.barcode?.trim() === trimmed);
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  };
+
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
+
+  const findAndDisplayProduct = (codeOrName: string) => {
+    const query = codeOrName.trim().toLowerCase();
+    if (!query) return;
+
+    const found = products.find(
+      (p) =>
+        (p.barcode && String(p.barcode).toLowerCase() === query) ||
+        (p.code && String(p.code).toLowerCase() === query) ||
+        (p.name && p.name.toLowerCase().includes(query))
+    );
+
     if (found) {
       setScannedProduct(found);
       setNotFound(false);
-      try {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-        if (AudioContextClass) {
-          const ctx = new AudioContextClass();
-          const osc = ctx.createOscillator();
-          osc.frequency.value = 850;
-          osc.connect(ctx.destination);
-          osc.start();
-          osc.stop(ctx.currentTime + 0.12);
-        }
-      } catch (e) {}
     } else {
       setScannedProduct(null);
       setNotFound(true);
     }
   };
 
-  // 3. تشغيل كاميرا الهاتف لمسح الباركود
-  const startCamera = async () => {
-    try {
-      const html5QrCode = new Html5Qrcode('barcode-reader');
-      scannerRef.current = html5QrCode;
-      setScannerActive(true);
-
-      await html5QrCode.start(
-        { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 250, height: 150 } },
-        (decodedText) => {
-          setSearchTerm(decodedText);
-          handleCheckCode(decodedText);
-          stopCamera();
-        },
-        () => {}
-      );
-    } catch (err) {
-      console.error('تعذر تشغيل الكاميرا:', err);
-      setScannerActive(false);
-    }
+  const handleManualSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    findAndDisplayProduct(searchQuery);
   };
-
-  const stopCamera = async () => {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop();
-        scannerRef.current.clear();
-      } catch (e) {}
-      scannerRef.current = null;
-    }
-    setScannerActive(false);
-  };
-
-  if (!storeId) {
-    return (
-      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-6 text-center" dir="rtl">
-        <AlertCircle className="w-16 h-16 text-amber-500 mb-4" />
-        <h2 className="text-xl font-bold mb-2">رابط فحص الأسعار غير مكتمل</h2>
-        <p className="text-sm text-slate-400">يرجى التأكد من مسح رمز QR الصحيح الخاص بالمتجر.</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col" dir="rtl">
-      {/* الشريط العلوي */}
-      <header className="bg-slate-900 border-b border-slate-800 p-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-base font-bold text-amber-400">🔍 مدقق الأسعار الذاتي</h1>
-          <p className="text-xs text-slate-400">وجّه الكاميرا نحو باركود المادة لمعرفة سعرها فوراً</p>
+    <div className="min-h-screen bg-slate-900 text-white p-4 flex flex-col items-center justify-center font-sans" dir="rtl">
+      <div className="w-full max-w-md bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700">
+        
+        <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-3">
+          <h1 className="text-xl font-bold text-amber-400">قارئ أسعار المواد</h1>
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <span className="flex items-center gap-1 text-xs text-emerald-400">
+                <Wifi size={14} /> متصل
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs text-rose-400">
+                <WifiOff size={14} /> أوفلاين
+              </span>
+            )}
+            <button
+              onClick={fetchProducts}
+              className="p-1 rounded bg-slate-700 hover:bg-slate-600 transition"
+              title="تحديث البيانات"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
-        <div className="text-xs bg-slate-800 px-2.5 py-1 rounded-full text-slate-300 border border-slate-700">
-          المواد: {products.length}
-        </div>
-      </header>
 
-      <main className="flex-1 max-w-md w-full mx-auto p-4 flex flex-col gap-4">
-        {/* حقل الإدخال وزر الكاميرا */}
-        <div className="flex gap-2">
-          <div className="relative flex-1">
+        <div className="mb-6 text-center">
+          {!cameraActive ? (
+            <button
+              onClick={startCamera}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition active:scale-95"
+            >
+              <Camera size={20} />
+              فتح الكاميرا لمسح باركود المادة
+            </button>
+          ) : (
+            <div className="flex flex-col items-center">
+              <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border-2 border-amber-400 shadow-inner mb-3">
+                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+                <div className="absolute inset-0 border-2 border-red-500/60 m-8 rounded-lg pointer-events-none animate-pulse"></div>
+              </div>
+              <button
+                onClick={stopCamera}
+                className="bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 px-6 rounded-lg transition"
+              >
+                إغلاق الكاميرا
+              </button>
+            </div>
+          )}
+
+          {cameraError && (
+            <p className="text-rose-400 text-xs mt-2 bg-rose-950/40 p-2 rounded-lg border border-rose-800">
+              {cameraError}
+            </p>
+          )}
+        </div>
+
+        <form onSubmit={handleManualSearch} className="mb-6">
+          <div className="relative">
             <input
               type="text"
-              placeholder="اكتب رقم الباركود هنا..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                handleCheckCode(e.target.value);
-              }}
-              className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm pr-10 focus:outline-none focus:border-amber-500 font-mono"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="أو اكتب الباركود / اسم المادة..."
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pr-10 pl-4 text-white text-right focus:outline-none focus:border-amber-400"
             />
-            <Search className="w-5 h-5 text-slate-400 absolute right-3 top-3" />
+            <Search className="absolute right-3 top-3.5 text-slate-400" size={18} />
           </div>
+        </form>
 
-          <button
-            onClick={scannerActive ? stopCamera : startCamera}
-            className={`px-4 py-3 rounded-xl font-bold text-sm flex items-center gap-1.5 transition cursor-pointer ${
-              scannerActive ? 'bg-rose-600 hover:bg-rose-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-            }`}
-          >
-            <Camera className="w-4 h-4" />
-            <span>{scannerActive ? 'إيقاف' : 'الكاميرا'}</span>
-          </button>
-        </div>
-
-        {/* شاشة الكاميرا */}
-        <div id="barcode-reader" className={`${scannerActive ? 'block' : 'hidden'} w-full rounded-2xl overflow-hidden border border-slate-800 bg-black`}></div>
-
-        {/* مؤشر التحميل */}
-        {loading && products.length === 0 && (
-          <div className="text-center py-6 text-slate-400 text-xs flex items-center justify-center gap-2">
-            <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
-            <span>جاري تجهيز قائمة أسعار المحل...</span>
-          </div>
-        )}
-
-        {/* بطاقة عرض تفاصيل المادة الممسوحة */}
         {scannedProduct && (
-          <div className="bg-emerald-950/50 border border-emerald-500/50 rounded-2xl p-6 text-center shadow-lg">
-            <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-2" />
-            <div className="text-sm text-slate-400 mb-1">اسم المادة</div>
-            <h2 className="text-xl font-bold text-white mb-4">{scannedProduct.name}</h2>
-            <div className="text-xs text-slate-400 mb-1">السعر الحالي</div>
-            <div className="text-3xl font-black text-amber-400">
-              {scannedProduct.price.toLocaleString()} <span className="text-sm font-normal text-slate-300">د.ع</span>
+          <div className="bg-slate-950/80 border border-emerald-500/40 rounded-xl p-5 text-center shadow-lg">
+            <CheckCircle className="mx-auto text-emerald-400 mb-2" size={40} />
+            <h2 className="text-lg font-bold text-white mb-1">{scannedProduct.name}</h2>
+            <div className="text-3xl font-black text-amber-400 my-2">
+              {(scannedProduct.retailPrice || scannedProduct.price || 0).toLocaleString('en-US')} دينار
             </div>
+            {scannedProduct.stock !== undefined && (
+              <div className="text-xs text-slate-400 mt-2">
+                الحالة بالمخزن: {scannedProduct.stock > 0 ? 'متوفر' : 'غير متوفر'}
+              </div>
+            )}
           </div>
         )}
 
         {notFound && (
-          <div className="bg-rose-950/40 border border-rose-500/30 rounded-2xl p-5 text-center text-rose-300 text-sm">
-            المادة غير متوفرة أو لم يتم العثور على الباركود المطلوب
+          <div className="bg-rose-950/40 border border-rose-500/30 rounded-xl p-4 text-center">
+            <AlertCircle className="mx-auto text-rose-400 mb-2" size={32} />
+            <p className="text-rose-200 text-sm">عذراً، هذه المادة غير مسجلة بالنظام.</p>
           </div>
         )}
 
-        {!scannedProduct && !notFound && !scannerActive && !loading && (
-          <div className="text-center py-12 text-slate-500 text-xs flex flex-col items-center">
-            <Camera className="w-12 h-12 stroke-[1.2] mb-3 text-slate-600" />
-            <span>اضغط على زر الكاميرا لمسح باركود المنتج بواسطة كاميرا الهاتف</span>
-          </div>
-        )}
-      </main>
+      </div>
     </div>
   );
 };

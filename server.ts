@@ -51,9 +51,29 @@ const getStoreFilePath = (userId: string) => {
   return path.join(DATA_DIR, `store_${safeId}.json`);
 };
 
+import os from 'os';
+
 // فحص صحة الخادم
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+// فحص عناوين IP المحلية لشبكة المحل والواي فاي
+app.get('/api/network-info', (req, res) => {
+  try {
+    const interfaces = os.networkInterfaces();
+    const addresses: string[] = [];
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name] || []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          addresses.push(iface.address);
+        }
+      }
+    }
+    res.json({ success: true, ips: addresses, port: PORT });
+  } catch (err: any) {
+    res.json({ success: false, ips: [], port: PORT, error: err.message });
+  }
 });
 
 // قراءة بيانات المخزن محلياً
