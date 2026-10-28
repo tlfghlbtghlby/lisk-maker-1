@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, RefreshCw, AlertCircle, CheckCircle, Wifi, WifiOff, Camera } from 'lucide-react';
+import { Search, RefreshCw, AlertCircle, CheckCircle, Wifi, WifiOff, Camera, Store } from 'lucide-react';
 import { supabase } from '../supabase';
 
 interface CustomerProduct {
@@ -12,13 +12,10 @@ interface CustomerProduct {
   stock?: number;
 }
 
-interface CustomerPriceCheckerProps {
-  storeId?: string | null;
-}
-
-export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ storeId }) => {
+export const CustomerPriceChecker: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [products, setProducts] = useState<CustomerProduct[]>([]);
+  const [storeName, setStoreName] = useState<string>('');
   const [scannedProduct, setScannedProduct] = useState<CustomerProduct | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [loading, setLoading] = useState(false);
@@ -28,6 +25,13 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const animFrameRef = useRef<number | null>(null);
+
+  // استخراج معرف المتجر من الرابط (?store=xxx)
+  const getStoreIdFromUrl = (): string => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('store') || '';
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -40,19 +44,29 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
     };
   }, []);
 
+  // جلب مواد المتجر الخاص
   const fetchProducts = async () => {
     setLoading(true);
+    const storeId = getStoreIdFromUrl();
+
     try {
-      const { data } = await supabase.from('stores').select('products').maybeSingle();
+      let query = supabase.from('stores').select('id, products, settings');
+      if (storeId) {
+        query = query.eq('id', storeId);
+      }
+      
+      const { data, error } = await query.maybeSingle();
+
       if (data && data.products && Array.isArray(data.products)) {
         setProducts(data.products);
-        localStorage.setItem('cached_customer_products', JSON.stringify(data.products));
+        if (data.settings?.storeName) setStoreName(data.settings.storeName);
+        localStorage.setItem(`cached_products_${storeId || 'default'}`, JSON.stringify(data.products));
       } else {
-        const cached = localStorage.getItem('cached_customer_products') || localStorage.getItem('cached_pos_products');
+        const cached = localStorage.getItem(`cached_products_${storeId || 'default'}`) || localStorage.getItem('cached_pos_products');
         if (cached) setProducts(JSON.parse(cached));
       }
     } catch {
-      const cached = localStorage.getItem('cached_customer_products') || localStorage.getItem('cached_pos_products');
+      const cached = localStorage.getItem(`cached_products_${storeId || 'default'}`) || localStorage.getItem('cached_pos_products');
       if (cached) setProducts(JSON.parse(cached));
     } finally {
       setLoading(false);
@@ -63,51 +77,69 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
     fetchProducts();
   }, []);
 
+  // تشغيل الكاميرا ومعالجة البث
   const startCamera = async () => {
     setCameraError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
       });
+
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.setAttribute('playsinline', 'true');
+        await videoRef.current.play();
       }
       setCameraActive(true);
 
+      // فحص الباركود عبر BarcodeDetector المدمج
       if ('BarcodeDetector' in window) {
-        const barcodeDetector = new (window as any).BarcodeDetector({
-          formats: ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_a']
+        const detector = new (window as any).BarcodeDetector({
+          formats: ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_a', 'code_39']
         });
 
-        const detectLoop = async () => {
+        const scanFrame = async () => {
           if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
           try {
-            const barcodes = await barcodeDetector.detect(videoRef.current);
+            const barcodes = await detector.detect(videoRef.current);
             if (barcodes.length > 0) {
-              const detectedCode = barcodes[0].rawValue;
-              findAndDisplayProduct(detectedCode);
+              const code = barcodes[0].rawValue;
+              findAndDisplayProduct(code);
               stopCamera();
               return;
             }
           } catch (e) {}
+
           if (streamRef.current) {
-            requestAnimationFrame(detectLoop);
+            animFrameRef.current = requestAnimationFrame(scanFrame);
           }
         };
-        requestAnimationFrame(detectLoop);
+        animFrameRef.current = requestAnimationFrame(scanFrame);
       }
-    } catch {
-      setCameraError('يرجى منح إذن استخدام الكاميرا من إعدادات المتصفح.');
+    } catch (err: any) {
+      console.error('Camera Error:', err);
+      setCameraError('تعذر فتح الكاميرا، يرجى التأكد من إعطاء إذن الكاميرا للمتصفح.');
       setCameraActive(false);
     }
   };
 
   const stopCamera = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
     setCameraActive(false);
   };
@@ -122,9 +154,9 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
 
     const found = products.find(
       (p) =>
-        (p.barcode && String(p.barcode).toLowerCase() === query) ||
-        (p.code && String(p.code).toLowerCase() === query) ||
-        (p.name && p.name.toLowerCase().includes(query))
+        (p.barcode && String(p.barcode).trim().toLowerCase() === query) ||
+        (p.code && String(p.code).trim().toLowerCase() === query) ||
+        (p.name && p.name.trim().toLowerCase().includes(query))
     );
 
     if (found) {
@@ -145,8 +177,16 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
     <div className="min-h-screen bg-slate-900 text-white p-4 flex flex-col items-center justify-center font-sans" dir="rtl">
       <div className="w-full max-w-md bg-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700">
         
+        {/* الترويسة واسم المتجر */}
         <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-3">
-          <h1 className="text-xl font-bold text-amber-400">قارئ أسعار المواد</h1>
+          <div>
+            <h1 className="text-xl font-bold text-amber-400">قارئ أسعار المواد</h1>
+            {storeName && (
+              <p className="text-xs text-slate-300 flex items-center gap-1 mt-0.5">
+                <Store size={12} className="text-amber-400" /> {storeName}
+              </p>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {isOnline ? (
               <span className="flex items-center gap-1 text-xs text-emerald-400">
@@ -160,29 +200,38 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
             <button
               onClick={fetchProducts}
               className="p-1 rounded bg-slate-700 hover:bg-slate-600 transition"
-              title="تحديث البيانات"
+              title="تحديث قائمة المواد"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
 
+        {/* الكاميرا */}
         <div className="mb-6 text-center">
           {!cameraActive ? (
             <button
+              type="button"
               onClick={startCamera}
               className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition active:scale-95"
             >
               <Camera size={20} />
-              فتح الكاميرا لمسح باركود المادة
+              فتح الكاميرا لمسح باركود السلعة
             </button>
           ) : (
             <div className="flex flex-col items-center">
               <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border-2 border-amber-400 shadow-inner mb-3">
-                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                <div className="absolute inset-0 border-2 border-red-500/60 m-8 rounded-lg pointer-events-none animate-pulse"></div>
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-cover"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+                <div className="absolute inset-0 border-2 border-red-500/70 m-8 rounded-lg pointer-events-none animate-pulse"></div>
               </div>
               <button
+                type="button"
                 onClick={stopCamera}
                 className="bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 px-6 rounded-lg transition"
               >
@@ -198,19 +247,21 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
           )}
         </div>
 
+        {/* البحث اليدوي */}
         <form onSubmit={handleManualSearch} className="mb-6">
           <div className="relative">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="أو اكتب الباركود / اسم المادة..."
+              placeholder="امسح الباركود أو اكتب اسم المادة..."
               className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pr-10 pl-4 text-white text-right focus:outline-none focus:border-amber-400"
             />
             <Search className="absolute right-3 top-3.5 text-slate-400" size={18} />
           </div>
         </form>
 
+        {/* النتيجة */}
         {scannedProduct && (
           <div className="bg-slate-950/80 border border-emerald-500/40 rounded-xl p-5 text-center shadow-lg">
             <CheckCircle className="mx-auto text-emerald-400 mb-2" size={40} />
@@ -226,10 +277,11 @@ export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ stor
           </div>
         )}
 
+        {/* عدم العثور */}
         {notFound && (
           <div className="bg-rose-950/40 border border-rose-500/30 rounded-xl p-4 text-center">
             <AlertCircle className="mx-auto text-rose-400 mb-2" size={32} />
-            <p className="text-rose-200 text-sm">عذراً، هذه المادة غير مسجلة بالنظام.</p>
+            <p className="text-rose-200 text-sm">عذراً، هذه المادة غير مسجلة في هذا المتجر.</p>
           </div>
         )}
 
