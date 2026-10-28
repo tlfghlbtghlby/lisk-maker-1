@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
+import QRCode from 'qrcode';
 import { useApp } from '../context/AppContext';
 import { 
   ADMIN_EMAIL,
@@ -46,6 +47,7 @@ import {
   X,
   UserPlus,
   Palette,
+  QrCode,
   QrCode as QrCodeIcon,
   Image as ImageIcon,
   Share2,
@@ -129,6 +131,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [currency, setCurrency] = useState(settings.currency);
   const [invoiceFooterNote, setInvoiceFooterNote] = useState(settings.invoiceFooterNote);
   
+  // حالة ورمز QR المخصص لمتجر الزبائن
+  const [copied, setCopied] = useState(false);
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+
+  // استخراج المعرف الفريد الخاص بالمتجر الحالي
+  const storeIdentifier = currentUser?.uid 
+    ? `store_${currentUser.uid}` 
+    : (settings.storeName ? encodeURIComponent(settings.storeName.trim()) : 'default_store');
+  const storeId = storeIdentifier;
+
+  // رابط الويب العام مع تمرير معرف هذا المتجر تحديداً
+  const baseUrl = 'https://tlfghlbtghlby.github.io/lisk-maker-1/';
+  const customStoreUrl = `${baseUrl}?view=price-checker&store=${storeIdentifier}`;
+
+  // توليد رمز QR للرابط تلقائياً
+  useEffect(() => {
+    if (customStoreUrl) {
+      QRCode.toDataURL(customStoreUrl, { width: 220, margin: 2 }, (err, url) => {
+        if (!err && url) {
+          setQrCodeDataUrl(url);
+        }
+      });
+    }
+  }, [customStoreUrl]);
+
+  const copyToClipboard = () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(customStoreUrl);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = customStoreUrl;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
   // خيارات الطباعة وأحجام الورق بما فيها 58mm والطباعة الصامتة
   const [printFormat, setPrintFormat] = useState<'a4' | 'a5' | 'thermal' | 'thermal80' | 'thermal58'>(
     settings.printFormat || 'a4'
@@ -860,13 +901,95 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
 
       {/* Customer QR Price Checker Section */}
       {(activeSettingsTab === 'customer-qr' || activeSettingsTab === 'all') && (
-        <CustomerQRSettingsCard
-          storeName={storeName || settings.storeName || 'المتجر'}
-          phone={phone || settings.phone}
-          currency={currency || settings.currency || 'د.ع'}
-          productsCount={products.length}
-          products={products}
-        />
+        <>
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl mb-6 text-white" dir="rtl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-xl">
+                <QrCode size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">رابط ورمز QR قارئ الأسعار للزبائن</h3>
+                <p className="text-xs text-slate-400">امسح الرمز أو انسخ الرابط لتمكين الزبائن من فحص الأسعار مباشرة بهواتفهم</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+              {/* عرض رمز QR */}
+              <div className="flex flex-col items-center justify-center p-4 bg-slate-900/60 rounded-xl border border-slate-700/60">
+                {qrCodeDataUrl ? (
+                  <div className="p-3 bg-white rounded-xl shadow-lg">
+                    <img src={qrCodeDataUrl} alt="QR Code" className="w-44 h-44 object-contain" />
+                  </div>
+                ) : (
+                  <div className="w-44 h-44 flex items-center justify-center text-slate-500 text-sm">
+                    جاري توليد الرمز...
+                  </div>
+                )}
+                <span className="text-xs text-slate-400 mt-2 font-medium">امسح بكاميرا الهاتف</span>
+              </div>
+
+              {/* الرابط وخيارات النسخ */}
+              <div className="md:col-span-2 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    الرابط المخصص لمتجرك (يعمل عبر الإنترنت وأوفلاين معاً)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={customStoreUrl}
+                      className="flex-1 bg-slate-900 border border-slate-700 text-slate-200 text-sm rounded-xl px-3.5 py-2.5 focus:outline-none select-all font-mono text-left"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      onClick={copyToClipboard}
+                      className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition cursor-pointer shrink-0 ${
+                        copied
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md'
+                      }`}
+                    >
+                      {copied ? (
+                        <>
+                          <Check size={16} />
+                          <span>تم النسخ!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={16} />
+                          <span>نسخ الرابط</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-700/50 space-y-2 text-xs text-slate-300">
+                  <div className="flex items-center gap-2 text-amber-400 font-bold">
+                    <span>✨ ميزة القارئ الذكي:</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    • يستطيع الزبون مسح هذا الرمز والتجول في محلك لمعرفة سعر أي مادة فوراً بمجرد توجيه الكاميرا.
+                  </p>
+                  <p className="leading-relaxed">
+                    • تم دمج النظامين: يعمل <span className="text-emerald-400 font-semibold">أونلاين سحابياً</span> ومباشرة يحفظ البيانات في <span className="text-sky-400 font-semibold">ذاكرة المتصفح المحلية</span> ليعمل بسلاسة حتى لو انقطع الإنترنت داخل المحل.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <CustomerQRSettingsCard
+            storeName={storeName || settings.storeName || 'المتجر'}
+            phone={phone || settings.phone}
+            currency={currency || settings.currency || 'د.ع'}
+            productsCount={products.length}
+            products={products}
+            storeId={storeId}
+          />
+        </>
       )}
 
       {/* Store Settings Form */}

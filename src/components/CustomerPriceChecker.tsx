@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, RefreshCw, AlertCircle, CheckCircle, Wifi, WifiOff, Camera, Store } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Search, RefreshCw, AlertCircle, CheckCircle, Wifi, WifiOff, Camera, Store, X } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '../supabase';
 
 interface CustomerProduct {
@@ -12,7 +13,11 @@ interface CustomerProduct {
   stock?: number;
 }
 
-export const CustomerPriceChecker: React.FC = () => {
+interface CustomerPriceCheckerProps {
+  storeId?: string | null;
+}
+
+export const CustomerPriceChecker: React.FC<CustomerPriceCheckerProps> = ({ storeId }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [products, setProducts] = useState<CustomerProduct[]>([]);
   const [storeName, setStoreName] = useState<string>('');
@@ -23,10 +28,10 @@ export const CustomerPriceChecker: React.FC = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const animFrameRef = useRef<number | null>(null);
+  const qrScannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerContainerId = 'interactive-barcode-scanner';
 
+  // 1. مراقبة الاتصال
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -38,33 +43,42 @@ export const CustomerPriceChecker: React.FC = () => {
     };
   }, []);
 
-  // جلب المواد بدقة من المتجر المحدد أو المتجر الافتراضي
+  // 2. جلب المواد من المتجر
   const fetchProducts = async () => {
     setLoading(true);
     const params = new URLSearchParams(window.location.search);
-    const storeParam = params.get('store');
+    const storeParam = storeId || params.get('store');
 
     try {
       let storeRecord: any = null;
 
       if (storeParam) {
-        // البحث بالمعرف المحدد
-        const { data } = await supabase
+        const { data: byId } = await supabase
           .from('stores')
           .select('id, products, settings')
           .eq('id', storeParam)
           .maybeSingle();
-        storeRecord = data;
+
+        if (byId) {
+          storeRecord = byId;
+        } else {
+          const decoded = decodeURIComponent(storeParam).trim();
+          const { data: all } = await supabase.from('stores').select('id, products, settings');
+          if (all && all.length > 0) {
+            storeRecord = all.find(
+              (s: any) =>
+                s.id === storeParam ||
+                s.settings?.storeName?.trim() === decoded ||
+                s.settings?.storeName?.trim() === storeParam
+            );
+          }
+        }
       }
 
-      // إذا لم يُحدد في الرابط أو لم يُعثر عليه، جلب أول متجر متاح في الحساب
+      // إذا لم يحدد المتجر أو لم يتم العثور عليه، نجلب أول متجر متوفر
       if (!storeRecord) {
-        const { data } = await supabase
-          .from('stores')
-          .select('id, products, settings')
-          .limit(1)
-          .maybeSingle();
-        storeRecord = data;
+        const { data: fallback } = await supabase.from('stores').select('id, products, settings').limit(1).maybeSingle();
+        storeRecord = fallback;
       }
 
       if (storeRecord && Array.isArray(storeRecord.products) && storeRecord.products.length > 0) {
@@ -74,12 +88,10 @@ export const CustomerPriceChecker: React.FC = () => {
         }
         localStorage.setItem('cached_customer_products', JSON.stringify(storeRecord.products));
       } else {
-        // استخدام الكاش المحلي
         const cached = localStorage.getItem('cached_customer_products') || localStorage.getItem('cached_pos_products');
         if (cached) setProducts(JSON.parse(cached));
       }
-    } catch (err) {
-      console.warn('Fetch error:', err);
+    } catch {
       const cached = localStorage.getItem('cached_customer_products') || localStorage.getItem('cached_pos_products');
       if (cached) setProducts(JSON.parse(cached));
     } finally {
@@ -91,82 +103,63 @@ export const CustomerPriceChecker: React.FC = () => {
     fetchProducts();
   }, []);
 
-  // تشغيل الكاميرا
-  const handleToggleCamera = async () => {
-    if (cameraActive) {
-      stopCamera();
-    } else {
-      setCameraError(null);
+  // 3. تشغيل الكاميرا عبر Html5Qrcode
+  const startCamera = async () => {
+    setCameraError(null);
+    setCameraActive(true);
+
+    setTimeout(async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+        if (!qrScannerRef.current) {
+          qrScannerRef.current = new Html5Qrcode(scannerContainerId);
+        }
+
+        const config = {
+          fps: 20,
+          qrbox: { width: 300, height: 160 },
+          aspectRatio: 1.777778,
+        };
+
+        await qrScannerRef.current.start(
+          { facingMode: 'environment' },
+          config,
+          (decodedText) => {
+            // التقاط الباركود فوراً
+            findAndDisplayProduct(decodedText);
+            stopCamera();
           },
-          audio: false
-        });
-        streamRef.current = stream;
-        setCameraActive(true);
-      } catch (err) {
-        setCameraError('يرجى منح إذن استخدام الكاميرا من إعدادات المتصفح.');
+          () => {}
+        );
+      } catch (err: any) {
+        console.error('Camera Init Error:', err);
+        setCameraError('يرجى التأكد من إعطاء صلاحية الكاميرا للمتصفح.');
         setCameraActive(false);
       }
-    }
+    }, 150);
   };
 
-  // ربط البث فور ظهور عنصر الـ video في الصفحة (حل الشاشة السوداء)
-  useEffect(() => {
-    if (cameraActive && streamRef.current && videoRef.current) {
-      const video = videoRef.current;
-      video.srcObject = streamRef.current;
-      video.onloadedmetadata = () => {
-        video.play().catch(e => console.warn('Play error:', e));
-      };
-
-      // تشغيل ماسح الباركود
-      if ('BarcodeDetector' in window) {
-        const detector = new (window as any).BarcodeDetector({
-          formats: ['ean_13', 'ean_8', 'code_128', 'qr_code', 'upc_a', 'code_39']
-        });
-
-        const scanLoop = async () => {
-          if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) return;
-          try {
-            const barcodes = await detector.detect(videoRef.current);
-            if (barcodes.length > 0) {
-              const code = barcodes[0].rawValue;
-              findAndDisplayProduct(code);
-              stopCamera();
-              return;
-            }
-          } catch (e) {}
-
-          if (streamRef.current) {
-            animFrameRef.current = requestAnimationFrame(scanLoop);
-          }
-        };
-        animFrameRef.current = requestAnimationFrame(scanLoop);
+  const stopCamera = async () => {
+    if (qrScannerRef.current) {
+      try {
+        if (qrScannerRef.current.isScanning) {
+          await qrScannerRef.current.stop();
+        }
+        qrScannerRef.current.clear();
+      } catch (e) {
+        console.warn('Stop Camera Error:', e);
       }
-    }
-  }, [cameraActive]);
-
-  const stopCamera = () => {
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
+      qrScannerRef.current = null;
     }
     setCameraActive(false);
   };
 
   useEffect(() => {
-    return () => stopCamera();
+    return () => {
+      stopCamera();
+    };
   }, []);
 
+  // 4. مطابقة السلعة وعرض السعر
   const findAndDisplayProduct = (term: string) => {
     const q = term.trim().toLowerCase();
     if (!q) return;
@@ -175,7 +168,7 @@ export const CustomerPriceChecker: React.FC = () => {
       (p) =>
         (p.barcode && String(p.barcode).trim().toLowerCase() === q) ||
         (p.code && String(p.code).trim().toLowerCase() === q) ||
-        (p.name && p.name.trim().toLowerCase().includes(q))
+        (p.name && p.name.trim().toLowerCase() === q)
     );
 
     if (found) {
@@ -187,9 +180,24 @@ export const CustomerPriceChecker: React.FC = () => {
     }
   };
 
-  const handleManualSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    findAndDisplayProduct(searchQuery);
+  // 5. البحث الحي اللحظي أثناء كتابة الحروف
+  const liveSuggestions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return products
+      .filter((p) => {
+        const nameMatch = p.name && p.name.toLowerCase().includes(q);
+        const codeMatch = p.code && String(p.code).toLowerCase().includes(q);
+        const barcodeMatch = p.barcode && String(p.barcode).toLowerCase().includes(q);
+        return nameMatch || codeMatch || barcodeMatch;
+      })
+      .slice(0, 10);
+  }, [searchQuery, products]);
+
+  const handleSelectProduct = (prod: CustomerProduct) => {
+    setScannedProduct(prod);
+    setNotFound(false);
+    setSearchQuery('');
   };
 
   return (
@@ -219,19 +227,19 @@ export const CustomerPriceChecker: React.FC = () => {
             <button
               onClick={fetchProducts}
               className="p-1 rounded bg-slate-700 hover:bg-slate-600 transition"
-              title="تحديث البيانات"
+              title="تحديث قائمة المواد"
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
 
-        {/* زر وتشغيل الكاميرا */}
+        {/* الكاميرا */}
         <div className="mb-6 text-center">
           {!cameraActive ? (
             <button
               type="button"
-              onClick={handleToggleCamera}
+              onClick={startCamera}
               className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg transition active:scale-95"
             >
               <Camera size={20} />
@@ -239,19 +247,12 @@ export const CustomerPriceChecker: React.FC = () => {
             </button>
           ) : (
             <div className="flex flex-col items-center">
-              <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden border-2 border-amber-400 shadow-inner mb-3">
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-cover"
-                  playsInline
-                  muted
-                  autoPlay
-                />
-                <div className="absolute inset-0 border-2 border-red-500/70 m-8 rounded-lg pointer-events-none animate-pulse"></div>
+              <div className="relative w-full overflow-hidden rounded-xl border-2 border-amber-400 bg-black shadow-inner mb-3">
+                <div id={scannerContainerId} className="w-full min-h-[240px]"></div>
               </div>
               <button
                 type="button"
-                onClick={handleToggleCamera}
+                onClick={stopCamera}
                 className="bg-slate-700 hover:bg-slate-600 text-white text-sm py-2 px-6 rounded-lg transition"
               >
                 إغلاق الكاميرا
@@ -266,21 +267,55 @@ export const CustomerPriceChecker: React.FC = () => {
           )}
         </div>
 
-        {/* حقل البحث */}
-        <form onSubmit={handleManualSearch} className="mb-6">
+        {/* حقل البحث الحي */}
+        <div className="relative mb-6">
           <div className="relative">
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="امسح الباركود أو اكتب اسم المادة..."
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pr-10 pl-4 text-white text-right focus:outline-none focus:border-amber-400"
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setNotFound(false);
+              }}
+              placeholder="اكتب حرفاً من اسم السلعة أو الباركود..."
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pr-10 pl-10 text-white text-right focus:outline-none focus:border-amber-400 shadow-inner"
             />
             <Search className="absolute right-3 top-3.5 text-slate-400" size={18} />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute left-3 top-3.5 text-slate-400 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            )}
           </div>
-        </form>
 
-        {/* عرض النتيجة */}
+          {/* قائمة النتائج المتطابقة اللحظية */}
+          {liveSuggestions.length > 0 && (
+            <div className="absolute z-30 w-full mt-1.5 bg-slate-950 border border-slate-700 rounded-xl shadow-2xl overflow-hidden divide-y divide-slate-800 max-h-64 overflow-y-auto">
+              {liveSuggestions.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleSelectProduct(item)}
+                  className="w-full p-3 text-right hover:bg-slate-800/80 transition flex items-center justify-between group"
+                >
+                  <div>
+                    <p className="text-sm font-bold text-white group-hover:text-amber-400 transition">{item.name}</p>
+                    {item.barcode && <span className="text-[11px] text-slate-400 font-mono">{item.barcode}</span>}
+                  </div>
+                  <div className="text-left font-black text-amber-400 text-sm">
+                    {(item.retailPrice || item.price || 0).toLocaleString('en-US')} د.ع
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* بطاقة عرض السلعة المحددة */}
         {scannedProduct && (
           <div className="bg-slate-950/80 border border-emerald-500/40 rounded-xl p-5 text-center shadow-lg">
             <CheckCircle className="mx-auto text-emerald-400 mb-2" size={40} />
@@ -290,13 +325,13 @@ export const CustomerPriceChecker: React.FC = () => {
             </div>
             {scannedProduct.stock !== undefined && (
               <div className="text-xs text-slate-400 mt-2">
-                الحالة بالمخزن: {scannedProduct.stock > 0 ? 'متوفر' : 'غير متوفر'}
+                الحالة بالمخزن: {scannedProduct.stock > 0 ? `متوفر (${scannedProduct.stock})` : 'غير متوفر'}
               </div>
             )}
           </div>
         )}
 
-        {/* عدم العثور */}
+        {/* رسالة عدم العثور */}
         {notFound && (
           <div className="bg-rose-950/40 border border-rose-500/30 rounded-xl p-4 text-center">
             <AlertCircle className="mx-auto text-rose-400 mb-2" size={32} />

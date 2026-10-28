@@ -25,9 +25,10 @@ interface CustomerQRSettingsCardProps {
   currency: string;
   productsCount: number;
   products?: Product[];
+  storeId?: string;
 }
 
-const DEFAULT_RUN_APP_URL = 'https://ais-pre-7tb2e5mc2vyqntxpf6a3zb-236290975840.europe-west2.run.app';
+const DEFAULT_RUN_APP_URL = 'https://tlfghlbtghlby.github.io/lisk-maker-1';
 const CUSTOM_URL_STORAGE_KEY = 'almufakir_custom_public_url';
 
 // استخراج الرابط النظيف المعتمد
@@ -61,7 +62,8 @@ export const CustomerQRSettingsCard: React.FC<CustomerQRSettingsCardProps> = ({
   phone,
   currency,
   productsCount,
-  products = []
+  products = [],
+  storeId = ''
 }) => {
   const [customBaseUrl, setCustomBaseUrl] = useState<string>('');
   const [effectiveBaseUrl, setEffectiveBaseUrl] = useState<string>(DEFAULT_RUN_APP_URL);
@@ -98,7 +100,9 @@ export const CustomerQRSettingsCard: React.FC<CustomerQRSettingsCardProps> = ({
 
   // توليد الرابط الموحد ورمز الـ QR الذكي
   useEffect(() => {
-    const link = `${effectiveBaseUrl}/?view=price-checker`;
+    const storeQuery = storeId ? `&store=${storeId}` : '';
+    const cleanBase = effectiveBaseUrl.replace(/\/+$/, '');
+    const link = `${cleanBase}/?view=price-checker${storeQuery}`;
     setUnifiedLink(link);
 
     // توليد رمز QR عالي الدقة والتباين
@@ -112,7 +116,7 @@ export const CustomerQRSettingsCard: React.FC<CustomerQRSettingsCardProps> = ({
     })
       .then(url => setUnifiedQrUrl(url))
       .catch(err => console.error('Failed generating unified QR', err));
-  }, [effectiveBaseUrl]);
+  }, [effectiveBaseUrl, storeId]);
 
   // حفظ رابط النطاق المخصص
   const handleSaveCustomBaseUrl = (val: string) => {
