@@ -462,7 +462,7 @@ export default function App() {
   // التحقق من الرمز السري للإدارة
   const handleVerifyPassword = (e: React.FormEvent) => {
     e.preventDefault();
-    if (enteredPass.trim() === '8188671219') {
+    if (enteredPass.trim() === '8188671219qmzpal10@') {
       localStorage.setItem('is_admin_mode', 'true');
       setIsAdminMode(true);
       setShowPasswordModal(false);
