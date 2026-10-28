@@ -423,37 +423,27 @@ const MainContent: React.FC = () => {
   );
 };
 
-function isCustomerCheckerRoute(): boolean {
-  if (typeof window === 'undefined') return false;
-  const params = new URLSearchParams(window.location.search);
-  const view = params.get('view');
-  const mode = params.get('mode');
-  const hash = window.location.hash.toLowerCase();
-  return (
+export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  // استخراج معلمات الرابط بدقة
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const hash = typeof window !== 'undefined' ? window.location.hash.toLowerCase() : '';
+  const view = searchParams?.get('view') || '';
+  const mode = searchParams?.get('mode') || '';
+
+  const isPriceChecker = 
     view === 'price-checker' ||
     view === 'customer' ||
     view === 'scanner' ||
     mode === 'price-checker' ||
     hash.includes('price-checker') ||
-    hash.includes('customer-scanner')
-  );
-}
+    hash.includes('customer-scanner');
 
-export default function App() {
-  const [showSplash, setShowSplash] = useState(true);
-  const isCustomerView = isCustomerCheckerRoute();
-
-  if (isCustomerView) {
-    return <CustomerPriceChecker />;
-  }
-
-  // فحص مباشر لمعاملات الرابط لتحديد ما إذا كان الزائر زبوناً لمسح الأسعار
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const hash = typeof window !== 'undefined' ? window.location.hash : '';
-  const isPriceChecker = searchParams?.get('view') === 'price-checker' || hash.includes('price-checker');
+  // استخراج معرف المتجر من الرابط
   const storeId = searchParams?.get('store') || null;
 
-  // إذا كان الرابط هو رابط مدقق الأسعار للزبائن، يتم عرضه فوراً وبشكل مستقل تماماً
+  // إذا كان الرابط مخصصاً لفحص الأسعار، يتم فتح المكون فوراً مع تمرير معرف المتجر
   if (isPriceChecker) {
     return <CustomerPriceChecker storeId={storeId} />;
   }
