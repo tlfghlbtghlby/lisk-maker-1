@@ -28,9 +28,7 @@ import {
   Settings, 
   ArrowRight,
   Clock,
-  Briefcase,
-  Share2,
-  Check
+  Briefcase
 } from 'lucide-react';
 
 const MainContent: React.FC = () => {
@@ -46,21 +44,7 @@ const MainContent: React.FC = () => {
   } = useApp();
   const [isGuest, setIsGuest] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('pos');
-  const [copiedLink, setCopiedLink] = useState(false);
 
-  // توليد الرابط المشفر النظيف دون أي بارامترات مكشوفة
-  const copyEncryptedCheckerLink = () => {
-    try {
-      const activeStoreKey = currentUser?.id ? `store_user_${currentUser.id}` : 'store_user_azarstore';
-      const encryptedHash = btoa(activeStoreKey);
-      const cleanUrl = `${window.location.origin}${window.location.pathname}#${encryptedHash}`;
-      navigator.clipboard.writeText(cleanUrl);
-      setCopiedLink(true);
-      setTimeout(() => setCopiedLink(false), 2500);
-    } catch (e) {
-      alert('تعذر نسخ الرابط');
-    }
-  };
 
   // إعادة التوجيه لشاشة المبيعات إذا تحولت الجلسة لقسم غير مصرح به
   useEffect(() => {
@@ -231,26 +215,7 @@ const MainContent: React.FC = () => {
           : 'max-w-[1650px] px-3 sm:px-6 py-3 sm:py-4'
       }`}>
         
-        {/* شريط الإدارة وزر نسخ رابط فاحص الأسعار */}
-        <div className="flex items-center justify-between gap-2 mb-3 bg-white dark:bg-[#0b1728] p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-xs shadow-2xs">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span className="font-bold text-slate-700 dark:text-slate-200">لوحة الإدارة والمحاسبة</span>
-          </div>
 
-          <button
-            onClick={copyEncryptedCheckerLink}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-              copiedLink 
-                ? 'bg-emerald-600 text-white' 
-                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-xs'
-            }`}
-            title="نسخ رابط فاحص الأسعار المشفر المخصص للزبائن"
-          >
-            {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Share2 className="w-3.5 h-3.5" />}
-            <span>{copiedLink ? 'تم نسخ الرابط المشفر!' : 'نسخ رابط فحص الأسعار للزبائن'}</span>
-          </button>
-        </div>
 
         {isFullComputerMode && activeTab !== 'pos' && (
           <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl flex items-center justify-between mb-4 shadow-sm border border-slate-800">
@@ -460,27 +425,38 @@ export default function App() {
 
   if (typeof window === 'undefined') return null;
 
-  const searchParams = new URLSearchParams(window.location.search);
-  const hash = window.location.hash.replace(/^#/, '').trim();
+  const [currentHash, setCurrentHash] = useState(() => 
+    typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '').trim() : ''
+  );
 
-  // 1. فك التشفير التلقائي للهاش أو المعاملات
+  useEffect(() => {
+    const handleHashChange = () => {
+      setCurrentHash(window.location.hash.replace(/^#/, '').trim());
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+
+  // 1. فك التشفير التلقائي للهاش أو المعاملات دون افتراض معرف عشوائي عند غيابه
   let storeId: string | null = null;
-  const rawToken = hash || searchParams.get('k') || searchParams.get('store');
+  const rawToken = currentHash || searchParams.get('k') || searchParams.get('store');
 
   if (rawToken) {
     try {
       if (rawToken.startsWith('store_') || rawToken.startsWith('user_')) {
         storeId = rawToken;
       } else {
-        storeId = atob(decodeURIComponent(rawToken));
+        try {
+          storeId = decodeURIComponent(escape(atob(rawToken)));
+        } catch {
+          storeId = atob(decodeURIComponent(rawToken));
+        }
       }
     } catch (e) {
       storeId = rawToken;
     }
-  }
-
-  if (!storeId) {
-    storeId = 'store_user_azarstore';
   }
 
   // التحقق من الرمز السري للإدارة
