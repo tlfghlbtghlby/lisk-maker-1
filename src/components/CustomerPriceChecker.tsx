@@ -27,6 +27,7 @@ export const CustomerPriceChecker: React.FC = () => {
   const qrScannerRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerId = 'reader-barcode-box';
 
+  // مراقبة حالة الاتصال بالإنترنت
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -38,55 +39,64 @@ export const CustomerPriceChecker: React.FC = () => {
     };
   }, []);
 
-  // جلب المواد بدقة وحفظها محلياً
+  // جلب المواد الخاصة بمتجر الرابط حصراً دون أي خلط
   const fetchProducts = async () => {
     setLoading(true);
     const params = new URLSearchParams(window.location.search);
-    const storeParam = params.get('store');
+    const rawStoreParam = params.get('store');
+
+    if (!rawStoreParam) {
+      setProducts([]);
+      setStoreName('رابط غير محدد برمز المتجر');
+      setLoading(false);
+      return;
+    }
+
+    const storeParam = decodeURIComponent(rawStoreParam).trim();
+    const cleanKey = storeParam.replace('store_user_', '').replace('store_', '').toLowerCase();
 
     try {
-      let storeRecord: any = null;
+      const { data: allStores, error } = await supabase
+        .from('stores')
+        .select('id, products, settings');
 
-      if (storeParam) {
-        const { data: byId } = await supabase
-          .from('stores')
-          .select('id, products, settings')
-          .eq('id', storeParam)
-          .maybeSingle();
+      if (error) throw error;
 
-        if (byId) {
-          storeRecord = byId;
-        } else {
-          const decoded = decodeURIComponent(storeParam).trim();
-          const { data: all } = await supabase.from('stores').select('id, products, settings');
-          if (all && all.length > 0) {
-            storeRecord = all.find(
-              (s: any) =>
-                s.id === storeParam ||
-                s.settings?.storeName?.trim() === decoded ||
-                s.settings?.storeName?.trim() === storeParam
-            );
-          }
-        }
+      let matchedStore: any = null;
+
+      if (allStores && allStores.length > 0) {
+        // البحث بالمعرف ID أو الاسم المخزن داخل settings للمتجر
+        matchedStore = allStores.find((s: any) => {
+          const sId = String(s.id || '').toLowerCase();
+          const sName = String(s.settings?.storeName || '').trim().toLowerCase();
+
+          return (
+            sId === storeParam.toLowerCase() ||
+            sId === cleanKey ||
+            sName === storeParam.toLowerCase() ||
+            sName.includes(cleanKey)
+          );
+        });
       }
 
-      if (!storeRecord) {
-        const { data: fallback } = await supabase.from('stores').select('id, products, settings').limit(1).maybeSingle();
-        storeRecord = fallback;
-      }
-
-      if (storeRecord && Array.isArray(storeRecord.products) && storeRecord.products.length > 0) {
-        setProducts(storeRecord.products);
-        if (storeRecord.settings?.storeName) {
-          setStoreName(storeRecord.settings.storeName);
+      if (matchedStore && Array.isArray(matchedStore.products)) {
+        setProducts(matchedStore.products);
+        if (matchedStore.settings?.storeName) {
+          setStoreName(matchedStore.settings.storeName);
         }
-        localStorage.setItem('cached_customer_products', JSON.stringify(storeRecord.products));
+        localStorage.setItem(`cached_${storeParam}`, JSON.stringify(matchedStore.products));
       } else {
-        const cached = localStorage.getItem('cached_customer_products') || localStorage.getItem('cached_pos_products');
-        if (cached) setProducts(JSON.parse(cached));
+        const cached = localStorage.getItem(`cached_${storeParam}`);
+        if (cached) {
+          setProducts(JSON.parse(cached));
+        } else {
+          setProducts([]);
+          setStoreName('المتجر غير مسجل أو لا توجد مواد مضافة');
+        }
       }
-    } catch {
-      const cached = localStorage.getItem('cached_customer_products') || localStorage.getItem('cached_pos_products');
+    } catch (err) {
+      console.warn('Fetch store error:', err);
+      const cached = localStorage.getItem(`cached_${storeParam}`);
       if (cached) setProducts(JSON.parse(cached));
     } finally {
       setLoading(false);
@@ -97,7 +107,7 @@ export const CustomerPriceChecker: React.FC = () => {
     fetchProducts();
   }, []);
 
-  // تشغيل ماسح الباركود الرسمي مع دعم كامل للباركودات الخطية والمائلة
+  // تشغيل الكاميرا عبر Html5Qrcode لقراءة الباركودات بجميع الزوايا
   const startCamera = async () => {
     setCameraError(null);
     setCameraActive(true);
@@ -121,10 +131,10 @@ export const CustomerPriceChecker: React.FC = () => {
 
         const config = {
           fps: 25,
-          qrbox: { width: 320, height: 180 },
+          qrbox: { width: 320, height: 200 },
           aspectRatio: 1.777778,
           experimentalFeatures: {
-            useBarCodeDetectorIfSupported: false // إيقاف الواجهة الضعيفة والاعتماد على المحرك الداخلي
+            useBarCodeDetectorIfSupported: false // منع البارامتر الضعيف والاعتماد على المحرك الدقيق
           }
         };
 
@@ -138,6 +148,7 @@ export const CustomerPriceChecker: React.FC = () => {
           () => {}
         );
       } catch (err: any) {
+        console.error('Camera Error:', err);
         setCameraError('يرجى منح الإذن للكاميرا في المتصفح لمسح الباركود.');
         setCameraActive(false);
       }
@@ -163,7 +174,6 @@ export const CustomerPriceChecker: React.FC = () => {
     };
   }, []);
 
-  // فحص السلعة بالباركود أو الاسم
   const findAndDisplayProduct = (term: string) => {
     const q = term.trim().toLowerCase();
     if (!q) return;
@@ -184,7 +194,7 @@ export const CustomerPriceChecker: React.FC = () => {
     }
   };
 
-  // قائمة البحث الحي اللحظي (تتقلص وتتصفى مع كتابة كل حرف)
+  // البحث الحي اللحظي مع كل حرف
   const liveSuggestions = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
@@ -271,7 +281,7 @@ export const CustomerPriceChecker: React.FC = () => {
           )}
         </div>
 
-        {/* حقل البحث الحي */}
+        {/* حقل البحث الحي الفوري */}
         <div className="relative mb-6">
           <div className="relative">
             <input
