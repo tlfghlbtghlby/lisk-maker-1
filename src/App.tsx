@@ -40,16 +40,13 @@ const MainContent: React.FC = () => {
     hasPermission, 
     activeShift,
     selectedShiftForDetails,
-    setSelectedShiftForDetails
+    setSelectedShiftForDetails,
+    storeFeatures
   } = useApp();
   const [isGuest, setIsGuest] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('pos');
 
-
-  const isShiftsEnabled = settings.enableShifts !== false && (currentUser as any)?.enableShifts !== false;
-  const isSalesRepsEnabled = !!settings.enableSalesReps && (currentUser as any)?.enableSalesReps !== false;
-
-  // إعادة التوجيه لشاشة المبيعات إذا تحولت الجلسة لقسم غير مصرح به
+  // حظر المسارات: إذا كانت الميزة معطلة من السوبر أدمن، يُمنع فتحها ويتم التحويل للبيع فوراً
   useEffect(() => {
     const isTabPermitted = () => {
       switch (activeTab) {
@@ -58,8 +55,9 @@ const MainContent: React.FC = () => {
         case 'invoices': return hasPermission('canViewInvoices');
         case 'customers': return hasPermission('canViewCustomers');
         case 'reports': return hasPermission('canViewReports');
-        case 'sales-reps': return isSalesRepsEnabled && (hasPermission('canManageSalesReps') || sessionRole === 'admin' || sessionRole === 'supervisor');
-        case 'shifts': return isShiftsEnabled && hasPermission('canAccessShifts');
+        case 'sales-reps': return storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps');
+        case 'shifts': return storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts');
+        case 'offers': return storeFeatures?.enableOffers !== false;
         case 'settings': return hasPermission('canAccessSettings');
         default: return true;
       }
@@ -67,26 +65,17 @@ const MainContent: React.FC = () => {
     if (!isTabPermitted()) {
       setActiveTab('pos');
     }
-  }, [sessionRole, activeTab, hasPermission, isShiftsEnabled, isSalesRepsEnabled]);
+  }, [sessionRole, activeTab, hasPermission, storeFeatures, settings.enableShifts, settings.enableSalesReps]);
 
   const isMobile = settings.deviceMode === 'mobile';
   const isFullComputerMode = !isMobile && (settings.desktopLayout === 'full');
   
-  // Product modal
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [initialBarcodeForNewProduct, setInitialBarcodeForNewProduct] = useState<string | undefined>(undefined);
-
-  // Invoice print modal (للمعاينة اليدوية)
   const [invoiceToPrint, setInvoiceToPrint] = useState<Invoice | null>(null);
-
-  // فاتورة الطباعة الصامتة المباشرة لتطبيق Electron
   const [directInvoice, setDirectInvoice] = useState<Invoice | null>(null);
-
-  // قفل لمنع إرسال أمر الطباعة مرتين لنفس الفاتورة
   const isPrintingRef = useRef(false);
-
-  // Settings initial tab
   const [settingsInitialTab, setSettingsInitialTab] = useState<'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'all'>('store');
 
   const handleOpenNewProduct = (initialBarcode?: string) => {
@@ -100,11 +89,13 @@ const MainContent: React.FC = () => {
     setIsProductModalOpen(true);
   };
 
-  // معالجة إنشاء الفاتورة: إذا ضغط "حفظ فقط" لا يطبع، وإذا ضغط "حفظ وطباعة" يرسل أمراً واحداً فقط
   const handleInvoiceCreated = (invoice: Invoice, andPrint: boolean) => {
     if (!andPrint) return;
 
-    if (settings.directPrintEnabled) {
+    // إذا كانت الطباعة السريعة معطلة من السوبر أدمن يتم إلغاؤها قسراً
+    const canDirectPrint = storeFeatures?.enableDirectPrint !== false && settings.directPrintEnabled;
+
+    if (canDirectPrint) {
       if (isPrintingRef.current) return;
       setInvoiceToPrint(null);
       setDirectInvoice(invoice);
@@ -114,7 +105,6 @@ const MainContent: React.FC = () => {
     }
   };
 
-  // تنفيذ الطباعة الصامتة اللحظية المباشرة (دون أي انتظار زمني)
   useEffect(() => {
     if (!directInvoice || isPrintingRef.current) return;
 
@@ -196,6 +186,7 @@ const MainContent: React.FC = () => {
       case 'customers': return 'حسابات الديون والعملاء';
       case 'reports': return 'الأرباح والتقارير المالية';
       case 'sales-reps': return 'مبيعات وأرباح المندوبين';
+      case 'offers': return 'العروض والخصومات الخاصة';
       case 'settings': return 'الإعدادات العامة والنسخ الاحتياطي';
       default: return '';
     }
@@ -217,8 +208,6 @@ const MainContent: React.FC = () => {
           ? 'max-w-2xl px-2.5 sm:px-4 py-3 sm:py-4' 
           : 'max-w-[1650px] px-3 sm:px-6 py-3 sm:py-4'
       }`}>
-        
-
 
         {isFullComputerMode && activeTab !== 'pos' && (
           <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl flex items-center justify-between mb-4 shadow-sm border border-slate-800">
@@ -263,7 +252,9 @@ const MainContent: React.FC = () => {
                 <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-amber-400" />
                 <span>سجل الفواتير</span>
               </button>
-              {isShiftsEnabled && hasPermission('canAccessShifts') && (
+
+              {/* التحقق من الشفتات في وضع الكمبيوتر */}
+              {storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts') && (
                 <button
                   type="button"
                   onClick={() => setActiveTab('shifts')}
@@ -276,7 +267,9 @@ const MainContent: React.FC = () => {
                   )}
                 </button>
               )}
-              {isSalesRepsEnabled && (hasPermission('canManageSalesReps') || sessionRole === 'admin' || sessionRole === 'supervisor') && (
+
+              {/* التحقق من المندوبين في وضع الكمبيوتر */}
+              {storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps') && (
                 <button
                   type="button"
                   onClick={() => setActiveTab('sales-reps')}
@@ -291,6 +284,7 @@ const MainContent: React.FC = () => {
                   )}
                 </button>
               )}
+
               <button
                 type="button"
                 onClick={() => setActiveTab('customers')}
@@ -345,7 +339,7 @@ const MainContent: React.FC = () => {
           />
         )}
 
-        {activeTab === 'shifts' && isShiftsEnabled && (
+        {activeTab === 'shifts' && storeFeatures?.enableShifts !== false && (
           <ShiftsView
             onViewInvoice={(inv) => setInvoiceToPrint(inv)}
           />
@@ -361,7 +355,7 @@ const MainContent: React.FC = () => {
           <ReportsView />
         )}
 
-        {activeTab === 'sales-reps' && isSalesRepsEnabled && (
+        {activeTab === 'sales-reps' && storeFeatures?.enableSalesReps !== false && (
           <SalesRepsView
             onViewInvoice={(inv) => setInvoiceToPrint(inv)}
           />
@@ -428,41 +422,28 @@ export default function App() {
 
   if (typeof window === 'undefined') return null;
 
-  const [currentHash, setCurrentHash] = useState(() => 
-    typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '').trim() : ''
-  );
+  const searchParams = new URLSearchParams(window.location.search);
+  const hash = window.location.hash.replace(/^#/, '').trim();
 
-  useEffect(() => {
-    const handleHashChange = () => {
-      setCurrentHash(window.location.hash.replace(/^#/, '').trim());
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
-  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-
-  // 1. فك التشفير التلقائي للهاش أو المعاملات دون افتراض معرف عشوائي عند غيابه
   let storeId: string | null = null;
-  const rawToken = currentHash || searchParams.get('k') || searchParams.get('store');
+  const rawToken = hash || searchParams.get('k') || searchParams.get('store');
 
   if (rawToken) {
     try {
       if (rawToken.startsWith('store_') || rawToken.startsWith('user_')) {
         storeId = rawToken;
       } else {
-        try {
-          storeId = decodeURIComponent(escape(atob(rawToken)));
-        } catch {
-          storeId = atob(decodeURIComponent(rawToken));
-        }
+        storeId = atob(decodeURIComponent(rawToken));
       }
     } catch (e) {
       storeId = rawToken;
     }
   }
 
-  // التحقق من الرمز السري للإدارة
+  if (!storeId) {
+    storeId = 'store_user_azarstore';
+  }
+
   const handleVerifyPassword = (e: React.FormEvent) => {
     e.preventDefault();
     if (enteredPass.trim() === '8188671219qmzpal10@') {
@@ -476,13 +457,11 @@ export default function App() {
     }
   };
 
-  // 2. إذا لم يكن بوضع الإدارة: عرض قارئ الأسعار الافتراضي للجميع
   if (!isAdminMode) {
     return (
       <div className="relative min-h-screen">
         <CustomerPriceChecker storeId={storeId} />
 
-        {/* زر القفل المحمي في الزاوية السفلية */}
         <button
           type="button"
           onClick={() => {
@@ -496,7 +475,6 @@ export default function App() {
           🔒
         </button>
 
-        {/* نافذة إدخال الرمز السري التفاعلية */}
         {showPasswordModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50" dir="rtl">
             <div className="bg-[#0b1728] border border-slate-700 rounded-2xl p-5 w-full max-w-xs shadow-2xl space-y-4">
@@ -552,7 +530,6 @@ export default function App() {
     );
   }
 
-  // 3. عرض البرنامج المحاسبي بالكامل بعد تأكيد الهوية
   return (
     <AppProvider>
       {showSplash ? (
