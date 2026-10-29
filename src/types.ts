@@ -311,6 +311,11 @@ export interface UserProfile {
   isPermanent?: boolean;
   subscriptionNotes?: string;
   features?: StoreFeatures;
+  enableShifts?: boolean;
+  enableSalesReps?: boolean;
+  enableSupervisor?: boolean;
+  enableEmployee?: boolean;
+  enableCustomerPriceChecker?: boolean;
 }
 
 export type PrintFormatType = 'a4' | 'a5' | 'thermal' | 'thermal80' | 'thermal58';
@@ -373,6 +378,8 @@ export interface StoreSettings {
   theme?: 'light' | 'dark';
   enableShifts?: boolean;
   enableCustomerPriceChecker?: boolean;
+  enableSupervisor?: boolean;
+  enableEmployee?: boolean;
   features?: StoreFeatures;
 }
 

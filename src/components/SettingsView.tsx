@@ -167,6 +167,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     }
   }, [customerPriceCheckerUrl]);
 
+  // حالة رابط ورمز QR لنقطة اتصال الهوت سبوت (أوفلاين)
+  const [hotspotUrl, setHotspotUrl] = useState<string>('http://192.168.137.1:3456');
+  const [hotspotQr, setHotspotQr] = useState<string>('');
+  const [copiedHotspot, setCopiedHotspot] = useState(false);
+
+  // جلب الرابط من Electron وإرسال كتالوج المواد المحلي
+  useEffect(() => {
+    const electron = (window as any).electronAPI || (window as any).electron;
+    if (electron) {
+      if (typeof electron.getHotspotUrl === 'function') {
+        electron.getHotspotUrl().then((url: string) => {
+          if (url) setHotspotUrl(url);
+        });
+      }
+
+      if (typeof electron.updateLocalCatalog === 'function') {
+        electron.updateLocalCatalog({
+          storeName: settings.storeName || 'المتجر',
+          products: products.map(p => ({
+            code: (p as any).barcode || p.code || '',
+            name: p.name,
+            retailPrice: p.retailPrice || (p as any).price || 0,
+            currency: settings.currency || 'د.ع'
+          }))
+        });
+      }
+    }
+  }, [products, settings.storeName, settings.currency]);
+
+  // توليد رمز QR الخاص بالهوت سبوت
+  useEffect(() => {
+    if (hotspotUrl) {
+      QRCode.toDataURL(hotspotUrl, { width: 220, margin: 1 })
+        .then(url => setHotspotQr(url))
+        .catch(err => console.error(err));
+    }
+  }, [hotspotUrl]);
+
   const copyToClipboard = () => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(customerPriceCheckerUrl);
@@ -1027,6 +1065,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   <p className="leading-relaxed">
                     • الرابط مشفر ونظيف تماماً ولا يظهر أي معلومات حساسة، ويعمل على تخزين المواد في ذاكرة هاتف الزبون ليعمل أوفلاين وأونلاين بدون توقف.
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* بطاقة فحص الأسعار الأوفلاين 100% عبر نقطة اتصال الهوت سبوت */}
+            <div className="bg-[#0b1728] border-2 border-emerald-500/40 rounded-2xl p-6 shadow-2xl mt-6">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex-1 space-y-3 text-right w-full">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white">رابط فحص الأسعار الأوفلاين (عبر نقطة بث الكمبيوتر Hotspot)</h3>
+                    <span className="bg-emerald-500 text-slate-950 font-black text-[10px] px-2.5 py-0.5 rounded-full">
+                      أوفلاين 100%
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    يتصل هاتف الزبون بنقطة بث الكمبيوتر (Mobile Hotspot) ويمسح الرمز ليعمل معه الفحص فورياً دون الحاجة لشبكة إنترنت.
+                  </p>
+
+                  <div className="flex items-center gap-2 bg-[#070d18] p-2 rounded-xl border border-slate-800">
+                    <input
+                      type="text"
+                      readOnly
+                      value={hotspotUrl}
+                      className="bg-transparent flex-1 text-xs text-emerald-400 font-mono px-2 focus:outline-none text-left"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(hotspotUrl);
+                        setCopiedHotspot(true);
+                        setTimeout(() => setCopiedHotspot(false), 2000);
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition"
+                    >
+                      {copiedHotspot ? 'تم النسخ!' : 'نسخ الرابط'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* رمز الـ QR الأوفلاين */}
+                <div className="flex flex-col items-center justify-center p-3 bg-white rounded-xl shadow border-2 border-emerald-500 shrink-0">
+                  {hotspotQr ? (
+                    <img src={hotspotQr} alt="Hotspot QR" className="w-36 h-36 object-contain" />
+                  ) : (
+                    <div className="w-36 h-36 flex items-center justify-center text-slate-400 text-xs">جاري التوليد...</div>
+                  )}
+                  <span className="text-[10px] text-slate-900 font-bold mt-1">امسح للاتصال المحلي</span>
                 </div>
               </div>
             </div>
