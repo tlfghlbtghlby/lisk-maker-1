@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Search, Camera, RefreshCw, CheckCircle, X, QrCode } from 'lucide-react';
+import { Search, Camera, RefreshCw, CheckCircle, X, QrCode, AlertTriangle } from 'lucide-react';
 
 const SUPABASE_URL = "https://obodoxxzolgcwvzkkoua.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_0aNPlD59KqYsmVr8r_tMEw_wpgmlj2o";
@@ -54,6 +54,7 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
   const [storeName, setStoreName] = useState<string>('جاري التحميل...');
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState<boolean>(!!resolvedStoreId);
+  const [isDisabledByAdmin, setIsDisabledByAdmin] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [scannedProduct, setScannedProduct] = useState<ProductItem | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -72,8 +73,30 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
 
       setLoading(true);
       const cleanStore = resolvedStoreId.trim().replace(/^store_/, '');
+
+      // فحص القيود المحلية والكاش أولاً لسرعة الظهور
+      try {
+        const cachedDisabled = localStorage.getItem(`cache_checker_disabled_${resolvedStoreId}`);
+        if (cachedDisabled === 'true') {
+          setIsDisabledByAdmin(true);
+        }
+        const localSettingsRaw = localStorage.getItem('cached_pos_settings');
+        if (localSettingsRaw) {
+          const ls = JSON.parse(localSettingsRaw);
+          if (ls.enableCustomerPriceChecker === false) {
+            setIsDisabledByAdmin(true);
+          }
+        }
+        const localSessionRaw = localStorage.getItem('active_client_session');
+        if (localSessionRaw) {
+          const lu = JSON.parse(localSessionRaw);
+          if (lu.enableCustomerPriceChecker === false) {
+            setIsDisabledByAdmin(true);
+          }
+        }
+      } catch {}
       
-      // فحص الذاكرة المؤقتة أولاً لسرعة الظهور اللحظي
+      // فحص الذاكرة المؤقتة للمواد
       try {
         const cachedCatalog = localStorage.getItem(`cache_catalog_${resolvedStoreId}`);
         const cachedName = localStorage.getItem(`cache_name_${resolvedStoreId}`);
@@ -90,7 +113,9 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
         `store_${cleanStore}`,
         resolvedStoreId.trim(),
         cleanStore,
-        `store_user_${cleanStore}`
+        `store_user_${cleanStore}`,
+        `user_${cleanStore}`,
+        `user_${cleanStore.replace(/^user_/, '')}`
       ].filter(Boolean)));
 
       let foundData: any = null;
@@ -123,9 +148,30 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
       if (isCancelled) return;
 
       if (foundData) {
-        const itemMap = new Map<string, ProductItem>();
         const name = foundData.settings?.storeName || foundData.storeName || cleanStore;
         setStoreName(name);
+
+        // التحقق الدقيق من قيد تعطيل ميزة قارئ الأسعار من قبل الإدارة
+        const isCheckerEnabled = 
+          foundData.enableCustomerPriceChecker !== false &&
+          foundData.settings?.enableCustomerPriceChecker !== false &&
+          foundData.user?.enableCustomerPriceChecker !== false;
+
+        if (!isCheckerEnabled) {
+          setIsDisabledByAdmin(true);
+          try {
+            localStorage.setItem(`cache_checker_disabled_${resolvedStoreId}`, 'true');
+          } catch {}
+          setLoading(false);
+          return;
+        } else {
+          setIsDisabledByAdmin(false);
+          try {
+            localStorage.removeItem(`cache_checker_disabled_${resolvedStoreId}`);
+          } catch {}
+        }
+
+        const itemMap = new Map<string, ProductItem>();
 
         // 1. استخراج المواد المباشرة
         if (Array.isArray(foundData.products)) {
@@ -287,6 +333,46 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
           p.barcode.toLowerCase().includes(searchTerm.trim().toLowerCase())
       )
     : [];
+
+  // =========================================================================
+  // حالة تعطيل ميزة قارئ الأسعار من قبل إدارة النظام لهذا المتجر
+  // =========================================================================
+  if (isDisabledByAdmin) {
+    return (
+      <div className="min-h-screen bg-[#060b13] text-white flex flex-col items-center justify-center p-6 text-center select-none" dir="rtl">
+        <div className="w-full max-w-sm bg-[#0b1424] border border-rose-900/50 rounded-3xl p-8 shadow-2xl space-y-6">
+          
+          <div className="relative mx-auto w-24 h-24 rounded-3xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center shadow-lg shadow-rose-500/10">
+            <AlertTriangle className="w-12 h-12 text-rose-400" />
+            <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center text-xs font-bold border-2 border-[#0b1424]">
+              ✕
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            <h2 className="text-xl font-black text-white">
+              {storeName && storeName !== 'جاري التحميل...' ? storeName : 'فاحص أسعار المواد'}
+            </h2>
+            <div className="inline-block px-3 py-1 rounded-full bg-rose-950/80 border border-rose-500/30 text-rose-300 text-xs font-bold">
+              تنبيه من إدارة النظام
+            </div>
+            <p className="text-sm text-slate-200 font-bold leading-relaxed pt-2">
+              تم تعطيل ميزة قارئ الأسعار لهذا المتجر من قبل إدارة النظام.
+            </p>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              يرجى التوجه إلى كاشير المحل أو مراجعة إدارة المتجر للاستفسار عن أسعار المواد.
+            </p>
+          </div>
+
+          <div className="pt-2 border-t border-slate-800">
+            <span className="text-[11px] text-slate-500 font-medium">
+              برنامج المفكر المحاسبي • نظام إدارة التراخيص
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // =========================================================================
   // حالة الرابط المجرد (عدم وجود أي معرّف متجر في الهاش أو الرابط)

@@ -46,6 +46,9 @@ const MainContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('pos');
 
 
+  const isShiftsEnabled = settings.enableShifts !== false && (currentUser as any)?.enableShifts !== false;
+  const isSalesRepsEnabled = !!settings.enableSalesReps && (currentUser as any)?.enableSalesReps !== false;
+
   // إعادة التوجيه لشاشة المبيعات إذا تحولت الجلسة لقسم غير مصرح به
   useEffect(() => {
     const isTabPermitted = () => {
@@ -55,8 +58,8 @@ const MainContent: React.FC = () => {
         case 'invoices': return hasPermission('canViewInvoices');
         case 'customers': return hasPermission('canViewCustomers');
         case 'reports': return hasPermission('canViewReports');
-        case 'sales-reps': return !!settings.enableSalesReps && (hasPermission('canManageSalesReps') || sessionRole === 'admin' || sessionRole === 'supervisor');
-        case 'shifts': return hasPermission('canAccessShifts');
+        case 'sales-reps': return isSalesRepsEnabled && (hasPermission('canManageSalesReps') || sessionRole === 'admin' || sessionRole === 'supervisor');
+        case 'shifts': return isShiftsEnabled && hasPermission('canAccessShifts');
         case 'settings': return hasPermission('canAccessSettings');
         default: return true;
       }
@@ -64,7 +67,7 @@ const MainContent: React.FC = () => {
     if (!isTabPermitted()) {
       setActiveTab('pos');
     }
-  }, [sessionRole, activeTab, hasPermission]);
+  }, [sessionRole, activeTab, hasPermission, isShiftsEnabled, isSalesRepsEnabled]);
 
   const isMobile = settings.deviceMode === 'mobile';
   const isFullComputerMode = !isMobile && (settings.desktopLayout === 'full');
@@ -260,7 +263,7 @@ const MainContent: React.FC = () => {
                 <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-amber-400" />
                 <span>سجل الفواتير</span>
               </button>
-              {hasPermission('canAccessShifts') && (
+              {isShiftsEnabled && hasPermission('canAccessShifts') && (
                 <button
                   type="button"
                   onClick={() => setActiveTab('shifts')}
@@ -273,7 +276,7 @@ const MainContent: React.FC = () => {
                   )}
                 </button>
               )}
-              {!!settings.enableSalesReps && (hasPermission('canManageSalesReps') || sessionRole === 'admin' || sessionRole === 'supervisor') && (
+              {isSalesRepsEnabled && (hasPermission('canManageSalesReps') || sessionRole === 'admin' || sessionRole === 'supervisor') && (
                 <button
                   type="button"
                   onClick={() => setActiveTab('sales-reps')}
@@ -342,7 +345,7 @@ const MainContent: React.FC = () => {
           />
         )}
 
-        {activeTab === 'shifts' && (
+        {activeTab === 'shifts' && isShiftsEnabled && (
           <ShiftsView
             onViewInvoice={(inv) => setInvoiceToPrint(inv)}
           />
@@ -358,7 +361,7 @@ const MainContent: React.FC = () => {
           <ReportsView />
         )}
 
-        {activeTab === 'sales-reps' && (
+        {activeTab === 'sales-reps' && isSalesRepsEnabled && (
           <SalesRepsView
             onViewInvoice={(inv) => setInvoiceToPrint(inv)}
           />

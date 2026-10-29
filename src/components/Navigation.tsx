@@ -19,7 +19,10 @@ interface NavigationProps {
 }
 
 export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }) => {
-  const { products, invoices, customers, shifts, activeShift, hasPermission, settings, sessionRole } = useApp();
+  const { products, invoices, customers, shifts, activeShift, hasPermission, settings, sessionRole, currentUser } = useApp();
+
+  const isShiftsEnabled = settings.enableShifts !== false && (currentUser as any)?.enableShifts !== false;
+  const isSalesRepsEnabled = !!settings.enableSalesReps && (currentUser as any)?.enableSalesReps !== false;
 
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
   const activeDebtCustomers = customers.filter((c) => c.totalDebt > 0).length;
@@ -53,7 +56,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
       icon: <Briefcase className="w-4 h-4" />,
       badge: (settings.salesReps && settings.salesReps.length > 0) ? settings.salesReps.length : undefined,
       badgeColor: 'text-indigo-700 bg-indigo-50 font-bold',
-      permitted: !!settings.enableSalesReps && (hasPermission('canManageSalesReps') || sessionRole === 'admin' || sessionRole === 'supervisor'),
+      permitted: isSalesRepsEnabled && (hasPermission('canManageSalesReps') || sessionRole === 'admin' || sessionRole === 'supervisor'),
     },
     {
       id: 'shifts',
@@ -61,7 +64,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
       icon: <Clock className="w-4 h-4" />,
       badge: activeShift ? '🟢 شفت جارٍ' : (shifts.length > 0 ? shifts.length : undefined),
       badgeColor: activeShift ? 'text-emerald-700 bg-emerald-100 animate-pulse font-bold' : 'text-slate-600 bg-slate-100',
-      permitted: hasPermission('canAccessShifts'),
+      permitted: isShiftsEnabled && hasPermission('canAccessShifts'),
     },
     {
       id: 'customers',

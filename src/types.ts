@@ -291,6 +291,12 @@ export interface UserProfile {
   trialExpiresAt?: string; // تاريخ ووقت الانتهاء بصيغة ISO
   isPermanent?: boolean; // حساب دائمي مدى الحياة بنقرة واحدة من المدير العام
   subscriptionNotes?: string;
+  // قيود وميزات المتجر الديناميكية
+  enableShifts?: boolean; // تفعيل أو تعطيل الشفتات والورديات
+  enableSalesReps?: boolean; // تفعيل أو تعطيل نظام المندوبين
+  enableSupervisor?: boolean; // تفعيل أو إلغاء دور المشرف
+  enableEmployee?: boolean; // تفعيل أو إلغاء دور الموظف
+  enableCustomerPriceChecker?: boolean; // تفعيل أو تعطيل قارئ أسعار الزبائن
 }
 
 // أنواع مقاسات الورق المتاحة للطباعة
@@ -362,6 +368,12 @@ export interface StoreSettings {
 
   // مظهر وثيم البرنامج
   theme?: 'light' | 'dark'; // المظهر: فاتح أو داكن متناسق مع هوية المفكر المحاسبي
+
+  // قيود وميزات المتجر الديناميكية
+  enableShifts?: boolean; // تفعيل أو تعطيل الشفتات والورديات
+  enableSupervisor?: boolean; // تفعيل أو إلغاء دور المشرف
+  enableEmployee?: boolean; // تفعيل أو إلغاء دور الموظف
+  enableCustomerPriceChecker?: boolean; // تفعيل أو تعطيل قارئ أسعار الزبائن
 }
 
 // اسم مستعار لضمان التوافق مع أي استدعاء باسم Settings في التطبيق

@@ -31,6 +31,9 @@ export const SessionSwitchModal: React.FC = () => {
   } = useApp();
 
   const supervisors = settings.supervisors || [];
+  const isSupervisorEnabled = settings.enableSupervisor !== false && (currentUser as any)?.enableSupervisor !== false;
+  const isEmployeeEnabled = settings.enableEmployee !== false && (currentUser as any)?.enableEmployee !== false;
+
   const [selectedRole, setSelectedRole] = useState<SessionRole>('admin');
   const [selectedSupervisorId, setSelectedSupervisorId] = useState<string | null>(null);
   const [passwordOrPin, setPasswordOrPin] = useState('');
@@ -40,30 +43,49 @@ export const SessionSwitchModal: React.FC = () => {
 
   useEffect(() => {
     if (isSessionModalOpen) {
-      if (targetSupervisorIdForModal) {
+      if (targetSupervisorIdForModal && isSupervisorEnabled) {
         setSelectedRole('supervisor');
         setSelectedSupervisorId(targetSupervisorIdForModal);
-      } else if (targetSessionForModal) {
-        setSelectedRole(targetSessionForModal);
-        if (targetSessionForModal === 'supervisor') {
-          setSelectedSupervisorId(activeSupervisorId || (supervisors[0]?.id || null));
-        }
+      } else if (targetSessionForModal === 'supervisor' && isSupervisorEnabled) {
+        setSelectedRole('supervisor');
+        setSelectedSupervisorId(activeSupervisorId || (supervisors[0]?.id || null));
+      } else if (targetSessionForModal === 'employee' && isEmployeeEnabled) {
+        setSelectedRole('employee');
+      } else if (targetSessionForModal === 'admin') {
+        setSelectedRole('admin');
       } else {
-        // إذا كان حالياً موظف نقترح التحويل لأدمن، والعكس
-        const nextRole: SessionRole = sessionRole === 'employee' ? 'admin' : 'employee';
-        setSelectedRole(nextRole);
+        // اقتراح جلسة مناسبة ومفعلة
+        if (sessionRole === 'employee') {
+          setSelectedRole('admin');
+        } else if (isEmployeeEnabled) {
+          setSelectedRole('employee');
+        } else if (isSupervisorEnabled) {
+          setSelectedRole('supervisor');
+        } else {
+          setSelectedRole('admin');
+        }
       }
       setPasswordOrPin('');
       setErrorMsg(null);
       setShowPassword(false);
     }
-  }, [isSessionModalOpen, targetSessionForModal, targetSupervisorIdForModal, sessionRole, activeSupervisorId, supervisors]);
+  }, [isSessionModalOpen, targetSessionForModal, targetSupervisorIdForModal, sessionRole, activeSupervisorId, supervisors, isSupervisorEnabled, isEmployeeEnabled]);
 
   if (!isSessionModalOpen) return null;
 
   const handleSwitch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setErrorMsg(null);
+
+    if (selectedRole === 'supervisor' && !isSupervisorEnabled) {
+      setErrorMsg('تم إلغاء تفعيل جلسة المشرف لهذا المتجر من قبل إدارة النظام.');
+      return;
+    }
+    if (selectedRole === 'employee' && !isEmployeeEnabled) {
+      setErrorMsg('تم إلغاء تفعيل جلسة الموظف لهذا المتجر من قبل إدارة النظام.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -158,47 +180,73 @@ export const SessionSwitchModal: React.FC = () => {
             </button>
 
             {/* 2. Supervisor */}
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedRole('supervisor');
-                if (!selectedSupervisorId && supervisors.length > 0) {
-                  setSelectedSupervisorId(supervisors[0].id);
-                }
-                setErrorMsg(null);
-              }}
-              className={`p-3 rounded-xl border text-center transition flex flex-col items-center gap-1.5 cursor-pointer ${
-                selectedRole === 'supervisor'
-                  ? 'bg-blue-900 text-white border-blue-900 shadow-md ring-2 ring-blue-400/50'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <UserCheck className={`w-5 h-5 ${selectedRole === 'supervisor' ? 'text-blue-400' : 'text-slate-600'}`} />
-              <div className="text-xs font-black">جلسة المشرف</div>
-              <div className={`text-[10px] leading-tight ${selectedRole === 'supervisor' ? 'text-blue-200' : 'text-slate-500'}`}>
-                {supervisors.length > 1 ? `${supervisors.length} مشرفين` : 'صلاحيات وسطية'}
+            {isSupervisorEnabled ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRole('supervisor');
+                  if (!selectedSupervisorId && supervisors.length > 0) {
+                    setSelectedSupervisorId(supervisors[0].id);
+                  }
+                  setErrorMsg(null);
+                }}
+                className={`p-3 rounded-xl border text-center transition flex flex-col items-center gap-1.5 cursor-pointer ${
+                  selectedRole === 'supervisor'
+                    ? 'bg-blue-900 text-white border-blue-900 shadow-md ring-2 ring-blue-400/50'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <UserCheck className={`w-5 h-5 ${selectedRole === 'supervisor' ? 'text-blue-400' : 'text-slate-600'}`} />
+                <div className="text-xs font-black">جلسة المشرف</div>
+                <div className={`text-[10px] leading-tight ${selectedRole === 'supervisor' ? 'text-blue-200' : 'text-slate-500'}`}>
+                  {supervisors.length > 1 ? `${supervisors.length} مشرفين` : 'صلاحيات وسطية'}
+                </div>
+              </button>
+            ) : (
+              <div
+                className="p-3 rounded-xl border border-dashed border-slate-200 bg-slate-100/50 text-slate-400 text-center flex flex-col items-center justify-center gap-1 opacity-60 cursor-not-allowed select-none"
+                title="تم إلغاء تفعيل جلسة المشرف من قبل إدارة النظام"
+              >
+                <UserCheck className="w-5 h-5 text-slate-400" />
+                <div className="text-xs font-bold line-through">جلسة المشرف</div>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 font-bold">
+                  معطل من الإدارة
+                </span>
               </div>
-            </button>
+            )}
 
             {/* 3. Employee */}
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedRole('employee');
-                setErrorMsg(null);
-              }}
-              className={`p-3 rounded-xl border text-center transition flex flex-col items-center gap-1.5 cursor-pointer ${
-                selectedRole === 'employee'
-                  ? 'bg-emerald-700 text-white border-emerald-700 shadow-md ring-2 ring-emerald-400/50'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <Users className={`w-5 h-5 ${selectedRole === 'employee' ? 'text-white' : 'text-slate-600'}`} />
-              <div className="text-xs font-black">جلسة الموظف</div>
-              <div className={`text-[10px] leading-tight ${selectedRole === 'employee' ? 'text-emerald-100' : 'text-slate-500'}`}>
-                بيع وإضافة مواد
+            {isEmployeeEnabled ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRole('employee');
+                  setErrorMsg(null);
+                }}
+                className={`p-3 rounded-xl border text-center transition flex flex-col items-center gap-1.5 cursor-pointer ${
+                  selectedRole === 'employee'
+                    ? 'bg-emerald-700 text-white border-emerald-700 shadow-md ring-2 ring-emerald-400/50'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <Users className={`w-5 h-5 ${selectedRole === 'employee' ? 'text-white' : 'text-slate-600'}`} />
+                <div className="text-xs font-black">جلسة الموظف</div>
+                <div className={`text-[10px] leading-tight ${selectedRole === 'employee' ? 'text-emerald-100' : 'text-slate-500'}`}>
+                  بيع وإضافة مواد
+                </div>
+              </button>
+            ) : (
+              <div
+                className="p-3 rounded-xl border border-dashed border-slate-200 bg-slate-100/50 text-slate-400 text-center flex flex-col items-center justify-center gap-1 opacity-60 cursor-not-allowed select-none"
+                title="تم إلغاء تفعيل جلسة الموظف من قبل إدارة النظام"
+              >
+                <Users className="w-5 h-5 text-slate-400" />
+                <div className="text-xs font-bold line-through">جلسة الموظف</div>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 font-bold">
+                  معطل من الإدارة
+                </span>
               </div>
-            </button>
+            )}
           </div>
 
           {/* Multiple Supervisors Selector when Supervisor role is selected */}

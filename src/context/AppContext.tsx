@@ -593,6 +593,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     passwordOrPin?: string,
     targetSupervisorId?: string
   ): Promise<{ success: boolean; error?: string }> => {
+    const isSupervisorEnabled = settings.enableSupervisor !== false && (currentUser as any)?.enableSupervisor !== false;
+    const isEmployeeEnabled = settings.enableEmployee !== false && (currentUser as any)?.enableEmployee !== false;
+
+    if (targetRole === 'supervisor' && !isSupervisorEnabled) {
+      return { success: false, error: 'تم إلغاء تفعيل جلسة المشرف لهذا المتجر من قبل إدارة النظام.' };
+    }
+
+    if (targetRole === 'employee' && !isEmployeeEnabled) {
+      return { success: false, error: 'تم إلغاء تفعيل جلسة الموظف لهذا المتجر من قبل إدارة النظام.' };
+    }
+
     if (targetRole === 'employee') {
       setSessionRole('employee');
       setActiveSupervisorId(null);

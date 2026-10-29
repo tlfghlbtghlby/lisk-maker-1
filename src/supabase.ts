@@ -110,6 +110,11 @@ export interface UpdateClientInput {
   phone?: string;
   password?: string;
   isActive?: boolean;
+  enableShifts?: boolean;
+  enableSalesReps?: boolean;
+  enableSupervisor?: boolean;
+  enableEmployee?: boolean;
+  enableCustomerPriceChecker?: boolean;
 }
 
 export async function loadAllClientAccounts() {

@@ -8,7 +8,9 @@ import {
   updateClientSubscription,
   migrateAllUsersFromFirebase,
   CreateClientInput,
-  UpdateClientInput
+  UpdateClientInput,
+  getDocument,
+  setDocument
 } from '../supabase';
 import { UserProfile, ADMIN_EMAIL } from '../types';
 import { 
@@ -64,6 +66,11 @@ export const AdminPanel: React.FC = () => {
   const [editIsActive, setEditIsActive] = useState(true);
   const [editIsPermanent, setEditIsPermanent] = useState(false);
   const [editExpiresAt, setEditExpiresAt] = useState('');
+  const [editEnableShifts, setEditEnableShifts] = useState(true);
+  const [editEnableSalesReps, setEditEnableSalesReps] = useState(false);
+  const [editEnableSupervisor, setEditEnableSupervisor] = useState(true);
+  const [editEnableEmployee, setEditEnableEmployee] = useState(true);
+  const [editEnableCustomerPriceChecker, setEditEnableCustomerPriceChecker] = useState(true);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [actionLoadingUid, setActionLoadingUid] = useState<string | null>(null);
 
@@ -208,6 +215,11 @@ export const AdminPanel: React.FC = () => {
     setEditPassword(client.password || '');
     setEditIsActive(client.isActive !== false);
     setEditIsPermanent(client.isPermanent === true);
+    setEditEnableShifts(client.enableShifts !== false);
+    setEditEnableSalesReps(client.enableSalesReps === true);
+    setEditEnableSupervisor(client.enableSupervisor !== false);
+    setEditEnableEmployee(client.enableEmployee !== false);
+    setEditEnableCustomerPriceChecker(client.enableCustomerPriceChecker !== false);
     
     if (client.trialExpiresAt) {
       try {
@@ -238,6 +250,11 @@ export const AdminPanel: React.FC = () => {
         storeName: editStoreName.trim() || editingClient.storeName,
         phone: editPhone.trim(),
         isActive: editIsActive,
+        enableShifts: editEnableShifts,
+        enableSalesReps: editEnableSalesReps,
+        enableSupervisor: editEnableSupervisor,
+        enableEmployee: editEnableEmployee,
+        enableCustomerPriceChecker: editEnableCustomerPriceChecker,
       };
 
       if (editPassword && editPassword.trim().length >= 6) {
@@ -245,6 +262,33 @@ export const AdminPanel: React.FC = () => {
       }
 
       await updateClientAccount(updates);
+
+      // مزامنة القيود مع وثيقة المتجر
+      try {
+        const storeDocId = `store_${editingClient.uid}`;
+        const storeData = await getDocument('stores', storeDocId);
+        if (storeData) {
+          const currentSettings = storeData.settings || {};
+          await setDocument('stores', storeDocId, {
+            ...storeData,
+            enableShifts: editEnableShifts,
+            enableSalesReps: editEnableSalesReps,
+            enableSupervisor: editEnableSupervisor,
+            enableEmployee: editEnableEmployee,
+            enableCustomerPriceChecker: editEnableCustomerPriceChecker,
+            settings: {
+              ...currentSettings,
+              enableShifts: editEnableShifts,
+              enableSalesReps: editEnableSalesReps,
+              enableSupervisor: editEnableSupervisor,
+              enableEmployee: editEnableEmployee,
+              enableCustomerPriceChecker: editEnableCustomerPriceChecker,
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Could not sync restrictions directly to store document:', e);
+      }
 
       if (editIsPermanent) {
         await updateClientSubscription(editingClient.uid, {
@@ -1065,6 +1109,65 @@ export const AdminPanel: React.FC = () => {
                     <span>تم تفعيل الحساب الدائمي مدى الحياة لهذا العميل. لن يتم تسجيل الخروج التلقائي مطلقاً.</span>
                   </div>
                 )}
+              </div>
+
+              {/* Dynamic Feature Restrictions Section */}
+              <div className="bg-slate-800/80 p-3.5 rounded-xl border border-indigo-500/30 space-y-2.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300">
+                  <ShieldCheck className="w-4 h-4 text-indigo-400" />
+                  <span>التحكم في قيود وميزات هذا المتجر (إلغاء أو تفعيل):</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 cursor-pointer hover:border-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={editEnableShifts}
+                      onChange={(e) => setEditEnableShifts(e.target.checked)}
+                      className="accent-emerald-500 w-3.5 h-3.5"
+                    />
+                    <span className="font-bold text-slate-200">الشفتات والورديات</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 cursor-pointer hover:border-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={editEnableSalesReps}
+                      onChange={(e) => setEditEnableSalesReps(e.target.checked)}
+                      className="accent-indigo-500 w-3.5 h-3.5"
+                    />
+                    <span className="font-bold text-slate-200">نظام المندوبين والأرباح</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 cursor-pointer hover:border-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={editEnableSupervisor}
+                      onChange={(e) => setEditEnableSupervisor(e.target.checked)}
+                      className="accent-blue-500 w-3.5 h-3.5"
+                    />
+                    <span className="font-bold text-slate-200">جلسة المشرف</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 cursor-pointer hover:border-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={editEnableEmployee}
+                      onChange={(e) => setEditEnableEmployee(e.target.checked)}
+                      className="accent-emerald-500 w-3.5 h-3.5"
+                    />
+                    <span className="font-bold text-slate-200">جلسة الموظف (الكاشير)</span>
+                  </label>
+
+                  <label className="sm:col-span-2 flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 cursor-pointer hover:border-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={editEnableCustomerPriceChecker}
+                      onChange={(e) => setEditEnableCustomerPriceChecker(e.target.checked)}
+                      className="accent-amber-500 w-3.5 h-3.5"
+                    />
+                    <span className="font-bold text-amber-300">قارئ أسعار المواد للزبائن (QR وبحث الأسعار)</span>
+                  </label>
+                </div>
               </div>
 
               {/* Status Radio */}
