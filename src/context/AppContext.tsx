@@ -23,7 +23,9 @@ import {
   StoreSupervisor,
   DeviceSession,
   DuplicateProductGroup,
-  SalesRep
+  SalesRep,
+  StoreFeatures,
+  DEFAULT_STORE_FEATURES
 } from '../types';
 import { 
   getOrCreateDeviceId, 
@@ -71,6 +73,7 @@ interface AppContextType {
   invoices: Invoice[];
   payments: PaymentRecord[];
   settings: StoreSettings;
+  storeFeatures: StoreFeatures;
   draftOrders: POSDraftOrder[];
   activeDraftId: string;
   activeDraft: POSDraftOrder;
@@ -388,6 +391,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  const [storeFeatures, setStoreFeatures] = useState<StoreFeatures>(() => {
+    try {
+      const cached = localStorage.getItem('cached_pos_features');
+      if (cached) return JSON.parse(cached);
+      if (settings?.features) return settings.features;
+    } catch {}
+    return DEFAULT_STORE_FEATURES;
+  });
+
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       const saved = localStorage.getItem('mufakir_theme');
@@ -566,6 +578,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (settings.supervisors && settings.supervisors.length > 0) ? settings.supervisors[0].name : 'المشرف';
   }, [sessionRole, activeSupervisorId, settings.supervisors]);
 
+  useEffect(() => {
+    if (storeFeatures?.allowedRoles) {
+      if (storeFeatures.allowedRoles[sessionRole] === false) {
+        if (storeFeatures.allowedRoles.employee !== false) {
+          setSessionRole('employee');
+          setActiveSupervisorId(null);
+          try {
+            localStorage.setItem('active_session_role', 'employee');
+            localStorage.removeItem('active_supervisor_id');
+          } catch {}
+        } else if (storeFeatures.allowedRoles.admin !== false) {
+          setSessionRole('admin');
+          try { localStorage.setItem('active_session_role', 'admin'); } catch {}
+        }
+      }
+    }
+  }, [storeFeatures, sessionRole]);
+
   const permissions: RolePermissions = useMemo(() => {
     if (sessionRole === 'admin') return DEFAULT_ADMIN_PERMISSIONS;
     if (sessionRole === 'supervisor') {
@@ -586,22 +616,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [sessionRole, activeSupervisorId, settings.supervisors, settings.supervisorPermissions, settings.employeePermissions]);
 
-  const hasPermission = (action: keyof RolePermissions): boolean => !!permissions[action];
+  const hasPermission = (action: keyof RolePermissions): boolean => {
+    if ((action === 'canAccessShifts' || action === 'canManageShifts' || action === 'canConfigureShifts') && storeFeatures?.enableShifts === false) {
+      return false;
+    }
+    if (action === 'canManageSalesReps' && storeFeatures?.enableSalesReps === false) {
+      return false;
+    }
+    return !!permissions[action];
+  };
 
   const switchSession = async (
     targetRole: SessionRole,
     passwordOrPin?: string,
     targetSupervisorId?: string
   ): Promise<{ success: boolean; error?: string }> => {
-    const isSupervisorEnabled = settings.enableSupervisor !== false && (currentUser as any)?.enableSupervisor !== false;
-    const isEmployeeEnabled = settings.enableEmployee !== false && (currentUser as any)?.enableEmployee !== false;
-
-    if (targetRole === 'supervisor' && !isSupervisorEnabled) {
-      return { success: false, error: 'تم إلغاء تفعيل جلسة المشرف لهذا المتجر من قبل إدارة النظام.' };
-    }
-
-    if (targetRole === 'employee' && !isEmployeeEnabled) {
-      return { success: false, error: 'تم إلغاء تفعيل جلسة الموظف لهذا المتجر من قبل إدارة النظام.' };
+    const isAllowedByPlan = storeFeatures?.allowedRoles?.[targetRole] !== false;
+    if (!isAllowedByPlan) {
+      return { success: false, error: `تم إلغاء تفعيل هذه الجلسة (${targetRole}) لهذا المتجر من قبل الإدارة العامة.` };
     }
 
     if (targetRole === 'employee') {
@@ -740,6 +772,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem('cached_pos_invoices');
       localStorage.removeItem('cached_pos_settings');
       localStorage.removeItem('cached_pos_shifts');
+      localStorage.removeItem('cached_pos_features');
       localStorage.removeItem('cached_pos_active_shift');
     } catch (e) {}
     try {
@@ -790,6 +823,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setSettings(prev => ({ ...prev, ...storeData.settings }));
             localStorage.setItem('cached_pos_settings', JSON.stringify(storeData.settings));
           }
+          if (storeData.features || storeData.settings?.features) {
+            const rawFeats = storeData.features || storeData.settings?.features;
+            const mergedFeats: StoreFeatures = {
+              ...DEFAULT_STORE_FEATURES,
+              ...rawFeats,
+              allowedRoles: {
+                ...DEFAULT_STORE_FEATURES.allowedRoles,
+                ...(rawFeats.allowedRoles || {})
+              }
+            };
+            setStoreFeatures(mergedFeats);
+            try { localStorage.setItem('cached_pos_features', JSON.stringify(mergedFeats)); } catch {}
+          }
         }
         setIsCloudConnected(true);
         setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
@@ -835,6 +881,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (newData.settings) {
         setSettings(prev => ({ ...prev, ...newData.settings }));
         try { localStorage.setItem('cached_pos_settings', JSON.stringify(newData.settings)); } catch {}
+      }
+      if (newData.features || newData.settings?.features) {
+        const rawFeats = newData.features || newData.settings?.features;
+        const mergedFeats: StoreFeatures = {
+          ...DEFAULT_STORE_FEATURES,
+          ...rawFeats,
+          allowedRoles: {
+            ...DEFAULT_STORE_FEATURES.allowedRoles,
+            ...(rawFeats.allowedRoles || {})
+          }
+        };
+        setStoreFeatures(mergedFeats);
+        try { localStorage.setItem('cached_pos_features', JSON.stringify(mergedFeats)); } catch {}
       }
       setIsCloudConnected(true);
       setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
@@ -885,6 +944,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           invoices: merged.invoices ?? invoices,
           shifts: merged.shifts ?? shifts,
           settings: merged.settings ?? settings,
+          features: storeFeatures,
           lastSavedByClient: currentSessionId,
           updatedAt: new Date().toISOString()
         });
@@ -932,6 +992,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setInvoices(mergedInvs);
         setShifts(mergedShs);
         setCustomers(mergedCusts);
+
+        if (cloudData.features || cloudData.settings?.features) {
+          const rawFeats = cloudData.features || cloudData.settings?.features;
+          const mergedFeats: StoreFeatures = {
+            ...DEFAULT_STORE_FEATURES,
+            ...rawFeats,
+            allowedRoles: {
+              ...DEFAULT_STORE_FEATURES.allowedRoles,
+              ...(rawFeats.allowedRoles || {})
+            }
+          };
+          setStoreFeatures(mergedFeats);
+          try { localStorage.setItem('cached_pos_features', JSON.stringify(mergedFeats)); } catch {}
+        }
 
         try {
           localStorage.setItem('cached_pos_products', JSON.stringify(mergedProds));
@@ -1721,6 +1795,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     presetShiftId?: string,
     shiftCode?: string
   ): Promise<{ success: boolean; error?: string; shift?: Shift }> => {
+    if (storeFeatures?.enableShifts === false) {
+      return { success: false, error: 'ميزة الشفتات معطلة لهذا المتجر من قبل الإدارة.' };
+    }
+
     const presets = settings.presetShifts || [];
     if (presets.length === 0 || !presetShiftId) {
       return { success: false, error: 'يرجى اختيار شفت معد مسبقاً.' };
@@ -1889,7 +1967,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        products, customers, invoices, payments, settings,
+        products, customers, invoices, payments, settings, storeFeatures,
         draftOrders, activeDraftId, activeDraft, updateActiveDraft, addNewDraft, switchToDraft, clearCurrentDraft, deleteCurrentDraft, completeActiveDraft,
         shifts, activeShift, startShift, endShift, getShiftStats, deleteShift,
         isStartShiftModalOpen, setIsStartShiftModalOpen,
