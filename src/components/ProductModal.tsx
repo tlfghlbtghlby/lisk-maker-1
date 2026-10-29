@@ -1,4 +1,3 @@
-إليك الكود المحدث بالكامل لملف src/components/ProductModal.tsx متضمناً أزرار تبديل مصدر الاستيراد (القواعد العالمية أولاً 🌐 أو شبكة المتاجر المشتركة أولاً 🏪) مع حفظ اختيار صاحب المتجر تلقائياً في localStorage واستدعاء الدالة وفق التفضيل المحدد:
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
