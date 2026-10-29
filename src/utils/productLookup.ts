@@ -26,10 +26,11 @@ async function translateToArabic(text: string): Promise<string> {
   return text;
 }
 
-// استعلام قواعد البيانات العالمية المفتوحة
+// استعلام قواعد البيانات العالمية المفتوحة الخمس
 async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string; category: string } | null> {
   const cleanCode = barcode.trim();
 
+  // 1. Open Food Facts (أغذية ومشروبات ومعلبات)
   const queryOpenFood = async () => {
     const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${cleanCode}.json`);
     if (!res.ok) throw new Error('OFF not found');
@@ -43,6 +44,7 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
     throw new Error('Not found in OFF');
   };
 
+  // 2. Open Beauty Facts (كوزمتك وعناية شخصية وعطور)
   const queryOpenBeauty = async () => {
     const res = await fetch(`https://world.openbeautyfacts.org/api/v2/product/${cleanCode}.json`);
     if (!res.ok) throw new Error('OBF not found');
@@ -56,6 +58,7 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
     throw new Error('Not found in OBF');
   };
 
+  // 3. Open Products Facts (أدوات ومنزليات وعامة)
   const queryOpenProducts = async () => {
     const res = await fetch(`https://world.openproductsfacts.org/api/v0/product/${cleanCode}.json`);
     if (!res.ok) throw new Error('OPF not found');
@@ -69,6 +72,7 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
     throw new Error('Not found in OPF');
   };
 
+  // 4. Google Books API (كتب وقرطاسية ومطبوعات ISBN)
   const queryGoogleBooks = async () => {
     const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanCode}`);
     if (!res.ok) throw new Error('Books not found');
@@ -94,7 +98,7 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
   }
 }
 
-// دالة مساعدة لاستخراج المادة من كائن البيانات بغض النظر عن طريقة التخزين
+// دالة مساعدة لاستخراج المادة من كائن البيانات المشترك
 function findProductInRecord(record: any, cleanCode: string): { name: string; category: string } | null {
   if (!record) return null;
   const payload = record.data || record.content || record.value || record;
@@ -118,46 +122,7 @@ export async function lookupProductDetails(barcode: string): Promise<AutoLookupR
   const cleanCode = barcode.trim();
   if (!cleanCode) return null;
 
-  // 1. فحص Supabase (جدول documents وجدول app_data)
-  try {
-    if (supabase) {
-      // محاولة أ: جدول documents
-      const { data: docs, error: docErr } = await supabase
-        .from('documents')
-        .select('*')
-        .limit(50);
-
-      if (docErr) {
-        console.warn('Supabase documents error (check RLS):', docErr);
-      } else if (docs && docs.length > 0) {
-        for (const row of docs) {
-          const match = findProductInRecord(row, cleanCode);
-          if (match) {
-            return { ...match, source: 'community' };
-          }
-        }
-      }
-
-      // محاولة ب: جدول app_data الاحتياطي
-      const { data: appData, error: appErr } = await supabase
-        .from('app_data')
-        .select('*')
-        .limit(50);
-
-      if (!appErr && appData && appData.length > 0) {
-        for (const row of appData) {
-          const match = findProductInRecord(row, cleanCode);
-          if (match) {
-            return { ...match, source: 'community' };
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('Community lookup error:', err);
-  }
-
-  // 2. البحث في القواعد العالمية كخيار ثانٍ
+  // 1. الأولوية الأولى: الاستعلام من قواعد البيانات المليونية العالمية المفتوحة وترجمتها فوراً
   try {
     const globalResult = await fetchFromGlobalDatabases(cleanCode);
     if (globalResult && globalResult.name) {
@@ -174,6 +139,43 @@ export async function lookupProductDetails(barcode: string): Promise<AutoLookupR
     }
   } catch (err) {
     console.warn('Global lookup error:', err);
+  }
+
+  // 2. الأولوية الثانية: إذا لم توجد عالمياً، يتم البحث في شبكة المتاجر الأخرى عبر Supabase
+  try {
+    if (supabase) {
+      // فحص جدول documents
+      const { data: docs, error: docErr } = await supabase
+        .from('documents')
+        .select('*')
+        .limit(50);
+
+      if (!docErr && docs && docs.length > 0) {
+        for (const row of docs) {
+          const match = findProductInRecord(row, cleanCode);
+          if (match) {
+            return { ...match, source: 'community' };
+          }
+        }
+      }
+
+      // فحص جدول app_data الاحتياطي
+      const { data: appData, error: appErr } = await supabase
+        .from('app_data')
+        .select('*')
+        .limit(50);
+
+      if (!appErr && appData && appData.length > 0) {
+        for (const row of appData) {
+          const match = findProductInRecord(row, cleanCode);
+          if (match) {
+            return { ...match, source: 'community' };
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Community lookup error:', err);
   }
 
   return null;
