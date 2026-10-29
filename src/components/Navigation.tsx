@@ -7,11 +7,12 @@ import {
   BarChart3, 
   Settings,
   Briefcase,
-  Clock
+  Clock,
+  Tag
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
-export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'shifts' | 'settings';
+export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'shifts' | 'offers' | 'settings';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -19,10 +20,11 @@ interface NavigationProps {
 }
 
 export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }) => {
-  const { products, invoices, customers, shifts, activeShift, hasPermission, settings, sessionRole, currentUser } = useApp();
+  const { products, invoices, customers, shifts, activeShift, hasPermission, settings, storeFeatures } = useApp();
 
-  const isShiftsEnabled = settings.enableShifts !== false && (currentUser as any)?.enableShifts !== false;
-  const isSalesRepsEnabled = !!settings.enableSalesReps && (currentUser as any)?.enableSalesReps !== false;
+  const isShiftsPermitted = storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts');
+  const isSalesRepsPermitted = storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps');
+  const isOffersPermitted = storeFeatures?.enableOffers !== false;
 
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
   const activeDebtCustomers = customers.filter((c) => c.totalDebt > 0).length;
@@ -56,7 +58,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
       icon: <Briefcase className="w-4 h-4" />,
       badge: (settings.salesReps && settings.salesReps.length > 0) ? settings.salesReps.length : undefined,
       badgeColor: 'text-indigo-700 bg-indigo-50 font-bold',
-      permitted: isSalesRepsEnabled && (hasPermission('canManageSalesReps') || sessionRole === 'admin' || sessionRole === 'supervisor'),
+      permitted: isSalesRepsPermitted,
     },
     {
       id: 'shifts',
@@ -64,7 +66,13 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
       icon: <Clock className="w-4 h-4" />,
       badge: activeShift ? '🟢 شفت جارٍ' : (shifts.length > 0 ? shifts.length : undefined),
       badgeColor: activeShift ? 'text-emerald-700 bg-emerald-100 animate-pulse font-bold' : 'text-slate-600 bg-slate-100',
-      permitted: isShiftsEnabled && hasPermission('canAccessShifts'),
+      permitted: isShiftsPermitted,
+    },
+    {
+      id: 'offers',
+      label: 'العروض والخصومات',
+      icon: <Tag className="w-4 h-4" />,
+      permitted: isOffersPermitted,
     },
     {
       id: 'customers',
@@ -89,7 +97,6 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
   ];
 
   const navItems = allNavItems.filter((item) => item.permitted);
-
   const isMobile = settings.deviceMode === 'mobile';
 
   return (
