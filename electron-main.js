@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import http from 'http';
 import os from 'os';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,12 +12,29 @@ let mainWindow = null;
 let localCatalogData = { storeName: 'المتجر', products: [] };
 const LOCAL_PORT = 3456;
 
+// ملف الحفظ الاحتياطي المحلي للمواد على القرص لضمان عدم ضياعها
+let catalogCachePath = '';
+function initCachePath() {
+  try {
+    catalogCachePath = path.join(app.getPath('userData'), 'offline-catalog-cache.json');
+    if (fs.existsSync(catalogCachePath)) {
+      const saved = fs.readFileSync(catalogCachePath, 'utf-8');
+      const parsed = JSON.parse(saved);
+      if (parsed && Array.isArray(parsed.products)) {
+        localCatalogData = parsed;
+        console.log('[Offline Server] Loaded cached products from disk:', localCatalogData.products.length);
+      }
+    }
+  } catch (e) {
+    console.warn('Could not initialize local cache:', e);
+  }
+}
+
 // 1. استخراج عنوان IP المحلي الخاص بشبكة الهوت سبوت أو الشبكة المحلية للكمبيوتر
 function getLocalHotspotIP() {
   const interfaces = os.networkInterfaces();
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
-      // تفضيل عناوين IPv4 الحقيقية غير الداخلية
       if (iface.family === 'IPv4' && !iface.internal) {
         return iface.address;
       }
@@ -31,14 +49,14 @@ function startLocalServer() {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
-    // مسار تزويد الهاتف بالبيانات المحلية كاملة JSON
+    // مسار تزويد الهاتف بالبيانات المحلية كاملة بصيغة JSON
     if (req.url === '/api/products') {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(localCatalogData));
       return;
     }
 
-    // مسار عرض صفحة فحص الأسعار المطابقة تماماً لنسخة الأونلاين
+    // مسار عرض صفحة فحص الأسعار الأوفلاين
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(`<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -78,7 +96,7 @@ function startLocalServer() {
     <div class="flex items-start justify-between pt-2 pb-1">
       <div>
         <span id="badgeCount" class="text-[11px] font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-          محلي (جاري التحميل...)
+          محلي (جاري المزامنة...)
         </span>
       </div>
       <div class="text-left">
@@ -123,7 +141,7 @@ function startLocalServer() {
         </button>
       </div>
 
-      <!-- بطاقة عرض المادة المحددة بنمط الأونلاين -->
+      <!-- بطاقة عرض المادة المحددة -->
       <div id="singleCard" class="hidden bg-[#070e1e] border border-emerald-500/30 rounded-xl p-3.5 flex items-center justify-between shadow-lg">
         <div class="text-emerald-400 font-black text-lg" id="cardPrice">
           0 دينار
@@ -268,7 +286,6 @@ function startLocalServer() {
             (decodedText) => {
               q.value = decodedText;
               q.dispatchEvent(new Event('input'));
-              // إيقاف الكاميرا تلقائياً بعد نجاح القراءة لتوفير البطارية
               stopCamera();
             },
             () => {}
@@ -338,8 +355,24 @@ ipcMain.handle('get-printers', async () => {
   return await mainWindow.webContents.getPrintersAsync();
 });
 
+// استقبال كتالوج المواد واسم المتجر وحفظه تلقائياً
 ipcMain.on('update-local-catalog', (event, data) => {
-  localCatalogData = data || { storeName: 'المتجر', products: [] };
+  if (data) {
+    localCatalogData = {
+      storeName: data.storeName || 'المتجر',
+      products: Array.isArray(data.products) ? data.products : []
+    };
+    console.log('[Offline Server] Live Catalog updated! Total products:', localCatalogData.products.length);
+
+    // حفظ في القرص
+    if (catalogCachePath) {
+      try {
+        fs.writeFileSync(catalogCachePath, JSON.stringify(localCatalogData), 'utf-8');
+      } catch (err) {
+        console.error('Failed to save catalog to cache:', err);
+      }
+    }
+  }
 });
 
 ipcMain.handle('get-hotspot-url', () => {
@@ -414,6 +447,7 @@ ipcMain.handle('print-silent', handlePrint);
 ipcMain.handle('print-direct', handlePrint);
 
 app.whenReady().then(() => {
+  initCachePath();
   startLocalServer();
   createWindow();
 });
