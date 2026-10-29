@@ -33,6 +33,7 @@ import {
 
 const MainContent: React.FC = () => {
   const { 
+    products,
     settings, 
     currentUser, 
     authLoading, 
@@ -45,6 +46,24 @@ const MainContent: React.FC = () => {
   } = useApp();
   const [isGuest, setIsGuest] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('pos');
+
+  // مزامنة فورية تلقائية مع سيرفر Electron المحلي عند كل تغيير في المواد أو الإعدادات
+  useEffect(() => {
+    if (products && products.length > 0) {
+      const electron = (window as any).electronAPI || (window as any).electron;
+      if (electron && typeof electron.updateLocalCatalog === 'function') {
+        electron.updateLocalCatalog({
+          storeName: settings?.storeName || 'المتجر',
+          products: products.map((p: any) => ({
+            code: p.barcode || p.code || '',
+            name: p.name || '',
+            retailPrice: p.retailPrice || p.price || 0,
+            currency: settings?.currency || 'د.ع'
+          }))
+        });
+      }
+    }
+  }, [products, settings?.storeName, settings?.currency]);
 
   // حظر المسارات: إذا كانت الميزة معطلة من السوبر أدمن، يُمنع فتحها ويتم التحويل للبيع فوراً
   useEffect(() => {
