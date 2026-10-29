@@ -28,7 +28,7 @@ async function translateToArabic(text: string): Promise<string> {
   return text;
 }
 
-// استعلام قواعد البيانات العالمية المفتوحة الخمس
+// استعلام قواعد البيانات العالمية المفتوحة
 async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string; category: string } | null> {
   const cleanCode = barcode.trim();
 
@@ -101,7 +101,7 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
   }
 }
 
-// الدالة المجمعة: تبدأ بمتاجر المشتركين أولاً ثم العالمية مع الترجمة
+// الدالة المجمعة: تبدأ بمتاجر المشتركين أولاً ثم القواعد العالمية مع الترجمة
 export async function lookupProductDetails(barcode: string): Promise<AutoLookupResult | null> {
   const cleanCode = barcode.trim();
   if (!cleanCode) return null;
@@ -109,18 +109,43 @@ export async function lookupProductDetails(barcode: string): Promise<AutoLookupR
   // الخطوة 1: البحث في شبكة المتاجر الأخرى عبر Supabase
   try {
     if (supabase) {
-      const { data, error } = await supabase
+      // أ. البحث في وثائق المتاجر المشتركة (حيث تخزن المنتجات فعلياً في التطبيق)
+      const { data: docData, error: docError } = await supabase
+        .from('documents')
+        .select('data')
+        .ilike('key', 'store_%');
+
+      if (!docError && docData && Array.isArray(docData)) {
+        for (const row of docData) {
+          const prodList = row.data?.products;
+          if (Array.isArray(prodList)) {
+            const match = prodList.find(
+              (p: any) => p && String(p.code).trim() === cleanCode && p.name && String(p.name).trim() !== ''
+            );
+            if (match) {
+              return {
+                name: String(match.name).trim(),
+                category: match.category ? String(match.category).trim() : 'عام',
+                source: 'community'
+              };
+            }
+          }
+        }
+      }
+
+      // ب. فحص احتياطي في جدول products في حال تم استخدامه كجدول مفرد
+      const { data: directData, error: directError } = await supabase
         .from('products')
         .select('name, category')
         .eq('code', cleanCode)
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (!error && data && data.length > 0 && data[0].name && data[0].name.trim() !== '') {
+      if (!directError && directData && directData.length > 0 && directData[0]?.name) {
         return {
-          name: data[0].name.trim(),
-          category: data[0].category || 'عام',
-          source: 'community' // تم إيجادها من المتاجر الأخرى
+          name: directData[0].name.trim(),
+          category: directData[0].category ? directData[0].category.trim() : 'عام',
+          source: 'community'
         };
       }
     }
@@ -140,7 +165,7 @@ export async function lookupProductDetails(barcode: string): Promise<AutoLookupR
       return {
         name: translatedName,
         category: translatedCat || 'عام',
-        source: 'global' // تم إيجادها عالمياً وترجمتها
+        source: 'global'
       };
     }
   } catch (err) {
