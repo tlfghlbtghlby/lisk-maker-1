@@ -1,6 +1,6 @@
 import { supabase } from '../supabase';
 
-export type LookupPreference = 'global' | 'community' | 'all';
+export type LookupPreference = 'global' | 'community';
 
 export interface AutoLookupResult {
   name: string;
@@ -120,6 +120,7 @@ function findProductInRecord(record: any, cleanCode: string): { name: string; ca
 async function fetchFromCommunityDatabase(cleanCode: string): Promise<{ name: string; category: string } | null> {
   if (!supabase) return null;
   try {
+    // 1. فحص جدول documents
     const { data: docs, error: docErr } = await supabase
       .from('documents')
       .select('*')
@@ -132,6 +133,7 @@ async function fetchFromCommunityDatabase(cleanCode: string): Promise<{ name: st
       }
     }
 
+    // 2. فحص جدول app_data الاحتياطي
     const { data: appData, error: appErr } = await supabase
       .from('app_data')
       .select('*')
@@ -149,16 +151,16 @@ async function fetchFromCommunityDatabase(cleanCode: string): Promise<{ name: st
   return null;
 }
 
-// الدالة الرئيسية مع دعم اختيار المصدر المفضل
+// الدالة الرئيسية: تبحث بالأولوية المختارة وإذا لم تجد المادة تنتقل تلقائياً للخيار الآخر
 export async function lookupProductDetails(
   barcode: string,
-  preference: LookupPreference = 'all'
+  preference: LookupPreference = 'global'
 ): Promise<AutoLookupResult | null> {
   const cleanCode = barcode.trim();
   if (!cleanCode) return null;
 
-  // 1. إذا كان الاختيار "القواعد العالمية فقط" أو "العالمية أولاً"
-  if (preference === 'global' || preference === 'all') {
+  // دالة مساعدة لتنفيذ البحث العالمي وترجمة النتيجة
+  const doGlobalSearch = async (): Promise<AutoLookupResult | null> => {
     try {
       const globalResult = await fetchFromGlobalDatabases(cleanCode);
       if (globalResult && globalResult.name) {
@@ -166,7 +168,6 @@ export async function lookupProductDetails(
           translateToArabic(globalResult.name),
           translateToArabic(globalResult.category)
         ]);
-
         return {
           name: translatedName,
           category: translatedCat || 'عام',
@@ -176,43 +177,42 @@ export async function lookupProductDetails(
     } catch (err) {
       console.warn('Global lookup error:', err);
     }
+    return null;
+  };
 
-    // إذا اختار "القواعد العالمية فقط" ولم نجدها نتوقف
-    if (preference === 'global') return null;
-  }
-
-  // 2. إذا كان الاختيار "المتاجر الأخرى أولاً" أو "البديل بعد فشل العالمية"
-  try {
-    const commResult = await fetchFromCommunityDatabase(cleanCode);
-    if (commResult && commResult.name) {
-      return {
-        name: commResult.name,
-        category: commResult.category || 'عام',
-        source: 'community'
-      };
-    }
-  } catch (err) {
-    console.warn('Community lookup error:', err);
-  }
-
-  // 3. إذا كان اختياره الأصلي المتاجر الأخرى أولاً، وفشلت، نذهب كخيار أخير للعالمية
-  if (preference === 'community') {
+  // دالة مساعدة لتنفيذ البحث في المتاجر المشتركة
+  const doCommunitySearch = async (): Promise<AutoLookupResult | null> => {
     try {
-      const globalResult = await fetchFromGlobalDatabases(cleanCode);
-      if (globalResult && globalResult.name) {
-        const [translatedName, translatedCat] = await Promise.all([
-          translateToArabic(globalResult.name),
-          translateToArabic(globalResult.category)
-        ]);
+      const commResult = await fetchFromCommunityDatabase(cleanCode);
+      if (commResult && commResult.name) {
         return {
-          name: translatedName,
-          category: translatedCat || 'عام',
-          source: 'global'
+          name: commResult.name,
+          category: commResult.category || 'عام',
+          source: 'community'
         };
       }
     } catch (err) {
-      console.warn('Fallback global lookup error:', err);
+      console.warn('Community lookup error:', err);
     }
+    return null;
+  };
+
+  // الحالة الأولى: اختيار "العالمية أولاً" -> نبحث عالمياً أولاً، وإن فشل نبحث في المتاجر الأخرى
+  if (preference === 'global') {
+    const globalRes = await doGlobalSearch();
+    if (globalRes) return globalRes;
+
+    const commRes = await doCommunitySearch();
+    if (commRes) return commRes;
+  }
+
+  // الحالة الثانية: اختيار "المتاجر الأخرى أولاً" -> نبحث في المتاجر أولاً، وإن فشل نبحث في العالمية
+  if (preference === 'community') {
+    const commRes = await doCommunitySearch();
+    if (commRes) return commRes;
+
+    const globalRes = await doGlobalSearch();
+    if (globalRes) return globalRes;
   }
 
   return null;
