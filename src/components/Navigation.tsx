@@ -22,6 +22,7 @@ interface NavigationProps {
 export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }) => {
   const { products, invoices, customers, shifts, activeShift, hasPermission, settings, storeFeatures } = useApp();
 
+  // فحص صارم: الميزة يجب أن تكون مفعلة في ترخيص المتجر أولاً، ثم مطابقة لصلاحية الجلسة
   const isShiftsPermitted = storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts');
   const isSalesRepsPermitted = storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps');
   const isOffersPermitted = storeFeatures?.enableOffers !== false;
