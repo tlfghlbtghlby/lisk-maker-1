@@ -21,14 +21,14 @@ function getLocalHotspotIP() {
       }
     }
   }
-  return '127.0.0.1';
+  return '192.168.137.1'; // IP الافتراضي لنقطة اتصال ويندوز Mobile Hotspot
 }
 
 // تشغيل خادم الويب المحلي المستقل أوفلاين
 function startLocalServer() {
   const server = http.createServer((req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
     // 1. مسار جلب قائمة المواد بالكامل بصيغة JSON لهاتف الزبون
     if (req.url === '/api/products') {
@@ -101,7 +101,7 @@ function startLocalServer() {
       const match = prods.find(x => String(x.code).toLowerCase() === val);
       if (match) showItem(match);
 
-      prods.filter(x => x.name.toLowerCase().includes(val) || String(x.code).includes(val)).slice(0, 10).forEach(p => {
+      prods.filter(x => (x.name && x.name.toLowerCase().includes(val)) || (x.code && String(x.code).includes(val))).slice(0, 10).forEach(p => {
         const el = document.createElement('div');
         el.className = 'p-3 bg-[#0b1728] border border-slate-800 rounded-xl flex justify-between cursor-pointer hover:border-slate-600 transition';
         el.innerHTML = '<span class="text-xs font-bold text-white">' + p.name + '</span><span class="text-xs text-emerald-400 font-black">' + Number(p.retailPrice).toLocaleString('en-US') + '</span>';
@@ -116,7 +116,7 @@ function startLocalServer() {
       if (rd.classList.contains('hidden')) {
         rd.classList.remove('hidden');
         qrScanner = new Html5Qrcode("reader");
-        qrScanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 200 }, (decodedText) => {
+        qrScanner.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 250 } }, (decodedText) => {
           q.value = decodedText;
           q.dispatchEvent(new Event('input'));
         });
