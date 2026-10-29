@@ -27,12 +27,16 @@ export const SessionSwitchModal: React.FC = () => {
     setTargetSupervisorIdForModal,
     currentUser,
     settings,
+    storeFeatures,
     activeSupervisorId
   } = useApp();
 
   const supervisors = settings.supervisors || [];
-  const isSupervisorEnabled = settings.enableSupervisor !== false && (currentUser as any)?.enableSupervisor !== false;
-  const isEmployeeEnabled = settings.enableEmployee !== false && (currentUser as any)?.enableEmployee !== false;
+
+  // الاعتماد الصارم على التراخيص السحابية storeFeatures.allowedRoles
+  const isAdminEnabled = storeFeatures?.allowedRoles?.admin !== false;
+  const isSupervisorEnabled = storeFeatures?.allowedRoles?.supervisor !== false && settings.enableSupervisor !== false && (currentUser as any)?.enableSupervisor !== false;
+  const isEmployeeEnabled = storeFeatures?.allowedRoles?.employee !== false && settings.enableEmployee !== false && (currentUser as any)?.enableEmployee !== false;
 
   const [selectedRole, setSelectedRole] = useState<SessionRole>('admin');
   const [selectedSupervisorId, setSelectedSupervisorId] = useState<string | null>(null);
@@ -51,17 +55,17 @@ export const SessionSwitchModal: React.FC = () => {
         setSelectedSupervisorId(activeSupervisorId || (supervisors[0]?.id || null));
       } else if (targetSessionForModal === 'employee' && isEmployeeEnabled) {
         setSelectedRole('employee');
-      } else if (targetSessionForModal === 'admin') {
+      } else if (targetSessionForModal === 'admin' && isAdminEnabled) {
         setSelectedRole('admin');
       } else {
-        // اقتراح جلسة مناسبة ومفعلة
-        if (sessionRole === 'employee') {
+        // اقتراح جلسة بديلة مفعلة ومسموح بها فقط
+        if (sessionRole === 'employee' && isAdminEnabled) {
           setSelectedRole('admin');
         } else if (isEmployeeEnabled) {
           setSelectedRole('employee');
         } else if (isSupervisorEnabled) {
           setSelectedRole('supervisor');
-        } else {
+        } else if (isAdminEnabled) {
           setSelectedRole('admin');
         }
       }
@@ -69,7 +73,7 @@ export const SessionSwitchModal: React.FC = () => {
       setErrorMsg(null);
       setShowPassword(false);
     }
-  }, [isSessionModalOpen, targetSessionForModal, targetSupervisorIdForModal, sessionRole, activeSupervisorId, supervisors, isSupervisorEnabled, isEmployeeEnabled]);
+  }, [isSessionModalOpen, targetSessionForModal, targetSupervisorIdForModal, sessionRole, activeSupervisorId, supervisors, isAdminEnabled, isSupervisorEnabled, isEmployeeEnabled]);
 
   if (!isSessionModalOpen) return null;
 
@@ -77,12 +81,16 @@ export const SessionSwitchModal: React.FC = () => {
     if (e) e.preventDefault();
     setErrorMsg(null);
 
+    if (selectedRole === 'admin' && !isAdminEnabled) {
+      setErrorMsg('تم إلغاء تفعيل جلسة الأدمن لهذا المتجر من قبل الإدارة العامة.');
+      return;
+    }
     if (selectedRole === 'supervisor' && !isSupervisorEnabled) {
-      setErrorMsg('تم إلغاء تفعيل جلسة المشرف لهذا المتجر من قبل إدارة النظام.');
+      setErrorMsg('تم إلغاء تفعيل جلسة المشرف لهذا المتجر من قبل الإدارة العامة.');
       return;
     }
     if (selectedRole === 'employee' && !isEmployeeEnabled) {
-      setErrorMsg('تم إلغاء تفعيل جلسة الموظف لهذا المتجر من قبل إدارة النظام.');
+      setErrorMsg('تم إلغاء تفعيل جلسة الموظف لهذا المتجر من قبل الإدارة العامة.');
       return;
     }
 
@@ -160,24 +168,37 @@ export const SessionSwitchModal: React.FC = () => {
           <div className="grid grid-cols-3 gap-2">
             
             {/* 1. Admin */}
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedRole('admin');
-                setErrorMsg(null);
-              }}
-              className={`p-3 rounded-xl border text-center transition flex flex-col items-center gap-1.5 cursor-pointer ${
-                selectedRole === 'admin'
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-emerald-500/50'
-                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <ShieldCheck className={`w-5 h-5 ${selectedRole === 'admin' ? 'text-emerald-400' : 'text-slate-600'}`} />
-              <div className="text-xs font-black">جلسة الأدمن</div>
-              <div className={`text-[10px] leading-tight ${selectedRole === 'admin' ? 'text-slate-300' : 'text-slate-500'}`}>
-                كامل الصلاحيات
+            {isAdminEnabled ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRole('admin');
+                  setErrorMsg(null);
+                }}
+                className={`p-3 rounded-xl border text-center transition flex flex-col items-center gap-1.5 cursor-pointer ${
+                  selectedRole === 'admin'
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-emerald-500/50'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <ShieldCheck className={`w-5 h-5 ${selectedRole === 'admin' ? 'text-emerald-400' : 'text-slate-600'}`} />
+                <div className="text-xs font-black">جلسة الأدمن</div>
+                <div className={`text-[10px] leading-tight ${selectedRole === 'admin' ? 'text-slate-300' : 'text-slate-500'}`}>
+                  كامل الصلاحيات
+                </div>
+              </button>
+            ) : (
+              <div
+                className="p-3 rounded-xl border border-dashed border-slate-200 bg-slate-100/50 text-slate-400 text-center flex flex-col items-center justify-center gap-1 opacity-60 cursor-not-allowed select-none"
+                title="تم إلغاء تفعيل جلسة الأدمن من قبل إدارة النظام"
+              >
+                <ShieldCheck className="w-5 h-5 text-slate-400" />
+                <div className="text-xs font-bold line-through">جلسة الأدمن</div>
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 font-bold">
+                  معطل من الإدارة
+                </span>
               </div>
-            </button>
+            )}
 
             {/* 2. Supervisor */}
             {isSupervisorEnabled ? (
@@ -250,7 +271,7 @@ export const SessionSwitchModal: React.FC = () => {
           </div>
 
           {/* Multiple Supervisors Selector when Supervisor role is selected */}
-          {selectedRole === 'supervisor' && supervisors.length > 0 && (
+          {selectedRole === 'supervisor' && supervisors.length > 0 && isSupervisorEnabled && (
             <div className="bg-blue-50/70 border border-blue-200 rounded-xl p-2.5 space-y-1.5">
               <span className="text-xs font-bold text-blue-900 block">
                 اختر المشرف المطلوب للدخول بجلسته:
@@ -331,7 +352,7 @@ export const SessionSwitchModal: React.FC = () => {
             )}
           </div>
 
-          {/* Password / PIN Input (Only needed for Admin and Supervisor) */}
+          {/* Password / PIN Input */}
           {selectedRole !== 'employee' && (
             <form onSubmit={handleSwitch} className="space-y-3">
               <div>
@@ -375,7 +396,7 @@ export const SessionSwitchModal: React.FC = () => {
                 )}
               </div>
 
-              {/* Touch Numpad for convenience on POS tablets & touchscreens */}
+              {/* Touch Numpad */}
               <div className="space-y-1 pt-1">
                 {selectedRole === 'admin' && (
                   <div className="text-[10px] text-slate-400 font-bold text-center">
@@ -456,6 +477,7 @@ export const SessionSwitchModal: React.FC = () => {
               onClick={() => {
                 setIsSessionModalOpen(false);
                 setTargetSessionForModal(null);
+                setTargetSupervisorIdForModal(null);
               }}
               className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer border border-slate-200"
             >
