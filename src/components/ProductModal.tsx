@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
-import { X, Package, TrendingUp, AlertCircle, Box, Scan, Sparkles, Scale } from 'lucide-react';
+import { X, Package, TrendingUp, AlertCircle, Box, Scan, Sparkles, Scale, Loader2, CheckCircle2 } from 'lucide-react';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
+import { lookupProductDetails } from '../utils/productLookup';
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -56,6 +57,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [isWeighted, setIsWeighted] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
+  // Auto lookup states
+  const [isSearchingBarcode, setIsSearchingBarcode] = useState(false);
+  const [notFoundMessage, setNotFoundMessage] = useState(false);
+  const [foundSuccessSource, setFoundSuccessSource] = useState<'community' | 'global' | null>(null);
+
   // Carton capacity
   const [piecesPerCarton, setPiecesPerCarton] = useState<number>(12);
 
@@ -81,8 +87,44 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [notes, setNotes] = useState('');
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  // دالة الاستعلام التلقائي عن المادة
+  const triggerAutoLookup = async (barcodeToSearch: string) => {
+    const clean = barcodeToSearch.trim();
+    if (!clean) return;
+
+    setIsSearchingBarcode(true);
+    setNotFoundMessage(false);
+    setFoundSuccessSource(null);
+
+    try {
+      const result = await lookupProductDetails(clean);
+      if (result && result.name) {
+        setName(result.name);
+        if (result.category) {
+          setCategory(result.category);
+        }
+        setFoundSuccessSource(result.source);
+        setNotFoundMessage(false);
+      } else {
+        setNotFoundMessage(true);
+      }
+    } catch (err) {
+      console.warn('Auto lookup failed:', err);
+      setNotFoundMessage(true);
+    } finally {
+      setIsSearchingBarcode(false);
+    }
+  };
+
   // Initialize or reset form
   useEffect(() => {
+    if (!isOpen) {
+      setNotFoundMessage(false);
+      setFoundSuccessSource(null);
+      setIsSearchingBarcode(false);
+      return;
+    }
+
     if (productToEdit) {
       setName(productToEdit.name);
       setCode(productToEdit.code);
@@ -101,7 +143,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setPiecesPerCarton(ppc);
 
       if (weighted) {
-        // For weighted items, base stored prices are per kilogram (1000g)
         const kgCost = productToEdit.costPrice;
         const kgRetail = productToEdit.retailPrice;
         const kgWholesale = productToEdit.wholesalePrice;
@@ -115,7 +156,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         setCartonWholesale(kgWholesale);
         setPieceWholesale(Math.round((kgWholesale / 1000) * 1000) / 1000);
 
-        // Stock in kg
         setCartonsStock(productToEdit.stock);
         setTotalPiecesStock(productToEdit.stock);
         setItemCountStock(typeof productToEdit.itemCount === 'number' ? productToEdit.itemCount : '');
@@ -136,6 +176,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
       setMinStock(productToEdit.minStock || 6);
       setNotes(productToEdit.notes || '');
+      setNotFoundMessage(false);
+      setFoundSuccessSource(null);
     } else {
       const nextCode = initialCode || `${1000 + products.length + 1}`;
       setName('');
@@ -162,6 +204,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
       setMinStock(6);
       setNotes('');
+      setNotFoundMessage(false);
+      setFoundSuccessSource(null);
+
+      // الاستعلام التلقائي فوراً إذا تم تمرير باركود بعد المسح
+      if (initialCode && initialCode.trim()) {
+        triggerAutoLookup(initialCode.trim());
+      }
     }
     setErrors({});
   }, [productToEdit, isOpen, products.length, initialCode]);
@@ -174,6 +223,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       .filter((n) => !isNaN(n) && n > 0);
     const nextNum = numericCodes.length > 0 ? Math.max(...numericCodes) + 1 : 1001;
     setCode(String(nextNum));
+    setNotFoundMessage(false);
+    setFoundSuccessSource(null);
   };
 
   const profitPerPiece = (typeof pieceRetail === 'number' && typeof pieceCost === 'number')
@@ -183,12 +234,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     ? Math.round(((pieceRetail - pieceCost) / pieceCost) * 100)
     : 0;
 
-  // Capacity change handler: recalculates piece prices or carton prices
   const handleCapacityChange = (newPpc: number) => {
     const validPpc = Math.max(1, newPpc);
     setPiecesPerCarton(validPpc);
 
-    // Recalculate pieces prices based on carton prices if carton was entered
     if (typeof cartonCost === 'number') {
       setPieceCost(Math.round((cartonCost / validPpc) * 100) / 100);
     }
@@ -199,13 +248,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setPieceWholesale(Math.round((cartonWholesale / validPpc) * 100) / 100);
     }
 
-    // Recalculate stock
     if (typeof cartonsStock === 'number') {
       setTotalPiecesStock(cartonsStock * validPpc);
     }
   };
 
-  // 1. Cost Price Handlers (Carton / Piece OR Kg / Gram when weighted)
   const handleCartonCostChange = (valStr: string) => {
     if (valStr === '') {
       setCartonCost('');
@@ -215,7 +262,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     const val = parseFloat(valStr) || 0;
     setCartonCost(val);
     if (isWeighted) {
-      // 1 kg = 1000g -> gram cost = kg cost / 1000
       setPieceCost(Math.round((val / 1000) * 1000) / 1000);
     } else {
       setPieceCost(Math.round((val / piecesPerCarton) * 100) / 100);
@@ -231,12 +277,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     const val = parseFloat(valStr) || 0;
     setPieceCost(val);
     if (isWeighted) {
-      // 1g cost * 1000 = kg cost
       setCartonCost(Math.round(val * 1000));
     }
   };
 
-  // 2. Retail Price Handlers
   const handleCartonRetailChange = (valStr: string) => {
     if (valStr === '') {
       setCartonRetail('');
@@ -246,7 +290,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     const val = parseFloat(valStr) || 0;
     setCartonRetail(val);
     if (isWeighted) {
-      // 1 kg = 1000g -> gram retail = kg retail / 1000
       setPieceRetail(Math.round((val / 1000) * 1000) / 1000);
     } else {
       setPieceRetail(Math.round((val / piecesPerCarton) * 100) / 100);
@@ -262,12 +305,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     const val = parseFloat(valStr) || 0;
     setPieceRetail(val);
     if (isWeighted) {
-      // 1g retail * 1000 = kg retail
       setCartonRetail(Math.round(val * 1000));
     }
   };
 
-  // 3. Wholesale Price Handlers
   const handleCartonWholesaleChange = (valStr: string) => {
     if (valStr === '') {
       setCartonWholesale('');
@@ -277,7 +318,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     const val = parseFloat(valStr) || 0;
     setCartonWholesale(val);
     if (isWeighted) {
-      // 1 kg = 1000g -> gram wholesale = kg wholesale / 1000
       setPieceWholesale(Math.round((val / 1000) * 1000) / 1000);
     } else {
       setPieceWholesale(Math.round((val / piecesPerCarton) * 100) / 100);
@@ -293,12 +333,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     const val = parseFloat(valStr) || 0;
     setPieceWholesale(val);
     if (isWeighted) {
-      // 1g wholesale * 1000 = kg wholesale
       setCartonWholesale(Math.round(val * 1000));
     }
   };
 
-  // 4. Stock Handlers
   const handleCartonsStockChange = (valStr: string) => {
     if (valStr === '') {
       setCartonsStock('');
@@ -395,7 +433,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl border border-slate-300 shadow-2xl max-w-2xl w-full my-auto overflow-hidden">
         
-        {/* Header matching Image 2 */}
+        {/* Header */}
         <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800">
@@ -422,6 +460,32 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         {/* Modal Form */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4 max-h-[82vh] overflow-y-auto">
           
+          {/* تنبيهات الاستعلام التلقائي */}
+          {notFoundMessage && !isSearchingBarcode && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 animate-fadeIn">
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
+              <span>لم يتم إيجاد المادة، يرجى إدخال الاسم والأسعار يدوياً.</span>
+            </div>
+          )}
+
+          {isSearchingBarcode && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 animate-pulse">
+              <Loader2 className="w-4 h-4 text-amber-600 animate-spin shrink-0" />
+              <span>جاري استكشاف بيانات المادة من قواعد البيانات المليونية والترجمة...</span>
+            </div>
+          )}
+
+          {foundSuccessSource && !isSearchingBarcode && (
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>
+                {foundSuccessSource === 'community'
+                  ? 'تم استيراد اسم وتصنيف المادة من قاعدة بيانات المتاجر المشتركة بنجاح'
+                  : 'تم استكشاف المادة من قواعد البيانات العالمية وترجمتها إلى العربية بنجاح'}
+              </span>
+            </div>
+          )}
+
           {/* Row 1: Code/Barcode + Name */}
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
             
@@ -446,7 +510,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 <input
                   type="text"
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={(e) => {
+                    const newCode = e.target.value;
+                    setCode(newCode);
+                    setNotFoundMessage(false);
+                    setFoundSuccessSource(null);
+                  }}
+                  onBlur={() => {
+                    if (!productToEdit && code.trim() && !name.trim()) {
+                      triggerAutoLookup(code.trim());
+                    }
+                  }}
                   placeholder="1001"
                   className="w-full pr-8 pl-16 py-2 text-xs font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                 />
@@ -579,7 +653,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   if (checked) {
                     if (unit === 'قطعة') setUnit('كغم');
                     setPriceInputMode('carton');
-                    // Sync kg and gram prices
                     if (typeof cartonCost === 'number' && cartonCost > 0) {
                       setPieceCost(Math.round((cartonCost / 1000) * 1000) / 1000);
                     } else if (typeof pieceCost === 'number' && pieceCost > 0) {
@@ -616,57 +689,56 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </label>
           </div>
 
-          {/* Section 1: Carton Capacity Box (Yellow/Amber box matching Image 2) - فقط للمواد العادية غير الموزونة */}
+          {/* Section 1: Carton Capacity Box */}
           {!isWeighted ? (
-          <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-3.5 space-y-2.5">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <span className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
-                <Box className="w-4 h-4 text-amber-700" />
-                <span>سعة الكرتون (كم قطعة يحتوي الكارتون الواحد؟)</span>
-              </span>
-              <span className="text-[11px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300/80 px-2 py-0.5 rounded-lg">
-                النسبة: 1 كرتون = {piecesPerCarton} قطعة
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {PRESET_CAPACITIES.map((cap) => (
-                <button
-                  key={cap}
-                  type="button"
-                  onClick={() => handleCapacityChange(cap)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer border ${
-                    piecesPerCarton === cap
-                      ? 'bg-amber-700 text-white border-amber-700 shadow-2xs'
-                      : 'bg-white text-amber-900 border-amber-300 hover:bg-amber-100'
-                  }`}
-                >
-                  {cap} ق
-                </button>
-              ))}
-
-              <div className="flex items-center gap-1.5 mr-auto">
-                <input
-                  type="number"
-                  min="1"
-                  value={piecesPerCarton}
-                  onChange={(e) => handleCapacityChange(parseInt(e.target.value) || 1)}
-                  className="w-16 px-2 py-1 text-xs font-bold text-center border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
-                />
-                <span className="text-xs font-bold text-amber-900">قطعة</span>
+            <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs font-extrabold text-amber-950 flex items-center gap-1.5">
+                  <Box className="w-4 h-4 text-amber-700" />
+                  <span>سعة الكرتون (كم قطعة يحتوي الكارتون الواحد؟)</span>
+                </span>
+                <span className="text-[11px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300/80 px-2 py-0.5 rounded-lg">
+                  النسبة: 1 كرتون = {piecesPerCarton} قطعة
+                </span>
               </div>
-            </div>
 
-            <p className="text-[10px] text-amber-800/80 leading-relaxed">
-              * يتم استخدام هذه السعة للتحويل الحسابي الفوري بين سعر الكرتون وسعر القطعة، وكذلك لخصم المخزون بدقة.
-            </p>
-          </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {PRESET_CAPACITIES.map((cap) => (
+                  <button
+                    key={cap}
+                    type="button"
+                    onClick={() => handleCapacityChange(cap)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer border ${
+                      piecesPerCarton === cap
+                        ? 'bg-amber-700 text-white border-amber-700 shadow-2xs'
+                        : 'bg-white text-amber-900 border-amber-300 hover:bg-amber-100'
+                    }`}
+                  >
+                    {cap} ق
+                  </button>
+                ))}
+
+                <div className="flex items-center gap-1.5 mr-auto">
+                  <input
+                    type="number"
+                    min="1"
+                    value={piecesPerCarton}
+                    onChange={(e) => handleCapacityChange(parseInt(e.target.value) || 1)}
+                    className="w-16 px-2 py-1 text-xs font-bold text-center border border-amber-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <span className="text-xs font-bold text-amber-900">قطعة</span>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-amber-800/80 leading-relaxed">
+                * يتم استخدام هذه السعة للتحويل الحسابي الفوري بين سعر الكرتون وسعر القطعة، وكذلك لخصم المخزون بدقة.
+              </p>
+            </div>
           ) : null}
 
-          {/* Section 2: Pricing Structure with Auto-Calculation (Matching Image 2) */}
+          {/* Section 2: Pricing Structure */}
           <div className="bg-slate-50/90 border border-slate-200 rounded-2xl p-3.5 space-y-3">
             
-            {/* Header + Tabs */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-200 pb-2.5">
               <div>
                 <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
@@ -711,10 +783,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
             </div>
 
-            {/* Price Cards Grid: 3 مربعات للأسعار */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               
-              {/* Square 1: Cost Price (مربع سعر الشراء والتكلفة) */}
+              {/* Cost Price */}
               <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-col justify-between hover:border-slate-300 transition">
                 <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-100">
                   <span className="text-xs font-black text-slate-800 flex items-center gap-1">
@@ -728,7 +799,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
 
                 <div className="space-y-2 flex-1 flex flex-col justify-center">
-                  {/* Carton or 1000g Kg Cost */}
                   <div className="bg-slate-50/90 p-2 rounded-xl border border-slate-200">
                     <label className="block text-[11px] font-bold text-slate-700 mb-1 truncate">
                       {isWeighted ? 'سعر الكيلو (1000g):' : 'سعر الكرتون الكامل:'}
@@ -749,7 +819,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Piece or 1g Gram Cost */}
                   <div className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-200">
                     <label className="block text-[11px] font-bold text-emerald-950 mb-1 truncate">
                       {isWeighted ? 'سعر الغرام (1g):' : `تكلفة القطعة (${piecesPerCarton} ق):`}
@@ -772,7 +841,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
               </div>
 
-              {/* Square 2: Retail Selling Price (مربع سعر بيع المفرد تجزئة) */}
+              {/* Retail Price */}
               <div className="bg-white p-3 rounded-2xl border-2 border-emerald-200 shadow-2xs flex flex-col justify-between hover:border-emerald-300 transition">
                 <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-emerald-100">
                   <span className="text-xs font-black text-emerald-900 flex items-center gap-1">
@@ -786,7 +855,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
 
                 <div className="space-y-2 flex-1 flex flex-col justify-center">
-                  {/* Carton or 1000g Kg Retail */}
                   <div className="bg-slate-50/90 p-2 rounded-xl border border-slate-200">
                     <label className="block text-[11px] font-bold text-slate-700 mb-1 truncate">
                       {isWeighted ? 'سعر بيع الكيلو (1000g):' : 'سعر بيع الكرتون:'}
@@ -807,7 +875,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Piece or 1g Gram Retail */}
                   <div className="bg-blue-50/70 p-2 rounded-xl border border-blue-200">
                     <label className="block text-[11px] font-bold text-blue-950 mb-1 truncate">
                       {isWeighted ? 'سعر بيع الغرام (1g):' : `سعر بيع القطعة (${piecesPerCarton} ق):`}
@@ -830,7 +897,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
               </div>
 
-              {/* Square 3: Wholesale Selling Price (مربع سعر بيع الجملة) */}
+              {/* Wholesale Price */}
               <div className="bg-white p-3 rounded-2xl border border-amber-200 shadow-2xs flex flex-col justify-between hover:border-amber-300 transition">
                 <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-amber-100">
                   <span className="text-xs font-black text-amber-950 flex items-center gap-1">
@@ -843,7 +910,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
 
                 <div className="space-y-2 flex-1 flex flex-col justify-center">
-                  {/* Carton or 1000g Kg Wholesale */}
                   <div className="bg-slate-50/90 p-2 rounded-xl border border-slate-200">
                     <label className="block text-[11px] font-bold text-slate-700 mb-1 truncate">
                       {isWeighted ? 'بيع كيلو جملة (1000g):' : 'بيع كرتون (جملة):'}
@@ -864,7 +930,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Piece or 1g Gram Wholesale */}
                   <div className="bg-purple-50/70 p-2 rounded-xl border border-purple-200">
                     <label className="block text-[11px] font-bold text-purple-950 mb-1 truncate">
                       {isWeighted ? 'بيع غرام جملة (1g):' : `بيع قطعة (جملة ${piecesPerCarton} ق):`}
@@ -938,7 +1003,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
           </div>
 
-          {/* Section 3: Initial Stock Converter Box (Matching Image 2) */}
+          {/* Section 3: Initial Stock Converter Box */}
           <div className="bg-emerald-50/70 border border-emerald-200/90 rounded-2xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
@@ -957,9 +1022,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </div>
 
             {isWeighted ? (
-              /* رصيد المواد الموزونة: الرصيد بالكيلو + الرصيد بالعدد اختياري */
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                {/* الرصيد بالكيلو */}
                 <div className="bg-white p-2.5 rounded-xl border border-emerald-200 flex flex-col justify-between">
                   <label className="block text-[11px] font-bold text-slate-800 mb-1 truncate">
                     الرصيد بالكيلو (كغم): <span className="text-rose-500">*</span>
@@ -980,7 +1043,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   </div>
                 </div>
 
-                {/* الرصيد بالعدد (اختياري) */}
                 <div className="bg-white p-2.5 rounded-xl border border-emerald-200 flex flex-col justify-between">
                   <div className="flex items-center justify-between mb-1">
                     <label className="block text-[11px] font-bold text-slate-700 truncate">
@@ -1006,9 +1068,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
               </div>
             ) : (
-              /* رصيد المواد العادية بالكرتون والقطع */
               <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                {/* Cartons Count */}
                 <div className="bg-white p-2 rounded-xl border border-emerald-200 flex flex-col justify-between">
                   <label className="block text-[11px] font-bold text-slate-700 mb-1 truncate">
                     الرصيد بالكراتين:
@@ -1029,7 +1089,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   </div>
                 </div>
 
-                {/* Total Pieces Count */}
                 <div className="bg-white p-2 rounded-xl border border-emerald-200 flex flex-col justify-between">
                   <label className="block text-[11px] font-bold text-emerald-950 mb-1 truncate">
                     الرصيد بالقطع (تلقائي):
@@ -1080,6 +1139,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         onScan={(scanned) => {
           setCode(scanned);
           setIsScannerOpen(false);
+          if (!productToEdit && scanned.trim()) {
+            triggerAutoLookup(scanned.trim());
+          }
         }}
         title="مسح باركود الصنف بالكاميرا"
       />
