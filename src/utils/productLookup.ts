@@ -6,7 +6,7 @@ export interface AutoLookupResult {
   source: 'community' | 'global';
 }
 
-// دالة سريعة للترجمة إلى العربية بدون مفاتيح API عبر خادم الترجمة الحر
+// دالة سريعة للترجمة التلقائية للعربية إذا كان النص أجنبياً
 async function translateToArabic(text: string): Promise<string> {
   if (!text || !text.trim()) return text;
   
@@ -28,11 +28,11 @@ async function translateToArabic(text: string): Promise<string> {
   return text;
 }
 
-// دالة فحص قواعد البيانات العالمية المتعددة
+// استعلام قواعد البيانات العالمية المفتوحة الخمس
 async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string; category: string } | null> {
   const cleanCode = barcode.trim();
 
-  // 1. فحص Open Food Facts (أغذية ومشروبات)
+  // 1. Open Food Facts (أغذية ومشروبات)
   const queryOpenFood = async () => {
     const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${cleanCode}.json`);
     if (!res.ok) throw new Error('OFF not found');
@@ -46,7 +46,7 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
     throw new Error('Not found in OFF');
   };
 
-  // 2. فحص Open Beauty Facts (مستحضرات وكوزمتك)
+  // 2. Open Beauty Facts (كوزمتك وعناية شخصية)
   const queryOpenBeauty = async () => {
     const res = await fetch(`https://world.openbeautyfacts.org/api/v2/product/${cleanCode}.json`);
     if (!res.ok) throw new Error('OBF not found');
@@ -54,13 +54,13 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
     if (data.status === 1 && data.product) {
       const p = data.product;
       const name = p.product_name_ar || p.product_name || '';
-      const cat = p.categories_tags?.[0]?.replace(/^[a-z]{2}:/, '') || 'كوزمتك وعناية';
+      const cat = p.categories_tags?.[0]?.replace(/^[a-z]{2}:/, '') || 'كوزمتك وعناية شخصية';
       if (name) return { name, category: cat };
     }
     throw new Error('Not found in OBF');
   };
 
-  // 3. فحص Open Products Facts (أدوات ومنزليات وإلكترونيات)
+  // 3. Open Products Facts (أدوات ومنزليات وعامة)
   const queryOpenProducts = async () => {
     const res = await fetch(`https://world.openproductsfacts.org/api/v0/product/${cleanCode}.json`);
     if (!res.ok) throw new Error('OPF not found');
@@ -68,13 +68,13 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
     if (data.status === 1 && data.product) {
       const p = data.product;
       const name = p.product_name_ar || p.product_name || '';
-      const cat = 'أدوات منزلية وعامة';
+      const cat = 'أدوات ومنزليات';
       if (name) return { name, category: cat };
     }
     throw new Error('Not found in OPF');
   };
 
-  // 4. فحص Google Books (إذا كان الباركود لكتاب أو قرطاسية ISBN)
+  // 4. Google Books API (كتب وقرطاسية ومطبوعات ISBN)
   const queryGoogleBooks = async () => {
     const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanCode}`);
     if (!res.ok) throw new Error('Books not found');
@@ -88,7 +88,6 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
     throw new Error('Not found in Books');
   };
 
-  // تنفيذ الاستعلامات بالتوازي واختيار أسرع نتيجة تنجح (Promise.any)
   try {
     const firstMatch = await Promise.any([
       queryOpenFood(),
@@ -102,12 +101,12 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
   }
 }
 
-// دالة البحث الشاملة (المجتمع العراقي أولاً ثم القواعد العالمية مع الترجمة)
+// الدالة المجمعة: تبدأ بمتاجر المشتركين أولاً ثم العالمية مع الترجمة
 export async function lookupProductDetails(barcode: string): Promise<AutoLookupResult | null> {
   const cleanCode = barcode.trim();
   if (!cleanCode) return null;
 
-  // 1. الطبقة الأولى: البحث في قاعدة المواد المشتركة لجميع المتاجر في Supabase
+  // الخطوة 1: البحث في شبكة المتاجر الأخرى عبر Supabase
   try {
     if (supabase) {
       const { data, error } = await supabase
@@ -117,11 +116,11 @@ export async function lookupProductDetails(barcode: string): Promise<AutoLookupR
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (!error && data && data.length > 0 && data[0].name) {
+      if (!error && data && data.length > 0 && data[0].name && data[0].name.trim() !== '') {
         return {
-          name: data[0].name,
+          name: data[0].name.trim(),
           category: data[0].category || 'عام',
-          source: 'community'
+          source: 'community' // تم إيجادها من المتاجر الأخرى
         };
       }
     }
@@ -129,11 +128,10 @@ export async function lookupProductDetails(barcode: string): Promise<AutoLookupR
     console.warn('Community lookup error:', err);
   }
 
-  // 2. الطبقة الثانية: قواعد البيانات العالمية المفتوحة + الترجمة التلقائية
+  // الخطوة 2: إذا لم توجد لدى أي متجر، نبحث في القواعد المليونية العالمية ونترجمها
   try {
     const globalResult = await fetchFromGlobalDatabases(cleanCode);
-    if (globalResult) {
-      // ترجمة الاسم والتصنيف للعربية تلقائياً إذا كان النص أجنبياً
+    if (globalResult && globalResult.name) {
       const [translatedName, translatedCat] = await Promise.all([
         translateToArabic(globalResult.name),
         translateToArabic(globalResult.category)
@@ -141,8 +139,8 @@ export async function lookupProductDetails(barcode: string): Promise<AutoLookupR
 
       return {
         name: translatedName,
-        category: translatedCat,
-        source: 'global'
+        category: translatedCat || 'عام',
+        source: 'global' // تم إيجادها عالمياً وترجمتها
       };
     }
   } catch (err) {
