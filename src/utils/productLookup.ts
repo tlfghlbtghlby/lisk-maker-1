@@ -9,8 +9,6 @@ export interface AutoLookupResult {
 // دالة سريعة للترجمة التلقائية للعربية إذا كان النص أجنبياً
 async function translateToArabic(text: string): Promise<string> {
   if (!text || !text.trim()) return text;
-  
-  // إذا كان النص يحتوي بالفعل على حروف عربية لا نترجمه
   if (/[\u0600-\u06FF]/.test(text)) return text;
 
   try {
@@ -23,7 +21,7 @@ async function translateToArabic(text: string): Promise<string> {
       return data[0][0][0];
     }
   } catch (err) {
-    console.warn('Translation fallback to original:', err);
+    console.warn('Translation error:', err);
   }
   return text;
 }
@@ -32,7 +30,6 @@ async function translateToArabic(text: string): Promise<string> {
 async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string; category: string } | null> {
   const cleanCode = barcode.trim();
 
-  // 1. Open Food Facts (أغذية ومشروبات)
   const queryOpenFood = async () => {
     const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${cleanCode}.json`);
     if (!res.ok) throw new Error('OFF not found');
@@ -46,7 +43,6 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
     throw new Error('Not found in OFF');
   };
 
-  // 2. Open Beauty Facts (كوزمتك وعناية شخصية)
   const queryOpenBeauty = async () => {
     const res = await fetch(`https://world.openbeautyfacts.org/api/v2/product/${cleanCode}.json`);
     if (!res.ok) throw new Error('OBF not found');
@@ -60,7 +56,6 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
     throw new Error('Not found in OBF');
   };
 
-  // 3. Open Products Facts (أدوات ومنزليات وعامة)
   const queryOpenProducts = async () => {
     const res = await fetch(`https://world.openproductsfacts.org/api/v0/product/${cleanCode}.json`);
     if (!res.ok) throw new Error('OPF not found');
@@ -74,7 +69,6 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
     throw new Error('Not found in OPF');
   };
 
-  // 4. Google Books API (كتب وقرطاسية ومطبوعات ISBN)
   const queryGoogleBooks = async () => {
     const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanCode}`);
     if (!res.ok) throw new Error('Books not found');
@@ -89,71 +83,81 @@ async function fetchFromGlobalDatabases(barcode: string): Promise<{ name: string
   };
 
   try {
-    const firstMatch = await Promise.any([
+    return await Promise.any([
       queryOpenFood(),
       queryOpenBeauty(),
       queryOpenProducts(),
       queryGoogleBooks()
     ]);
-    return firstMatch;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
 
-// الدالة المجمعة: تبدأ بمتاجر المشتركين أولاً ثم القواعد العالمية مع الترجمة
+// دالة مساعدة لاستخراج المادة من كائن البيانات بغض النظر عن طريقة التخزين
+function findProductInRecord(record: any, cleanCode: string): { name: string; category: string } | null {
+  if (!record) return null;
+  const payload = record.data || record.content || record.value || record;
+  const products = payload?.products || (Array.isArray(payload) ? payload : null);
+
+  if (Array.isArray(products)) {
+    const item = products.find(
+      (p: any) => p && String(p.code || '').trim() === cleanCode && p.name && String(p.name).trim() !== ''
+    );
+    if (item) {
+      return {
+        name: String(item.name).trim(),
+        category: item.category ? String(item.category).trim() : 'عام'
+      };
+    }
+  }
+  return null;
+}
+
 export async function lookupProductDetails(barcode: string): Promise<AutoLookupResult | null> {
   const cleanCode = barcode.trim();
   if (!cleanCode) return null;
 
-  // الخطوة 1: البحث في شبكة المتاجر الأخرى عبر Supabase
+  // 1. فحص Supabase (جدول documents وجدول app_data)
   try {
     if (supabase) {
-      // أ. البحث في وثائق المتاجر المشتركة (حيث تخزن المنتجات فعلياً في التطبيق)
-      const { data: docData, error: docError } = await supabase
+      // محاولة أ: جدول documents
+      const { data: docs, error: docErr } = await supabase
         .from('documents')
-        .select('data')
-        .ilike('key', 'store_%');
+        .select('*')
+        .limit(50);
 
-      if (!docError && docData && Array.isArray(docData)) {
-        for (const row of docData) {
-          const prodList = row.data?.products;
-          if (Array.isArray(prodList)) {
-            const match = prodList.find(
-              (p: any) => p && String(p.code).trim() === cleanCode && p.name && String(p.name).trim() !== ''
-            );
-            if (match) {
-              return {
-                name: String(match.name).trim(),
-                category: match.category ? String(match.category).trim() : 'عام',
-                source: 'community'
-              };
-            }
+      if (docErr) {
+        console.warn('Supabase documents error (check RLS):', docErr);
+      } else if (docs && docs.length > 0) {
+        for (const row of docs) {
+          const match = findProductInRecord(row, cleanCode);
+          if (match) {
+            return { ...match, source: 'community' };
           }
         }
       }
 
-      // ب. فحص احتياطي في جدول products في حال تم استخدامه كجدول مفرد
-      const { data: directData, error: directError } = await supabase
-        .from('products')
-        .select('name, category')
-        .eq('code', cleanCode)
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // محاولة ب: جدول app_data الاحتياطي
+      const { data: appData, error: appErr } = await supabase
+        .from('app_data')
+        .select('*')
+        .limit(50);
 
-      if (!directError && directData && directData.length > 0 && directData[0]?.name) {
-        return {
-          name: directData[0].name.trim(),
-          category: directData[0].category ? directData[0].category.trim() : 'عام',
-          source: 'community'
-        };
+      if (!appErr && appData && appData.length > 0) {
+        for (const row of appData) {
+          const match = findProductInRecord(row, cleanCode);
+          if (match) {
+            return { ...match, source: 'community' };
+          }
+        }
       }
     }
   } catch (err) {
     console.warn('Community lookup error:', err);
   }
 
-  // الخطوة 2: إذا لم توجد لدى أي متجر، نبحث في القواعد المليونية العالمية ونترجمها
+  // 2. البحث في القواعد العالمية كخيار ثانٍ
   try {
     const globalResult = await fetchFromGlobalDatabases(cleanCode);
     if (globalResult && globalResult.name) {
