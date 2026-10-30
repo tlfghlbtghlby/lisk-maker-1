@@ -8,7 +8,6 @@ import {
   FileText, 
   Receipt, 
   FileDown, 
-  Bluetooth, 
   RefreshCw, 
   Info, 
   ArrowDownAZ,
@@ -98,57 +97,130 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       })
     : invoice.items;
 
-  // توليد مستند PDF عالي الدقة كـ Base64 و Blob
+  // توليد ملف PDF كامل الارتفاع دون قص وبدون تشويه الخطوط
   const generateInvoicePDF = async (): Promise<{ base64: string; blob: Blob; fileName: string } | null> => {
-    const element = document.getElementById('printable-invoice');
-    if (!element) return null;
+    const originalElement = document.getElementById('printable-invoice');
+    if (!originalElement) return null;
 
-    const dataUrl = await toPng(element, {
-      quality: 1,
-      pixelRatio: 2.5,
-      backgroundColor: '#ffffff',
-      skipFonts: true,
-      style: {
-        letterSpacing: 'normal',
-        wordSpacing: 'normal',
-        fontFamily: "'Cairo', 'Tajawal', Tahoma, Arial, sans-serif",
-      },
+    // 1. إنشاء نسخة طبق الأصل خارج إطار العرض لتحرير كامل الارتفاع
+    const clone = originalElement.cloneNode(true) as HTMLElement;
+    const isA4 = printLayout === 'a4';
+    const isA5 = printLayout === 'a5';
+    const is80 = printLayout === 'thermal80';
+
+    // العرض القياسي الدقيق بالبكسل لتفادي أي ضغط للنصوص
+    const targetPixelWidth = is58mm ? 384 : is80 ? 576 : isA5 ? 595 : 794;
+
+    clone.style.width = `${targetPixelWidth}px`;
+    clone.style.maxWidth = `${targetPixelWidth}px`;
+    clone.style.minWidth = `${targetPixelWidth}px`;
+    clone.style.height = 'auto';
+    clone.style.maxHeight = 'none';
+    clone.style.overflow = 'visible';
+    clone.style.position = 'fixed';
+    clone.style.top = '-99999px';
+    clone.style.left = '0';
+    clone.style.zIndex = '-9999';
+    clone.style.background = '#ffffff';
+    clone.style.transform = 'none';
+
+    // إزالة قيود الارتفاع من كل العناصر التابعة
+    const allChildren = clone.querySelectorAll('*');
+    allChildren.forEach((child) => {
+      const el = child as HTMLElement;
+      el.style.overflow = 'visible';
+      el.style.maxHeight = 'none';
     });
 
-    const img = new Image();
-    img.src = dataUrl;
-    await new Promise((resolve) => {
-      img.onload = resolve;
-    });
+    document.body.appendChild(clone);
 
-    const aspect = img.naturalHeight / (img.naturalWidth || 1);
-    let pdf: jsPDF;
+    let dataUrl = '';
+    let naturalWidth = 0;
+    let naturalHeight = 0;
+
+    try {
+      dataUrl = await toPng(clone, {
+        quality: 1,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+        skipFonts: true,
+        style: {
+          letterSpacing: 'normal',
+          wordSpacing: 'normal',
+          fontFamily: "'Cairo', 'Tajawal', Tahoma, Arial, sans-serif",
+        },
+      });
+
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise((resolve) => {
+        img.onload = resolve;
+      });
+      naturalWidth = img.naturalWidth || targetPixelWidth;
+      naturalHeight = img.naturalHeight || clone.scrollHeight;
+    } finally {
+      document.body.removeChild(clone);
+    }
+
     const fileName = `قائمة_${invoice.invoiceNumber}.pdf`;
+    let pdf: jsPDF;
 
-    if (printLayout === 'thermal58') {
-      const imgWidth = 48;
-      const imgHeight = imgWidth * aspect;
-      pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [58, imgHeight + 4] });
-      pdf.addImage(dataUrl, 'PNG', 5, 2, imgWidth, imgHeight);
-    } else if (printLayout === 'thermal80') {
-      const imgWidth = 72;
-      const imgHeight = imgWidth * aspect;
-      pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, imgHeight + 4] });
-      pdf.addImage(dataUrl, 'PNG', 4, 2, imgWidth, imgHeight);
-    } else if (printLayout === 'a5') {
+    if (is58mm) {
+      const margin = 2;
+      const mmWidth = 48;
+      const mmHeight = (naturalHeight * mmWidth) / naturalWidth;
+      pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [58, mmHeight + margin * 2] });
+      pdf.addImage(dataUrl, 'PNG', 5, margin, mmWidth, mmHeight, undefined, 'FAST');
+    } else if (is80) {
+      const margin = 3;
+      const mmWidth = 72;
+      const mmHeight = (naturalHeight * mmWidth) / naturalWidth;
+      pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, mmHeight + margin * 2] });
+      pdf.addImage(dataUrl, 'PNG', 4, margin, mmWidth, mmHeight, undefined, 'FAST');
+    } else if (isA5) {
+      // صفحة A5 (148 × 210 ملم) بنظام الصفحات المتعددة
+      const pdfPageWidth = 148;
+      const pdfPageHeight = 210;
+      const margin = 5;
+      const printableWidth = pdfPageWidth - margin * 2;
+      const totalImgHeight = (naturalHeight * printableWidth) / naturalWidth;
+
       pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
-      const pdfWidth = 148;
-      const pdfHeight = 210;
-      const imgWidth = pdfWidth - 8;
-      const imgHeight = imgWidth * aspect;
-      pdf.addImage(dataUrl, 'PNG', 4, 4, imgWidth, Math.min(imgHeight, pdfHeight - 8));
+
+      let heightLeft = totalImgHeight;
+      let positionY = margin;
+
+      pdf.addImage(dataUrl, 'PNG', margin, positionY, printableWidth, totalImgHeight, undefined, 'FAST');
+      heightLeft -= (pdfPageHeight - margin * 2);
+
+      while (heightLeft > 0) {
+        positionY = margin - (totalImgHeight - heightLeft);
+        pdf.addPage('a5', 'portrait');
+        pdf.addImage(dataUrl, 'PNG', margin, positionY, printableWidth, totalImgHeight, undefined, 'FAST');
+        heightLeft -= (pdfPageHeight - margin * 2);
+      }
     } else {
+      // صفحة A4 (210 × 297 ملم) بنظام الصفحات المتعددة التلقائي
+      const pdfPageWidth = 210;
+      const pdfPageHeight = 297;
+      const margin = 6;
+      const printableWidth = pdfPageWidth - margin * 2;
+      const totalImgHeight = (naturalHeight * printableWidth) / naturalWidth;
+
       pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pdfWidth = 210;
-      const pdfHeight = 297;
-      const imgWidth = pdfWidth - 12;
-      const imgHeight = imgWidth * aspect;
-      pdf.addImage(dataUrl, 'PNG', 6, 6, imgWidth, Math.min(imgHeight, pdfHeight - 12));
+
+      let heightLeft = totalImgHeight;
+      let positionY = margin;
+
+      pdf.addImage(dataUrl, 'PNG', margin, positionY, printableWidth, totalImgHeight, undefined, 'FAST');
+      heightLeft -= (pdfPageHeight - margin * 2);
+
+      while (heightLeft > 0) {
+        positionY = margin - (totalImgHeight - heightLeft);
+        pdf.addPage('a4', 'portrait');
+        pdf.addImage(dataUrl, 'PNG', margin, positionY, printableWidth, totalImgHeight, undefined, 'FAST');
+        heightLeft -= (pdfPageHeight - margin * 2);
+      }
     }
 
     const base64 = pdf.output('datauristring').split(',')[1];
@@ -159,17 +231,15 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
   // دالة الحفظ المباشر داخل ملفات الهاتف (Downloads) أو مشاركة الملف
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
-    setPdfNotice('جاري حفظ ملف PDF في التنزيلات...');
+    setPdfNotice('جاري حفظ مستند PDF الكامل...');
     try {
       const pdfData = await generateInvoicePDF();
       if (!pdfData) return;
 
-      // فحص هل التطبيق يعمل كـ تطبيق أصيل Capacitor على الهاتف
       const isNativeApp = Boolean((window as any).Capacitor?.isNativePlatform?.());
 
       if (isNativeApp) {
         try {
-          // 1. حفظ الملف مباشرة في مسار المستندات/التنزيلات
           const savedFile = await Filesystem.writeFile({
             path: pdfData.fileName,
             data: pdfData.base64,
@@ -177,7 +247,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
             recursive: true
           });
 
-          // 2. إتاحة فتحه أو نسخه إلى مجلد التنزيلات عبر نافذة المشاركة الرسمية
           await Share.share({
             title: `حفظ قائمة ${invoice.invoiceNumber}`,
             text: `تم حفظ القائمة رقم ${invoice.invoiceNumber}`,
@@ -193,7 +262,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
         }
       }
 
-      // للكمبيوتر والمتصفحات العادية
+      // للكمبيوتر والمتصفحات
       const url = URL.createObjectURL(pdfData.blob);
       const a = document.createElement('a');
       a.href = url;
@@ -202,7 +271,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setPdfNotice('تم تحميل ملف PDF بنجاح في جهازك');
+      setPdfNotice('تم تحميل ملف PDF الكامل بنجاح');
       setTimeout(() => setPdfNotice(null), 3000);
     } catch (err: any) {
       console.error(err);
@@ -213,7 +282,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
     }
   };
 
-  // دالة الطباعة: تفتح نافذة الطباعة الرسمية عبر مشاركة ملف الـ PDF مع تطبيقات الطباعة
+  // دالة الطباعة: متوافقة مع Electron و Android و Web
   const handlePrint = async () => {
     if ((window as any).electronAPI?.printInvoice) {
       try {
@@ -253,7 +322,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       }
     }
 
-    // متصفح الويب أو احتياطي عند تعذر التطبيق الأصيل
     window.print();
   };
 
