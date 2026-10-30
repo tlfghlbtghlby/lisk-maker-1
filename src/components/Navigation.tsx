@@ -1,14 +1,5 @@
 import React from 'react';
-import { 
-  ShoppingCart, 
-  Boxes, 
-  FileText, 
-  Users, 
-  BarChart3, 
-  Settings,
-  Briefcase,
-  Clock
-} from 'lucide-react';
+import { ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'shifts' | 'settings';
@@ -113,9 +104,11 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
                 {item.badge !== undefined && (
                   <span
                     className={`text-[11px] px-2 py-0.5 rounded-md font-bold transition ${
-                      isActive 
-                        ? 'bg-white/20 dark:bg-slate-950/20 text-white dark:text-slate-950' 
-                        : item.badgeColor ? `${item.badgeColor} dark:bg-slate-800 dark:text-amber-300 dark:border dark:border-slate-700` : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                      isActive
+                        ? 'bg-white/20 dark:bg-slate-950/20 text-white dark:text-slate-950'
+                        : item.badgeColor
+                        ? `${item.badgeColor} dark:bg-slate-800 dark:text-amber-300 dark:border dark:border-slate-700`
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
                     {item.badge}
