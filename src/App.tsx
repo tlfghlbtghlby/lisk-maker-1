@@ -20,30 +20,22 @@ import { AuthView } from './components/AuthView';
 import { SplashScreen } from './components/SplashScreen';
 import { CustomerPriceChecker } from './components/CustomerPriceChecker';
 import { Product, Invoice } from './types';
-import { 
-  Boxes, 
-  FileText, 
-  Users, 
-  BarChart3, 
-  Settings, 
-  ArrowRight,
-  Clock,
-  Briefcase
-} from 'lucide-react';
+import { Boxes, FileText, Users, BarChart3, Settings, ArrowRight, Clock, Briefcase } from 'lucide-react';
 
 const MainContent: React.FC = () => {
   const { 
-    products,
+    products, 
     settings, 
     currentUser, 
     authLoading, 
     sessionRole, 
     hasPermission, 
-    activeShift,
-    selectedShiftForDetails,
-    setSelectedShiftForDetails,
-    storeFeatures
+    activeShift, 
+    selectedShiftForDetails, 
+    setSelectedShiftForDetails, 
+    storeFeatures 
   } = useApp();
+
   const [isGuest, setIsGuest] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('pos');
 
@@ -80,6 +72,7 @@ const MainContent: React.FC = () => {
         default: return true;
       }
     };
+
     if (!isTabPermitted()) {
       setActiveTab('pos');
     }
@@ -87,13 +80,15 @@ const MainContent: React.FC = () => {
 
   const isMobile = settings.deviceMode === 'mobile';
   const isFullComputerMode = !isMobile && (settings.desktopLayout === 'full');
-  
+
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [initialBarcodeForNewProduct, setInitialBarcodeForNewProduct] = useState<string | undefined>(undefined);
+
   const [invoiceToPrint, setInvoiceToPrint] = useState<Invoice | null>(null);
   const [directInvoice, setDirectInvoice] = useState<Invoice | null>(null);
   const isPrintingRef = useRef(false);
+
   const [settingsInitialTab, setSettingsInitialTab] = useState<'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'all'>('store');
 
   const handleOpenNewProduct = (initialBarcode?: string) => {
@@ -109,10 +104,7 @@ const MainContent: React.FC = () => {
 
   const handleInvoiceCreated = (invoice: Invoice, andPrint: boolean) => {
     if (!andPrint) return;
-
-    // إذا كانت الطباعة السريعة معطلة من السوبر أدمن يتم إلغاؤها قسراً
     const canDirectPrint = storeFeatures?.enableDirectPrint !== false && settings.directPrintEnabled;
-
     if (canDirectPrint) {
       if (isPrintingRef.current) return;
       setInvoiceToPrint(null);
@@ -125,15 +117,14 @@ const MainContent: React.FC = () => {
 
   useEffect(() => {
     if (!directInvoice || isPrintingRef.current) return;
-
     isPrintingRef.current = true;
     let isMounted = true;
 
     const executeSilentPrint = async () => {
       const paperSize = settings.printerPaperSize || (settings.printFormat === 'thermal' ? 'thermal80' : 'a4');
       const pageSize = paperSize === 'a4' ? 'A4' : paperSize === 'thermal58' ? '58mm' : '80mm';
-      const electronBridge = (window as any).electronAPI || (window as any).electron;
 
+      const electronBridge = (window as any).electronAPI || (window as any).electron;
       if (typeof window !== 'undefined' && electronBridge) {
         try {
           if (typeof electronBridge.printDirect === 'function') {
@@ -189,9 +180,9 @@ const MainContent: React.FC = () => {
 
   if (!currentUser && !isGuest) {
     return (
-      <AuthView
-        onSuccess={() => setIsGuest(false)}
-        onContinueAsGuest={() => setIsGuest(true)}
+      <AuthView 
+        onSuccess={() => setIsGuest(false)} 
+        onContinueAsGuest={() => setIsGuest(true)} 
       />
     );
   }
@@ -204,7 +195,6 @@ const MainContent: React.FC = () => {
       case 'customers': return 'حسابات الديون والعملاء';
       case 'reports': return 'الأرباح والتقارير المالية';
       case 'sales-reps': return 'مبيعات وأرباح المندوبين';
-      case 'offers': return 'العروض والخصومات الخاصة';
       case 'settings': return 'الإعدادات العامة والنسخ الاحتياطي';
       default: return '';
     }
@@ -215,10 +205,7 @@ const MainContent: React.FC = () => {
       <Header onOpenAuth={() => setIsGuest(false)} />
 
       {!isFullComputerMode && (
-        <Navigation
-          activeTab={activeTab}
-          onSelectTab={(tab) => setActiveTab(tab)}
-        />
+        <Navigation activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
       )}
 
       <main className={`no-print flex-1 w-full mx-auto ${
@@ -226,7 +213,6 @@ const MainContent: React.FC = () => {
           ? 'max-w-2xl px-2.5 sm:px-4 py-3 sm:py-4' 
           : 'max-w-[1650px] px-3 sm:px-6 py-3 sm:py-4'
       }`}>
-
         {isFullComputerMode && activeTab !== 'pos' && (
           <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl flex items-center justify-between mb-4 shadow-sm border border-slate-800">
             <div className="flex items-center gap-2 text-xs font-bold">
@@ -262,6 +248,7 @@ const MainContent: React.FC = () => {
                 <Boxes className="w-3.5 h-3.5 text-slate-500 dark:text-amber-400" />
                 <span>المخزون الكامل</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setActiveTab('invoices')}
@@ -271,7 +258,6 @@ const MainContent: React.FC = () => {
                 <span>سجل الفواتير</span>
               </button>
 
-              {/* التحقق من الشفتات في وضع الكمبيوتر */}
               {storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts') && (
                 <button
                   type="button"
@@ -286,7 +272,6 @@ const MainContent: React.FC = () => {
                 </button>
               )}
 
-              {/* التحقق من المندوبين في وضع الكمبيوتر */}
               {storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps') && (
                 <button
                   type="button"
@@ -303,17 +288,6 @@ const MainContent: React.FC = () => {
                 </button>
               )}
 
-              {storeFeatures?.enableOffers !== false && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('offers')}
-                  className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1 cursor-pointer"
-                >
-                  <Tag className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                  <span>العروض والخصومات</span>
-                </button>
-              )}
-
               <button
                 type="button"
                 onClick={() => setActiveTab('customers')}
@@ -322,6 +296,7 @@ const MainContent: React.FC = () => {
                 <Users className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 <span>الديون والعملاء</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setActiveTab('reports')}
@@ -330,6 +305,7 @@ const MainContent: React.FC = () => {
                 <BarChart3 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                 <span>التقارير</span>
               </button>
+
               <button
                 type="button"
                 onClick={() => setActiveTab('settings')}
@@ -343,7 +319,7 @@ const MainContent: React.FC = () => {
         )}
 
         {activeTab === 'pos' && (
-          <POSView
+          <POSView 
             onInvoiceCreated={handleInvoiceCreated}
             onOpenNewProduct={handleOpenNewProduct}
             onEditProduct={handleOpenEditProduct}
@@ -352,7 +328,7 @@ const MainContent: React.FC = () => {
         )}
 
         {activeTab === 'inventory' && (
-          <InventoryView
+          <InventoryView 
             onOpenNewProduct={handleOpenNewProduct}
             onEditProduct={handleOpenEditProduct}
             onOpenQuickAdd={() => {
@@ -363,21 +339,15 @@ const MainContent: React.FC = () => {
         )}
 
         {activeTab === 'invoices' && (
-          <InvoicesView
-            onViewInvoice={(inv) => setInvoiceToPrint(inv)}
-          />
+          <InvoicesView onViewInvoice={(inv) => setInvoiceToPrint(inv)} />
         )}
 
         {activeTab === 'shifts' && storeFeatures?.enableShifts !== false && (
-          <ShiftsView
-            onViewInvoice={(inv) => setInvoiceToPrint(inv)}
-          />
+          <ShiftsView onViewInvoice={(inv) => setInvoiceToPrint(inv)} />
         )}
 
         {activeTab === 'customers' && (
-          <CustomersView
-            onViewInvoice={(inv) => setInvoiceToPrint(inv)}
-          />
+          <CustomersView onViewInvoice={(inv) => setInvoiceToPrint(inv)} />
         )}
 
         {activeTab === 'reports' && (
@@ -385,9 +355,7 @@ const MainContent: React.FC = () => {
         )}
 
         {activeTab === 'sales-reps' && storeFeatures?.enableSalesReps !== false && (
-          <SalesRepsView
-            onViewInvoice={(inv) => setInvoiceToPrint(inv)}
-          />
+          <SalesRepsView onViewInvoice={(inv) => setInvoiceToPrint(inv)} />
         )}
 
         {activeTab === 'settings' && (
@@ -414,22 +382,21 @@ const MainContent: React.FC = () => {
       <SessionSwitchModal />
       <StartShiftModal />
       <EndShiftModal onNavigateToShifts={() => setActiveTab('shifts')} />
-
-      <ShiftDetailsModal
-        shift={selectedShiftForDetails}
-        onClose={() => setSelectedShiftForDetails(null)}
+      <ShiftDetailsModal 
+        shift={selectedShiftForDetails} 
+        onClose={() => setSelectedShiftForDetails(null)} 
         onViewInvoice={(inv) => setInvoiceToPrint(inv)}
       />
 
       {directInvoice && (
-        <div
-          id="direct-print-offscreen-container"
-          aria-hidden="true"
+        <div 
+          id="direct-print-offscreen-container" 
+          aria-hidden="true" 
           className="fixed -left-[9999px] -top-[9999px] opacity-0 pointer-events-none direct-print-offscreen print:opacity-100 print:pointer-events-auto print:static print:left-auto print:top-auto print:block"
         >
-          <InvoicePrintModal
-            invoice={directInvoice}
-            onClose={() => setDirectInvoice(null)}
+          <InvoicePrintModal 
+            invoice={directInvoice} 
+            onClose={() => setDirectInvoice(null)} 
           />
         </div>
       )}
@@ -442,7 +409,7 @@ export default function App() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [enteredPass, setEnteredPass] = useState('');
   const [errorMsg, setErrorMsg] = useState(false);
-  
+
   // التحقق التلقائي: إذا كان التطبيق يعمل داخل Electron على الويندوز يفتح المبيعات مباشرة
   const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -455,10 +422,8 @@ export default function App() {
 
   const searchParams = new URLSearchParams(window.location.search);
   const hash = window.location.hash.replace(/^#/, '').trim();
-
   let storeId: string | null = null;
   const rawToken = hash || searchParams.get('k') || searchParams.get('store');
-
   if (rawToken) {
     try {
       if (rawToken.startsWith('store_') || rawToken.startsWith('user_')) {
@@ -470,7 +435,6 @@ export default function App() {
       storeId = rawToken;
     }
   }
-
   if (!storeId) {
     storeId = 'store_user_azarstore';
   }
@@ -511,7 +475,8 @@ export default function App() {
             <div className="bg-[#0b1728] border border-slate-700 rounded-2xl p-5 w-full max-w-xs shadow-2xl space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <span>🔒</span> دخول الإدارة والمحاسبة
+                  <span>🔒</span>
+                  دخول الإدارة والمحاسبة
                 </span>
                 <button
                   type="button"
