@@ -38,10 +38,19 @@ jobs:
 
       - name: Initialize and Sync Android Project
         run: |
-          if [ ! -d "android" ]; then
-            npx cap add android
+          # 1. التأكد من وجود ملف إعداد Capacitor
+          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
+            echo '{"appId":"com.listmaker.pos","appName":"برنامج المفكر المحاسبي","webDir":"dist"}' > capacitor.config.json
           fi
-          npx cap sync android
+
+          # 2. إنشاء مجلد أندرويد إذا لم يكن موجوداً
+          if [ ! -d "android" ]; then
+            npx --yes @capacitor/cli add android
+          fi
+
+          # 3. مزامنة الملفات المبنية مع مشروع أندرويد
+          npx --yes @capacitor/cli sync android
+
 
       - name: Accept Android SDK Licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
