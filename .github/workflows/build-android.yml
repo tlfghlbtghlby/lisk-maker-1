@@ -36,33 +36,30 @@ jobs:
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
 
-            - name: Initialize and Sync Android Project
+      - name: Initialize and Sync Android Project
         run: |
-          # 1. إنشاء ملف إعداد Capacitor إذا لم يكن موجوداً
           if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
             echo '{"appId":"com.listmaker.pos","appName":"برنامج المفكر المحاسبي","webDir":"dist"}' > capacitor.config.json
           fi
-
-          # 2. توليد مجلد أندرويد
           if [ ! -d "android" ]; then
-            npx --yes @capacitor/cli add android
+            npx cap add android
           fi
+          npx cap sync android
 
-          # 3. حقن إذن الكاميرا تلقائياً داخل AndroidManifest.xml
-          MANIFEST_FILE="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST_FILE" ]; then
-            if ! grep -q "android.permission.CAMERA" "$MANIFEST_FILE"; then
-              sed -i '/<application/i \    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />' "$MANIFEST_FILE"
-            fi
+      - name: Add Camera Permission to AndroidManifest
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            python3 -c "
+          with open('$MANIFEST', 'r') as f:
+              content = f.read()
+          if 'android.permission.CAMERA' not in content:
+              permission = '<uses-permission android:name=\"android.permission.CAMERA\" />\n    <uses-feature android:name=\"android.hardware.camera\" android:required=\"false\" />\n    <application'
+              content = content.replace('<application', permission, 1)
+              with open('$MANIFEST', 'w') as f:
+                  f.write(content)
+          "
           fi
-
-          # 4. مزامنة التعديلات
-          npx --yes @capacitor/cli sync android
-
-
-          # 3. مزامنة الملفات المبنية مع مشروع أندرويد
-          npx --yes @capacitor/cli sync android
-
 
       - name: Accept Android SDK Licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
