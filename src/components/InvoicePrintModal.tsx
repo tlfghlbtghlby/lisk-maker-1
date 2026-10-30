@@ -77,7 +77,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       : invoice.items;
   }, [invoice?.items, sortByAlphabet]);
 
-  // زيادة استيعاب الصفحة الواحدة لملء الفراغ الأبيض بدقة
   const ITEMS_PER_FIRST_PAGE = printLayout === 'a5' ? 20 : 36;
   const ITEMS_PER_SUB_PAGE = printLayout === 'a5' ? 26 : 46;
 
@@ -90,7 +89,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
     const pages = [];
     let currentIndex = 0;
 
-    // الصفحة الأولى
     const firstPageItems = displayedItems.slice(0, ITEMS_PER_FIRST_PAGE);
     currentIndex += firstPageItems.length;
     pages.push({
@@ -100,7 +98,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       isLast: currentIndex >= displayedItems.length
     });
 
-    // الصفحات اللاحقة
     while (currentIndex < displayedItems.length) {
       const nextBatch = displayedItems.slice(currentIndex, currentIndex + ITEMS_PER_SUB_PAGE);
       const isLast = (currentIndex + nextBatch.length) >= displayedItems.length;
@@ -139,7 +136,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
   const totalRemainingDebt = Math.max(0, grandTotal - paid);
   const currencyLabel = settings.currency || 'د.ع';
 
-  // توليد PDF متعدد الصفحات مع منع قطع الصفوف الأخيرة
   const generateInvoicePDF = async (): Promise<{ base64: string; blob: Blob; fileName: string } | null> => {
     const pageElements = document.querySelectorAll('.printable-invoice-page');
     if (!pageElements || pageElements.length === 0) return null;
@@ -576,19 +572,19 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                   </div>
                 )}
 
-                {/* جدول المواد مع عمود الملاحظات */}
+                {/* جدول المواد مع عمود الملاحظات قبل عمود العدد */}
                 <div className="border border-black rounded">
                   <table className="w-full text-right border-collapse text-[10.5px]">
                     <thead>
                       <tr className="bg-slate-100 border-b border-black text-black font-black">
                         <th className="py-1 px-1 border-l border-black text-center w-7">ت</th>
                         <th className="py-1 px-2 border-l border-black">اسم المادة</th>
+                        {!isThermal && (
+                          <th className="py-1 px-2 border-l border-black text-center w-32">الملاحظات</th>
+                        )}
                         <th className="py-1 px-1 border-l border-black text-center w-12">العدد</th>
                         <th className="py-1 px-2 border-l border-black text-center w-20">السعر</th>
-                        <th className="py-1 px-2 border-l border-black text-center w-20">المبلغ</th>
-                        {!isThermal && (
-                          <th className="py-1 px-2 text-center w-32">الملاحظات</th>
-                        )}
+                        <th className="py-1 px-2 text-center w-20">المبلغ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -603,16 +599,16 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                             <td className="py-0.5 px-2 border-l border-black">
                               <div>{item.name || item.productName}</div>
                             </td>
+                            {!isThermal && (
+                              <td className="py-0.5 px-2 border-l border-black text-center text-[10px] text-slate-700 truncate max-w-[130px]">
+                                {(item as any).notes || '-'}
+                              </td>
+                            )}
                             <td className="py-0.5 px-1 border-l border-black text-center font-mono">
                               {item.isWeighted ? `${item.quantity} كغم` : netQty}
                             </td>
                             <td className="py-0.5 px-2 border-l border-black text-center font-mono">{item.unitPrice.toLocaleString()}</td>
-                            <td className="py-0.5 px-2 border-l border-black text-center font-mono font-bold">{Math.round(netQty * item.unitPrice).toLocaleString()}</td>
-                            {!isThermal && (
-                              <td className="py-0.5 px-2 text-center text-[10px] text-slate-700 truncate max-w-[130px]">
-                                {(item as any).notes || '-'}
-                              </td>
-                            )}
+                            <td className="py-0.5 px-2 text-center font-mono font-bold">{Math.round(netQty * item.unitPrice).toLocaleString()}</td>
                           </tr>
                         );
                       })}
