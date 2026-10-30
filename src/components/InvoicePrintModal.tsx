@@ -597,18 +597,29 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                           <tr key={itemIdx} className={`font-semibold leading-normal ${isLastRow ? '' : 'border-b border-black/30'}`}>
                             <td className="py-0.5 px-1 border-l border-black text-center font-mono text-[10px]">{rowNumber}</td>
                             <td className="py-0.5 px-2 border-l border-black">
-                              <div>{item.name || item.productName}</div>
+                              <div className="flex items-center gap-1">
+                                <span>{item.name || item.productName}</span>
+                                {item.isGift && (
+                                  <span className="text-[9px] font-bold text-black border border-black/60 px-1 rounded">
+                                    (هدية مجانية 🎁)
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             {!isThermal && (
-                              <td className="py-0.5 px-2 border-l border-black text-center text-[10px] text-slate-700 truncate max-w-[130px]">
-                                {(item as any).notes || '-'}
+                              <td className="py-0.5 px-2 border-l border-black text-center text-[10px] text-slate-800 truncate max-w-[150px]">
+                                {(item as any).notes || (item.isGift ? 'هدية مجانية' : '-')}
                               </td>
                             )}
                             <td className="py-0.5 px-1 border-l border-black text-center font-mono">
                               {item.isWeighted ? `${item.quantity} كغم` : netQty}
                             </td>
-                            <td className="py-0.5 px-2 border-l border-black text-center font-mono">{item.unitPrice.toLocaleString()}</td>
-                            <td className="py-0.5 px-2 text-center font-mono font-bold">{Math.round(netQty * item.unitPrice).toLocaleString()}</td>
+                            <td className="py-0.5 px-2 border-l border-black text-center font-mono">
+                              {item.isGift ? '0' : item.unitPrice.toLocaleString()}
+                            </td>
+                            <td className="py-0.5 px-2 text-center font-mono font-bold">
+                              {item.isGift ? '0' : Math.round(netQty * item.unitPrice).toLocaleString()}
+                            </td>
                           </tr>
                         );
                       })}
@@ -621,7 +632,13 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
               {page.isLast && !isThermal && (
                 <div className="space-y-3 pt-4 mt-auto">
                   <div className="flex justify-between items-start gap-3">
-                    <div className="text-[10px] text-slate-700 flex-1">
+                    <div className="text-[10px] text-slate-700 flex-1 space-y-1">
+                      {invoice.notes && (
+                        <div className="border border-black rounded p-1.5 bg-slate-50 font-bold leading-relaxed">
+                          <span className="text-black font-black">الملاحظات: </span>
+                          <span>{invoice.notes}</span>
+                        </div>
+                      )}
                       {settings.invoiceFooterNote && (
                         <p className="border border-slate-300 rounded p-1.5 bg-slate-50 font-bold leading-relaxed">
                           {settings.invoiceFooterNote}
@@ -673,6 +690,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                   <div className="flex justify-between text-[11px] font-black border-t border-dotted border-black pt-0.5"><span>الإجمالي:</span><span>{grandTotal.toLocaleString()} {currencyLabel}</span></div>
                   <div className="flex justify-between"><span>الواصل:</span><span>{paid.toLocaleString()} {currencyLabel}</span></div>
                   <div className="flex justify-between border-t border-black pt-0.5 font-black"><span>المتبقي:</span><span>{totalRemainingDebt.toLocaleString()} {currencyLabel}</span></div>
+                  {invoice.notes && (
+                    <div className="border-t border-dotted border-black pt-1 mt-1 text-[9px] text-slate-800">
+                      <span className="font-black">ملاحظات: </span>
+                      <span>{invoice.notes}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -7,7 +7,6 @@ export interface StoreFeatures {
   enableCustomerPriceChecker: boolean;
   enableShifts: boolean;
   enableSalesReps: boolean;
-  enableOffers: boolean;
   enableModernDesign: boolean;
   allowedRoles: {
     admin: boolean;
@@ -21,7 +20,6 @@ export const DEFAULT_STORE_FEATURES: StoreFeatures = {
   enableCustomerPriceChecker: true,
   enableShifts: true,
   enableSalesReps: true,
-  enableOffers: true,
   enableModernDesign: true,
   allowedRoles: {
     admin: true,
@@ -80,6 +78,8 @@ export interface InvoiceItem {
   returnedQuantity?: number;
   total: number;
   isCustomPrice?: boolean;
+  notes?: string;
+  isGift?: boolean;
 }
 
 export interface ReturnedItemRecord {

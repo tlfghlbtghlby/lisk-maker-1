@@ -7,12 +7,11 @@ import {
   BarChart3, 
   Settings,
   Briefcase,
-  Clock,
-  Tag
+  Clock
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
-export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'shifts' | 'offers' | 'settings';
+export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'shifts' | 'settings';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -25,7 +24,6 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
   // فحص صارم: الميزة يجب أن تكون مفعلة في ترخيص المتجر أولاً، ثم مطابقة لصلاحية الجلسة
   const isShiftsPermitted = storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts');
   const isSalesRepsPermitted = storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps');
-  const isOffersPermitted = storeFeatures?.enableOffers !== false;
 
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
   const activeDebtCustomers = customers.filter((c) => c.totalDebt > 0).length;
@@ -68,12 +66,6 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
       badge: activeShift ? '🟢 شفت جارٍ' : (shifts.length > 0 ? shifts.length : undefined),
       badgeColor: activeShift ? 'text-emerald-700 bg-emerald-100 animate-pulse font-bold' : 'text-slate-600 bg-slate-100',
       permitted: isShiftsPermitted,
-    },
-    {
-      id: 'offers',
-      label: 'العروض والخصومات',
-      icon: <Tag className="w-4 h-4" />,
-      permitted: isOffersPermitted,
     },
     {
       id: 'customers',

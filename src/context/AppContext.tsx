@@ -309,14 +309,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  const [products, setProducts] = useState<Product[]>(() => {
+  const deduplicateProducts = (prods: Product[]): Product[] => {
+    if (!Array.isArray(prods)) return [];
+    const map = new Map<string, Product>();
+    for (const p of prods) {
+      if (p && p.id) {
+        map.set(String(p.id), p);
+      }
+    }
+    return Array.from(map.values());
+  };
+
+  const [products, setProductsState] = useState<Product[]>(() => {
     try {
       const cached = localStorage.getItem('cached_pos_products');
-      return cached ? JSON.parse(cached) : [];
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const clean = deduplicateProducts(parsed);
+        if (Array.isArray(parsed) && clean.length !== parsed.length) {
+          try { localStorage.setItem('cached_pos_products', JSON.stringify(clean)); } catch {}
+        }
+        return clean;
+      }
+      return [];
     } catch {
       return [];
     }
   });
+
+  const setProducts = (action: Product[] | ((prev: Product[]) => Product[])) => {
+    setProductsState(prev => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      return deduplicateProducts(next);
+    });
+  };
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     try {
@@ -345,6 +371,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [];
     }
   });
+
+  useEffect(() => {
+    try {
+      localStorage.removeItem('cached_pos_offers');
+    } catch {}
+  }, []);
 
   const [currentDeviceId] = useState<string>(() => getOrCreateDeviceId());
   const currentSessionId = useMemo(() => {
@@ -882,6 +914,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSettings(prev => ({ ...prev, ...newData.settings }));
         try { localStorage.setItem('cached_pos_settings', JSON.stringify(newData.settings)); } catch {}
       }
+      if (newData.offers && Array.isArray(newData.offers)) {
+        setOffers(newData.offers);
+        try { localStorage.setItem('cached_pos_offers', JSON.stringify(newData.offers)); } catch {}
+      }
       if (newData.features || newData.settings?.features) {
         const rawFeats = newData.features || newData.settings?.features;
         const mergedFeats: StoreFeatures = {
@@ -912,6 +948,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoices: Invoice[];
       shifts: Shift[];
       settings: StoreSettings;
+      offers: Offer[];
     }>;
   }>({ timer: null, override: {} });
 
@@ -922,6 +959,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoices: Invoice[];
       shifts: Shift[];
       settings: StoreSettings;
+      offers: Offer[];
     }>,
     immediate: boolean = false
   ) => {
@@ -944,6 +982,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           invoices: merged.invoices ?? invoices,
           shifts: merged.shifts ?? shifts,
           settings: merged.settings ?? settings,
+          offers: merged.offers ?? offers,
           features: storeFeatures,
           lastSavedByClient: currentSessionId,
           updatedAt: new Date().toISOString()
@@ -1541,7 +1580,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (incInvoices) payload.invoices = invoices;
     if (incPayments) payload.payments = payments;
     if (incShifts) payload.shifts = shifts;
-    if (incSettings) payload.settings = settings;
+    if (incSettings) {
+      payload.settings = settings;
+    }
 
     return JSON.stringify(payload, null, 2);
   };

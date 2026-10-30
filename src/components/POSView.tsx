@@ -34,7 +34,8 @@ import {
   List,
   Scale,
   Briefcase,
-  Percent
+  Percent,
+  Sparkles
 } from 'lucide-react';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { SessionBadgeButton } from './SessionBadgeButton';
@@ -108,7 +109,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const selectedCustomerId = activeDraft.selectedCustomerId || '';
   const customCustomerName = activeDraft.customCustomerName || '';
   const customerPhone = activeDraft.customerPhone || '';
-  const discount = activeDraft.discount || 0;
+  const discount = 0;
   const paidAmount = activeDraft.paidAmount || 0;
   const dueDate = activeDraft.dueDate || '';
   const notes = activeDraft.notes || '';
@@ -119,11 +120,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   // Setters linked directly to persistent draft in AppContext & localStorage
   const setCartItems = (action: InvoiceItem[] | ((prev: InvoiceItem[]) => InvoiceItem[])) => {
+    let next: InvoiceItem[];
     if (typeof action === 'function') {
-      updateActiveDraft({ cartItems: action(activeDraft.cartItems || []) });
+      next = action(activeDraft.cartItems || []);
     } else {
-      updateActiveDraft({ cartItems: action });
+      next = action;
     }
+    updateActiveDraft({ cartItems: next });
   };
 
   const setSaleType = (val: SaleType) => updateActiveDraft({ saleType: val });
@@ -131,7 +134,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const setSelectedCustomerId = (val: string) => updateActiveDraft({ selectedCustomerId: val });
   const setCustomCustomerName = (val: string) => updateActiveDraft({ customCustomerName: val });
   const setCustomerPhone = (val: string) => updateActiveDraft({ customerPhone: val });
-  const setDiscount = (val: number) => updateActiveDraft({ discount: val });
   const setPaidAmount = (val: number) => updateActiveDraft({ paidAmount: val });
   const setDueDate = (val: string) => updateActiveDraft({ dueDate: val });
   const setNotes = (val: string) => updateActiveDraft({ notes: val });
@@ -298,7 +300,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   }, [products]);
 
   const filteredProducts = useMemo(() => {
+    const seen = new Set<string>();
     return products.filter((prod) => {
+      if (!prod || !prod.id) return false;
+      if (seen.has(prod.id)) return false;
+      seen.add(prod.id);
       const matchCat = selectedCategory === 'all' || prod.category === selectedCategory;
       const q = searchQuery.toLowerCase().trim();
       const matchSearch =
@@ -637,7 +643,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     return cartItems.reduce((sum, item) => sum + item.costPrice * item.quantity, 0);
   }, [cartItems]);
 
-  const finalTotal = Math.max(0, subtotal - discount);
+  const finalTotal = subtotal;
   const estimatedProfit = finalTotal - totalCost;
 
   const selectedRepObj = useMemo(() => {
@@ -710,7 +716,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       customerName: finalCustomerName,
       customerPhone: finalCustomerPhone,
       items: cartItems,
-      discount: discount,
+      discount: 0,
       paidAmount: actualPaidAmount,
       paymentDueDate: saleType === 'credit' ? dueDate : undefined,
       notes: notes.trim(),
@@ -940,7 +946,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               ) : viewMode === 'grid' ? (
                 /* وضع المربعات المصغرة مثل مستعرض ويندوز: يظهر فقط السعر واسم المادة */
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
-                  {visibleProducts.map((prod) => {
+                  {visibleProducts.map((prod, pIdx) => {
                     const isOutOfStock = prod.stock <= 0;
                     const effectivePrice = globalPriceType === 'wholesale' && settings.enableWholesale 
                       ? prod.wholesalePrice 
@@ -948,7 +954,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
                     return (
                       <div
-                        key={prod.id}
+                        key={`${prod.id}_${pIdx}`}
                         onClick={() => addToCart(prod)}
                         title={
                           prod.isWeighted
@@ -994,13 +1000,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               ) : (
                 /* وضع القائمة التفصيلية */
                 <div className="flex flex-col gap-2.5">
-                  {visibleProducts.map((prod) => {
+                  {visibleProducts.map((prod, pIdx) => {
                     const isLowStock = prod.stock <= prod.minStock;
                     const isOutOfStock = prod.stock <= 0;
 
                     return (
                       <div
-                        key={prod.id}
+                        key={`${prod.id}_${pIdx}`}
                         className={`bg-white rounded-xl border p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition text-right group select-none relative ${
                           isOutOfStock
                             ? 'border-rose-300 bg-rose-50/20 hover:border-rose-500 hover:shadow-xs'
@@ -1100,7 +1106,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
                             {settings.enableWholesale ? (
                               <>
                                 <button
@@ -1366,7 +1372,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
                     return (
                       <div
-                        key={item.productId}
+                        key={`${item.productId}_${index}`}
                         className={`border rounded-lg p-2 flex flex-col gap-1.5 transition text-right ${
                           isStockZero 
                             ? 'bg-rose-50/50 border-rose-300' 
@@ -1377,14 +1383,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         <div className="flex items-start justify-between gap-1.5">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1 flex-wrap">
-                              <span 
-                                className="w-4 h-4 rounded bg-slate-200 text-slate-700 font-mono text-[10px] font-bold flex items-center justify-center shrink-0" 
-                              >
+                              <span className="w-4 h-4 rounded font-mono text-[10px] font-bold flex items-center justify-center shrink-0 bg-slate-200 text-slate-700">
                                 {index + 1}
                               </span>
                               <span className="text-xs font-bold text-slate-900 leading-snug truncate">
                                 {item.productName}
                               </span>
+
                               {item.isWeighted && (
                                 <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-1 rounded flex items-center gap-0.5">
                                   <Scale className="w-2.5 h-2.5 text-emerald-700" />
@@ -1402,6 +1407,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                 </span>
                               )}
                             </div>
+
                             <div className="text-[9px] text-slate-500 flex items-center gap-1 mt-0.5 flex-wrap">
                               {item.isWeighted ? (
                                 <span>سعر الكيلو الواحد: <strong className="font-mono text-slate-700">{formatMoney(item.unitPrice)}</strong></span>
@@ -1662,8 +1668,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
 
                             <div className="text-right flex items-center gap-1 text-[11px]">
-                              <span className="font-mono text-slate-600">
-                                {formatMoney(item.unitPrice)} × {item.quantity} =
+                              <span className="font-mono text-slate-600 flex items-center gap-1">
+                                <span>{formatMoney(item.unitPrice)} × {item.quantity} =</span>
                               </span>
                               <span className="font-black text-slate-900 font-mono text-xs">
                                 {formatMoney(item.total)}
@@ -1681,27 +1687,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               <div className="p-2 sm:p-2.5 bg-slate-50 border-t border-slate-200 flex flex-col gap-1.5 shrink-0 text-right">
                 {/* الحسابات والمبالغ */}
                 <div className="space-y-1 text-[11px] text-slate-700">
-                  <div className="flex justify-between items-center">
-                    <span>المجموع الأولي:</span>
-                    <span className="font-bold text-slate-800 font-mono">{formatMoney(subtotal)}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span>الخصم:</span>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        min="0"
-                        value={discount || ''}
-                        placeholder="0"
-                        onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-                        className="w-20 text-left px-1.5 py-0.5 text-xs font-bold border border-slate-300 rounded bg-white focus:outline-none"
-                      />
-                      <span className="text-[10px] text-slate-500">{settings.currency}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-center text-xs sm:text-sm font-black text-slate-900 pt-1 border-t border-slate-200">
+                  <div className="flex justify-between items-center text-xs sm:text-sm font-black text-slate-900">
                     <span>المبلغ المطلوب:</span>
                     <span className="text-emerald-700 font-mono">{formatMoney(finalTotal)}</span>
                   </div>

@@ -61,8 +61,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   // Filtered & sorted products
   const filteredProducts = useMemo(() => {
+    const seen = new Set<string>();
     return products
       .filter((prod) => {
+        if (!prod || !prod.id) return false;
+        if (seen.has(prod.id)) return false;
+        seen.add(prod.id);
+
         const matchCat = selectedCategory === 'all' || prod.category === selectedCategory;
         const q = searchQuery.toLowerCase().trim();
         const matchSearch =
@@ -398,7 +403,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                paginatedProducts.map((prod) => {
+                paginatedProducts.map((prod, pIdx) => {
                   const retailProfit = prod.retailPrice - prod.costPrice;
                   const retailMarginPercent = prod.costPrice > 0 ? ((retailProfit / prod.costPrice) * 100).toFixed(0) : '100';
                   const isLow = prod.stock <= prod.minStock && prod.stock > 0;
@@ -406,7 +411,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
                   return (
                     <tr
-                      key={prod.id}
+                      key={`${prod.id}_${pIdx}`}
                       className="hover:bg-slate-50/70 transition group"
                     >
                       {/* Code */}
