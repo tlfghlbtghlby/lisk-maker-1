@@ -27,11 +27,11 @@ interface InvoicePrintModalProps {
 }
 
 const StarburstSeal: React.FC<{ text: string }> = ({ text }) => (
-  <div className="relative flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 select-none shrink-0">
+  <div className="relative flex items-center justify-center w-12 h-12 select-none shrink-0">
     <svg viewBox="0 0 100 100" className="w-full h-full fill-none stroke-black stroke-[2]">
       <polygon points="50,2 62,18 82,10 83,31 99,38 89,55 99,71 83,78 82,98 62,91 50,106 38,91 18,98 17,78 1,71 11,55 1,38 17,31 18,10 38,18" />
     </svg>
-    <span className="absolute font-black text-xs sm:text-sm text-black" style={{ letterSpacing: 'normal' }}>{text}</span>
+    <span className="absolute font-black text-[11px] text-black" style={{ letterSpacing: 'normal' }}>{text}</span>
   </div>
 );
 
@@ -97,13 +97,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       })
     : invoice.items;
 
-  // توليد مستند PDF كامل دون شاشة بيضاء ودون تشويه
+  // توليد ملف PDF بأبعاد A4 ناعمة ومتناسقة
   const generateInvoicePDF = async (): Promise<{ base64: string; blob: Blob; fileName: string } | null> => {
     const invoiceEl = document.getElementById('printable-invoice');
     const scrollContainer = scrollContainerRef.current;
     if (!invoiceEl) return null;
 
-    // 1. تحرير الارتفاع والشريط مؤقتاً على العنصر الحقيقي لضمان التقاط كل المواد
     const prevScrollOverflow = scrollContainer ? scrollContainer.style.overflow : '';
     const prevInvoiceMaxH = invoiceEl.style.maxHeight;
     const prevInvoiceOverflow = invoiceEl.style.overflow;
@@ -117,7 +116,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
     let naturalHeight = 0;
 
     try {
-      // إعطاء المتصفح لحظة لتطبيق التنسيق وإزالة أي قيود
       await new Promise((resolve) => setTimeout(resolve, 80));
 
       dataUrl = await toPng(invoiceEl, {
@@ -141,7 +139,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       naturalWidth = img.naturalWidth || invoiceEl.scrollWidth || 794;
       naturalHeight = img.naturalHeight || invoiceEl.scrollHeight;
     } finally {
-      // إعادة التنسيقات الأصلية فوراً
       if (scrollContainer) scrollContainer.style.overflow = prevScrollOverflow;
       invoiceEl.style.maxHeight = prevInvoiceMaxH;
       invoiceEl.style.overflow = prevInvoiceOverflow;
@@ -165,24 +162,21 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, mmHeight + margin * 2] });
       pdf.addImage(dataUrl, 'PNG', 4, margin, mmWidth, mmHeight, undefined, 'FAST');
     } else {
-      // تنسيقات الورق المكتبي A4 أو A5
       const isA5 = printLayout === 'a5';
       const pdfFormat = isA5 ? 'a5' : 'a4';
       const pdfPageWidth = isA5 ? 148 : 210;
       const pdfPageHeight = isA5 ? 210 : 297;
-      const margin = isA5 ? 4 : 6;
+      const margin = isA5 ? 4 : 5;
       const printableWidth = pdfPageWidth - margin * 2;
       const printableHeight = pdfPageHeight - margin * 2;
 
       const pageHeightPx = Math.floor((printableHeight * naturalWidth) / printableWidth);
       pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: pdfFormat });
 
-      // إذا كانت القائمة تسع في صفحة واحدة
       if (naturalHeight <= pageHeightPx) {
         const mmHeight = (naturalHeight * printableWidth) / naturalWidth;
         pdf.addImage(dataUrl, 'PNG', margin, margin, printableWidth, mmHeight, undefined, 'FAST');
       } else {
-        // تقسيم المحتوى إلى صفحات متتالية عبر canvas شرائح حقيقي
         const sourceImg = new Image();
         sourceImg.src = dataUrl;
         await new Promise((r) => { sourceImg.onload = r; });
@@ -232,7 +226,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
     return { base64, blob, fileName };
   };
 
-  // دالة الحفظ المباشر داخل ملفات الهاتف (Downloads) أو مشاركة الملف
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
     setPdfNotice('جاري إنشاء ملف PDF وحفظه...');
@@ -270,7 +263,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
         }
       }
 
-      // للكمبيوتر والمتصفحات
       const url = URL.createObjectURL(pdfData.blob);
       const a = document.createElement('a');
       a.href = url;
@@ -279,7 +271,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setPdfNotice('تم تنزيل ملف PDF الكامل بنجاح');
+      setPdfNotice('تم تنزيل ملف PDF بنجاح');
       setTimeout(() => setPdfNotice(null), 3000);
     } catch (err: any) {
       console.error(err);
@@ -290,7 +282,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
     }
   };
 
-  // دالة الطباعة: متوافقة مع Electron و Android و Web
   const handlePrint = async () => {
     if ((window as any).electronAPI?.printInvoice) {
       try {
@@ -531,6 +522,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
           </div>
         )}
 
+        {/* مساحة عرض ومعاينة الفاتورة */}
         <div 
           ref={scrollContainerRef}
           className="print-invoice-scroll-area flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-200/80 flex justify-center print:p-0 print:m-0 print:bg-transparent print:overflow-visible print:block"
@@ -541,17 +533,17 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
             style={{ letterSpacing: 'normal' }}
             className={`bg-white shadow-xl text-black mx-auto transition-all print:p-0 print:m-0 print:border-none print:shadow-none print:rounded-none print:w-full print:max-w-none ${
               is58mm
-                ? 'w-[230px] p-2 rounded-lg border border-slate-400 font-mono text-[10px]'
+                ? 'w-[230px] p-2 rounded-lg border border-slate-400 font-mono text-[9px]'
                 : printLayout === 'thermal80'
-                ? 'w-[320px] p-4 rounded-lg border border-slate-400 font-mono text-xs'
+                ? 'w-[320px] p-3 rounded-lg border border-slate-400 font-mono text-[10px]'
                 : printLayout === 'a5'
-                ? 'w-full max-w-[640px] p-4 sm:p-6 rounded-lg border border-slate-400 font-sans text-xs'
-                : 'w-full max-w-[820px] p-5 sm:p-8 rounded-lg border border-slate-400 font-sans text-xs'
+                ? 'w-full max-w-[580px] p-3.5 rounded-lg border border-slate-400 font-sans text-[11px]'
+                : 'w-full max-w-[760px] p-4 sm:p-5 rounded-lg border border-slate-400 font-sans text-[11px]'
             }`}
           >
 
             {!isThermal ? (
-              <div className="space-y-2.5 text-black leading-tight">
+              <div className="space-y-2 text-black leading-tight">
                 {activeTemplate === 'modern' ? (
                   <ModernInvoiceHeader
                     settings={settings}
@@ -559,47 +551,49 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     isThermal={false}
                   />
                 ) : (
-                  <div className="border border-black rounded-md p-2.5 sm:p-3 relative flex flex-col items-center justify-center text-center">
-                    <div className="absolute right-2.5 top-2">
+                  <div className="border border-black rounded-md p-2 relative flex flex-col items-center justify-center text-center">
+                    <div className="absolute right-2 top-1.5">
                       <StarburstSeal text={settings.headerRightSealText || (settings.enableWholesale ? "جملة" : "تجزئة")} />
                     </div>
-                    <div className="absolute left-2.5 top-2">
+                    <div className="absolute left-2 top-1.5">
                       <StarburstSeal text={settings.headerLeftSealText || "مفرد"} />
                     </div>
-                    <h1 className="text-xl sm:text-2xl font-black text-black">
+                    <h1 className="text-lg sm:text-xl font-black text-black">
                       {settings.storeName || 'المحل'}
                     </h1>
-                    <div className="text-xs sm:text-sm font-bold text-black mt-1">
+                    <div className="text-[11px] font-bold text-black mt-0.5">
                       {settings.managerLabel || 'بإدارة'}: {settings.ownerName || settings.storeName} · {settings.businessSubtitle || 'تجارة عامة'}
                     </div>
                   </div>
                 )}
 
-                <div className="border border-black rounded-md px-3 py-1.5 flex items-center justify-between text-xs font-bold text-black flex-wrap gap-2">
-                  <div className="flex items-center gap-1.5">
+                {/* شريط معلومات الفاتورة المدمج */}
+                <div className="border border-black rounded px-2.5 py-1 flex items-center justify-between text-[11px] font-bold text-black flex-wrap gap-1.5">
+                  <div className="flex items-center gap-1">
                     <span>رقم القائمة:</span>
-                    <span className="font-mono text-sm underline">{invoice.invoiceNumber}</span>
+                    <span className="font-mono text-xs underline">{invoice.invoiceNumber}</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <span>التاريخ:</span>
                     <span>{dayName}</span>
                     <span className="font-mono">{dateFormatted}</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <span>السيد:</span>
                     <span className="font-bold underline">{invoice.customerName}</span>
                   </div>
                 </div>
 
-                <div className="border border-black rounded-md overflow-hidden">
-                  <table className="w-full text-right border-collapse text-xs">
+                {/* جدول المواد بحجم ناعم وأسطر منسقة */}
+                <div className="border border-black rounded overflow-hidden">
+                  <table className="w-full text-right border-collapse text-[10.5px]">
                     <thead>
                       <tr className="bg-slate-100 border-b border-black text-black font-black">
-                        <th className="py-1 px-2 border-l border-black text-center w-8">ت</th>
-                        <th className="py-1 px-2 border-l border-black">اسم المادة</th>
-                        <th className="py-1 px-2 border-l border-black text-center w-16">العدد</th>
-                        <th className="py-1 px-2 border-l border-black text-center w-24">السعر</th>
-                        <th className="py-1 px-2 text-center w-28">المبلغ</th>
+                        <th className="py-0.5 px-1.5 border-l border-black text-center w-7">ت</th>
+                        <th className="py-0.5 px-2 border-l border-black">اسم المادة</th>
+                        <th className="py-0.5 px-1.5 border-l border-black text-center w-14">العدد</th>
+                        <th className="py-0.5 px-2 border-l border-black text-center w-20">السعر</th>
+                        <th className="py-0.5 px-2 text-center w-24">المبلغ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -607,16 +601,16 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                         const returnedQty = item.returnedQuantity || 0;
                         const netQty = Math.max(0, item.quantity - returnedQty);
                         return (
-                          <tr key={index} className="border-b border-black/40 font-bold">
-                            <td className="py-1 px-2 border-l border-black text-center font-mono">{index + 1}</td>
-                            <td className="py-1 px-2 border-l border-black">
+                          <tr key={index} className="border-b border-black/30 font-semibold leading-normal">
+                            <td className="py-0.5 px-1.5 border-l border-black text-center font-mono text-[10px]">{index + 1}</td>
+                            <td className="py-0.5 px-2 border-l border-black">
                               <div>{item.name || item.productName}</div>
                             </td>
-                            <td className="py-1 px-2 border-l border-black text-center font-mono">
+                            <td className="py-0.5 px-1.5 border-l border-black text-center font-mono">
                               {item.isWeighted ? `${item.quantity} كغم` : netQty}
                             </td>
-                            <td className="py-1 px-2 border-l border-black text-center font-mono">{item.unitPrice.toLocaleString()}</td>
-                            <td className="py-1 px-2 text-center font-mono">{Math.round(netQty * item.unitPrice).toLocaleString()}</td>
+                            <td className="py-0.5 px-2 border-l border-black text-center font-mono">{item.unitPrice.toLocaleString()}</td>
+                            <td className="py-0.5 px-2 text-center font-mono font-bold">{Math.round(netQty * item.unitPrice).toLocaleString()}</td>
                           </tr>
                         );
                       })}
@@ -624,52 +618,53 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                   </table>
                 </div>
 
-                <div className="flex justify-between items-start gap-3 pt-1">
-                  <div className="text-[11px] text-slate-700 flex-1">
+                {/* أسفل الفاتورة وجدول الحسابات والملاحظات */}
+                <div className="flex justify-between items-start gap-2 pt-1">
+                  <div className="text-[10px] text-slate-700 flex-1">
                     {settings.invoiceFooterNote && (
-                      <p className="border border-slate-300 rounded p-2 bg-slate-50 font-bold">
+                      <p className="border border-slate-300 rounded p-1.5 bg-slate-50 font-bold leading-tight">
                         {settings.invoiceFooterNote}
                       </p>
                     )}
                   </div>
 
-                  <div className="w-64 border border-black rounded-md overflow-hidden shrink-0">
-                    <table className="w-full text-right border-collapse text-xs font-bold">
+                  <div className="w-56 border border-black rounded overflow-hidden shrink-0">
+                    <table className="w-full text-right border-collapse text-[10.5px] font-bold">
                       <tbody>
                         <tr className="border-b border-black">
-                          <td className="py-1 px-2 border-l border-black bg-slate-100">مجموع القائمة</td>
-                          <td className="py-1 px-2 font-mono text-left">{invoiceTotal.toLocaleString()} {currencyLabel}</td>
+                          <td className="py-0.5 px-2 border-l border-black bg-slate-100">مجموع القائمة</td>
+                          <td className="py-0.5 px-2 font-mono text-left">{invoiceTotal.toLocaleString()} {currencyLabel}</td>
                         </tr>
                         {previousDebt > 0 && (
                           <tr className="border-b border-black">
-                            <td className="py-1 px-2 border-l border-black bg-slate-100">حساب سابق</td>
-                            <td className="py-1 px-2 font-mono text-left">{previousDebt.toLocaleString()} {currencyLabel}</td>
+                            <td className="py-0.5 px-2 border-l border-black bg-slate-100">حساب سابق</td>
+                            <td className="py-0.5 px-2 font-mono text-left">{previousDebt.toLocaleString()} {currencyLabel}</td>
                           </tr>
                         )}
                         <tr className="border-b border-black bg-slate-50 font-black">
-                          <td className="py-1 px-2 border-l border-black">المجموع الكلي</td>
-                          <td className="py-1 px-2 font-mono text-left text-sm">{grandTotal.toLocaleString()} {currencyLabel}</td>
+                          <td className="py-0.5 px-2 border-l border-black">المجموع الكلي</td>
+                          <td className="py-0.5 px-2 font-mono text-left text-xs">{grandTotal.toLocaleString()} {currencyLabel}</td>
                         </tr>
                         <tr className="border-b border-black">
-                          <td className="py-1 px-2 border-l border-black bg-slate-100">الواصل</td>
-                          <td className="py-1 px-2 font-mono text-left text-emerald-700">{paid.toLocaleString()} {currencyLabel}</td>
+                          <td className="py-0.5 px-2 border-l border-black bg-slate-100">الواصل</td>
+                          <td className="py-0.5 px-2 font-mono text-left text-emerald-700">{paid.toLocaleString()} {currencyLabel}</td>
                         </tr>
                         <tr className="bg-slate-100 font-black">
-                          <td className="py-1 px-2 border-l border-black">الباقي</td>
-                          <td className="py-1 px-2 font-mono text-left text-rose-700">{totalRemainingDebt.toLocaleString()} {currencyLabel}</td>
+                          <td className="py-0.5 px-2 border-l border-black">الباقي</td>
+                          <td className="py-0.5 px-2 font-mono text-left text-rose-700">{totalRemainingDebt.toLocaleString()} {currencyLabel}</td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
                 </div>
 
-                <div className="flex justify-between pt-4 px-4 text-xs font-bold">
+                <div className="flex justify-between pt-2 px-3 text-[10.5px] font-bold">
                   <div>توقيع المستلم: .....................</div>
                   <div>توقيع البائع: .....................</div>
                 </div>
               </div>
             ) : (
-              <div className="space-y-2 text-black font-mono leading-tight">
+              <div className="space-y-1.5 text-black font-mono leading-tight">
                 {activeTemplate === 'modern' ? (
                   <ModernInvoiceHeader
                     settings={settings}
@@ -677,16 +672,16 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     isThermal={true}
                   />
                 ) : (
-                  <div className="text-center border-b border-black pb-2">
-                    <h1 className={`font-black ${is58mm ? 'text-sm' : 'text-base'}`}>
+                  <div className="text-center border-b border-black pb-1.5">
+                    <h1 className={`font-black ${is58mm ? 'text-xs' : 'text-sm'}`}>
                       {settings.storeName || 'المحل'}
                     </h1>
-                    <p className="text-[10px] mt-0.5">{settings.businessSubtitle || 'وصل مبيعات'}</p>
-                    {settings.phone && <p className="text-[10px] mt-0.5">هاتف: {settings.phone}</p>}
+                    <p className="text-[9px] mt-0.5">{settings.businessSubtitle || 'وصل مبيعات'}</p>
+                    {settings.phone && <p className="text-[9px] mt-0.5">هاتف: {settings.phone}</p>}
                   </div>
                 )}
 
-                <div className="text-[10px] border-b border-dashed border-black pb-1.5 space-y-0.5">
+                <div className="text-[9.5px] border-b border-dashed border-black pb-1 space-y-0.5">
                   <div className="flex justify-between">
                     <span>رقم القائمة:</span>
                     <span className="font-bold">{invoice.invoiceNumber}</span>
@@ -701,12 +696,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                   </div>
                 </div>
 
-                <table className="w-full text-right text-[10px] border-collapse">
+                <table className="w-full text-right text-[9.5px] border-collapse">
                   <thead>
                     <tr className="border-b border-black font-black">
-                      <th className="py-1">المادة</th>
-                      <th className="py-1 text-center w-8">ع</th>
-                      <th className="py-1 text-left w-14">المجموع</th>
+                      <th className="py-0.5">المادة</th>
+                      <th className="py-0.5 text-center w-7">ع</th>
+                      <th className="py-0.5 text-left w-12">المجموع</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -728,12 +723,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                   </tbody>
                 </table>
 
-                <div className="border-t border-black pt-1.5 space-y-1 text-[11px] font-bold">
+                <div className="border-t border-black pt-1 space-y-0.5 text-[10px] font-bold">
                   <div className="flex justify-between">
                     <span>مجموع القائمة:</span>
                     <span>{invoiceTotal.toLocaleString()} {currencyLabel}</span>
                   </div>
-                  <div className="flex justify-between text-xs font-black border-t border-dotted border-black pt-1">
+                  <div className="flex justify-between text-[11px] font-black border-t border-dotted border-black pt-0.5">
                     <span>الإجمالي:</span>
                     <span>{grandTotal.toLocaleString()} {currencyLabel}</span>
                   </div>
@@ -741,7 +736,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     <span>الواصل:</span>
                     <span>{paid.toLocaleString()} {currencyLabel}</span>
                   </div>
-                  <div className="flex justify-between border-t border-black pt-1 font-black">
+                  <div className="flex justify-between border-t border-black pt-0.5 font-black">
                     <span>المتبقي:</span>
                     <span>{totalRemainingDebt.toLocaleString()} {currencyLabel}</span>
                   </div>
