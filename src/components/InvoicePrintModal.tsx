@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Invoice } from '../types';
 import { 
@@ -63,45 +63,26 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
   const [isPartialReturnOpen, setIsPartialReturnOpen] = useState(false);
   const pagesContainerRef = useRef<HTMLDivElement>(null);
 
-  if (!invoice) return null;
-
   const isThermal = printLayout === 'thermal80' || printLayout === 'thermal58';
   const is58mm = printLayout === 'thermal58';
 
-  const dateObj = new Date(invoice.date);
-  const arabicDays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  const dayName = arabicDays[dateObj.getDay()];
-
-  const year = dateObj.getFullYear();
-  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const day = String(dateObj.getDate()).padStart(2, '0');
-  const dateFormatted = `${year}/${month}/${day}`;
-
-  const hours = String(dateObj.getHours()).padStart(2, '0');
-  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
-  const seconds = String(dateObj.getSeconds()).padStart(2, '0');
-  const timeFormatted = `${hours}:${minutes}:${seconds}`;
-
-  const invoiceTotal = invoice.total;
-  const previousDebt = invoice.previousDebt || 0;
-  const grandTotal = invoiceTotal + previousDebt;
-  const paid = invoice.paidAmount;
-  const totalRemainingDebt = Math.max(0, grandTotal - paid);
-  const currencyLabel = settings.currency || 'د.ع';
-
-  const displayedItems = sortByAlphabet
-    ? [...invoice.items].sort((a, b) => {
-        const nameA = a.name || a.productName || '';
-        const nameB = b.name || b.productName || '';
-        return nameA.localeCompare(nameB, 'ar');
-      })
-    : invoice.items;
+  const displayedItems = useMemo(() => {
+    if (!invoice?.items) return [];
+    return sortByAlphabet
+      ? [...invoice.items].sort((a, b) => {
+          const nameA = a.name || a.productName || '';
+          const nameB = b.name || b.productName || '';
+          return nameA.localeCompare(nameB, 'ar');
+        })
+      : invoice.items;
+  }, [invoice?.items, sortByAlphabet]);
 
   // زيادة عدد المواد لاستغلال مساحة الصفحة بالكامل مع أمان لمنع قطع السطر الأخير
   const ITEMS_PER_FIRST_PAGE = printLayout === 'a5' ? 18 : 32;
   const ITEMS_PER_SUB_PAGE = printLayout === 'a5' ? 24 : 40;
 
-  const paginatedPages = React.useMemo(() => {
+  const paginatedPages = useMemo(() => {
+    if (!invoice) return [];
     if (isThermal) {
       return [{ items: displayedItems, startIndex: 0, isFirst: true, isLast: true }];
     }
@@ -133,7 +114,30 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
     }
 
     return pages;
-  }, [displayedItems, isThermal, printLayout]);
+  }, [invoice, displayedItems, isThermal, printLayout, ITEMS_PER_FIRST_PAGE, ITEMS_PER_SUB_PAGE]);
+
+  if (!invoice) return null;
+
+  const dateObj = new Date(invoice.date);
+  const arabicDays = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+  const dayName = arabicDays[dateObj.getDay()];
+
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const dateFormatted = `${year}/${month}/${day}`;
+
+  const hours = String(dateObj.getHours()).padStart(2, '0');
+  const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+  const seconds = String(dateObj.getSeconds()).padStart(2, '0');
+  const timeFormatted = `${hours}:${minutes}:${seconds}`;
+
+  const invoiceTotal = invoice.total;
+  const previousDebt = invoice.previousDebt || 0;
+  const grandTotal = invoiceTotal + previousDebt;
+  const paid = invoice.paidAmount;
+  const totalRemainingDebt = Math.max(0, grandTotal - paid);
+  const currencyLabel = settings.currency || 'د.ع';
 
   // توليد PDF متعدد الصفحات بدقة واضحة ودون قطع ميكانيكي
   const generateInvoicePDF = async (): Promise<{ base64: string; blob: Blob; fileName: string } | null> => {
