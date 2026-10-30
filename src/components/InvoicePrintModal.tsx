@@ -77,9 +77,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       : invoice.items;
   }, [invoice?.items, sortByAlphabet]);
 
-  // زيادة عدد المواد لاستغلال مساحة الصفحة بالكامل مع أمان لمنع قطع السطر الأخير
-  const ITEMS_PER_FIRST_PAGE = printLayout === 'a5' ? 18 : 32;
-  const ITEMS_PER_SUB_PAGE = printLayout === 'a5' ? 24 : 40;
+  // زيادة استيعاب الصفحة الواحدة لملء الفراغ الأبيض بدقة
+  const ITEMS_PER_FIRST_PAGE = printLayout === 'a5' ? 20 : 36;
+  const ITEMS_PER_SUB_PAGE = printLayout === 'a5' ? 26 : 46;
 
   const paginatedPages = useMemo(() => {
     if (!invoice) return [];
@@ -139,7 +139,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
   const totalRemainingDebt = Math.max(0, grandTotal - paid);
   const currencyLabel = settings.currency || 'د.ع';
 
-  // توليد PDF متعدد الصفحات بدقة واضحة ودون قطع ميكانيكي
+  // توليد PDF متعدد الصفحات مع منع قطع الصفوف الأخيرة
   const generateInvoicePDF = async (): Promise<{ base64: string; blob: Blob; fileName: string } | null> => {
     const pageElements = document.querySelectorAll('.printable-invoice-page');
     if (!pageElements || pageElements.length === 0) return null;
@@ -498,7 +498,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
           </div>
         )}
 
-        {/* عرض القوائم مقسمة لصفحات واقعية تمنع انقطاع السطور */}
+        {/* عرض القوائم مقسمة لصفحات واقعية متناسقة */}
         <div 
           ref={pagesContainerRef}
           className="print-invoice-scroll-area flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-300 flex flex-col items-center gap-6 print:p-0 print:m-0 print:bg-transparent print:block"
@@ -512,8 +512,8 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                   : printLayout === 'thermal80'
                   ? 'w-[320px] p-3 font-mono text-[10px]'
                   : printLayout === 'a5'
-                  ? 'w-[560px] min-h-[792px] p-3.5 font-sans text-[10px] flex flex-col justify-between'
-                  : 'w-[794px] min-h-[1123px] p-5 font-sans text-[11px] flex flex-col justify-between'
+                  ? 'w-[560px] p-3.5 font-sans text-[10px] flex flex-col justify-between'
+                  : 'w-[794px] p-5 pb-6 font-sans text-[10.5px] flex flex-col justify-between'
               }`}
             >
               <div className="space-y-2">
@@ -558,7 +558,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                       <div><span>التاريخ: </span><span>{dayName} </span><span className="font-mono">{dateFormatted}</span></div>
                       <div><span>السيد: </span><span className="underline">{invoice.customerName}</span></div>
                       {!isThermal && paginatedPages.length > 1 && (
-                        <div className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-mono">
+                        <div className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-mono border border-slate-300">
                           صفحة {pageIdx + 1} من {paginatedPages.length}
                         </div>
                       )}
@@ -570,14 +570,14 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                 {!page.isFirst && !isThermal && (
                   <div className="border-b-2 border-black pb-1.5 flex items-center justify-between text-[11px] font-bold text-black">
                     <div>تابع قائمة: <span className="font-mono">{invoice.invoiceNumber}</span> - السيد: {invoice.customerName}</div>
-                    <div className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-mono">
+                    <div className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-mono border border-slate-300">
                       صفحة {pageIdx + 1} من {paginatedPages.length}
                     </div>
                   </div>
                 )}
 
-                {/* جدول المواد المعروضة مع عمود الملاحظات الجديد */}
-                <div className="border border-black rounded overflow-hidden">
+                {/* جدول المواد مع عمود الملاحظات */}
+                <div className="border border-black rounded">
                   <table className="w-full text-right border-collapse text-[10.5px]">
                     <thead>
                       <tr className="bg-slate-100 border-b border-black text-black font-black">
@@ -587,7 +587,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                         <th className="py-1 px-2 border-l border-black text-center w-20">السعر</th>
                         <th className="py-1 px-2 border-l border-black text-center w-20">المبلغ</th>
                         {!isThermal && (
-                          <th className="py-1 px-2 text-center w-28">الملاحظات</th>
+                          <th className="py-1 px-2 text-center w-32">الملاحظات</th>
                         )}
                       </tr>
                     </thead>
@@ -596,8 +596,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                         const returnedQty = item.returnedQuantity || 0;
                         const netQty = Math.max(0, item.quantity - returnedQty);
                         const rowNumber = page.startIndex + itemIdx + 1;
+                        const isLastRow = itemIdx === page.items.length - 1;
                         return (
-                          <tr key={itemIdx} className="border-b border-black/30 font-semibold leading-normal">
+                          <tr key={itemIdx} className={`font-semibold leading-normal ${isLastRow ? '' : 'border-b border-black/30'}`}>
                             <td className="py-0.5 px-1 border-l border-black text-center font-mono text-[10px]">{rowNumber}</td>
                             <td className="py-0.5 px-2 border-l border-black">
                               <div>{item.name || item.productName}</div>
@@ -608,7 +609,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                             <td className="py-0.5 px-2 border-l border-black text-center font-mono">{item.unitPrice.toLocaleString()}</td>
                             <td className="py-0.5 px-2 border-l border-black text-center font-mono font-bold">{Math.round(netQty * item.unitPrice).toLocaleString()}</td>
                             {!isThermal && (
-                              <td className="py-0.5 px-2 text-center text-[10px] text-slate-700 truncate max-w-[120px]">
+                              <td className="py-0.5 px-2 text-center text-[10px] text-slate-700 truncate max-w-[130px]">
                                 {(item as any).notes || '-'}
                               </td>
                             )}
@@ -622,7 +623,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
 
               {/* يظهر جدول الحسابات والملاحظات والتوقيع فقط في الصفحة الأخيرة في أسفل الورقة */}
               {page.isLast && !isThermal && (
-                <div className="space-y-2.5 pt-2 mt-auto">
+                <div className="space-y-3 pt-4 mt-auto">
                   <div className="flex justify-between items-start gap-3">
                     <div className="text-[10px] text-slate-700 flex-1">
                       {settings.invoiceFooterNote && (
