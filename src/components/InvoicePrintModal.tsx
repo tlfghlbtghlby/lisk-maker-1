@@ -61,7 +61,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
   const [isCopied, setIsCopied] = useState(false);
   const [pdfNotice, setPdfNotice] = useState<string | null>(null);
   const [isPartialReturnOpen, setIsPartialReturnOpen] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pagesContainerRef = useRef<HTMLDivElement>(null);
 
   if (!invoice) return null;
 
@@ -97,130 +97,104 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       })
     : invoice.items;
 
-  // توليد ملف PDF بأبعاد A4 ناعمة ومتناسقة
+  // تقسيم المواد حسب سعة الصفحة الحقيقية
+  const ITEMS_PER_FIRST_PAGE = printLayout === 'a5' ? 14 : 22; // الصفحة الأولى بها ترويسة
+  const ITEMS_PER_SUB_PAGE = printLayout === 'a5' ? 18 : 28;   // الصفحات التالية بدون ترويسة كبيرة
+
+  const paginatedPages = React.useMemo(() => {
+    if (isThermal) {
+      return [{ items: displayedItems, startIndex: 0, isFirst: true, isLast: true }];
+    }
+
+    const pages = [];
+    let currentIndex = 0;
+
+    // الصفحة الأولى
+    const firstPageItems = displayedItems.slice(0, ITEMS_PER_FIRST_PAGE);
+    currentIndex += firstPageItems.length;
+    pages.push({
+      items: firstPageItems,
+      startIndex: 0,
+      isFirst: true,
+      isLast: currentIndex >= displayedItems.length
+    });
+
+    // الصفحات اللاحقة
+    while (currentIndex < displayedItems.length) {
+      const nextBatch = displayedItems.slice(currentIndex, currentIndex + ITEMS_PER_SUB_PAGE);
+      const isLast = (currentIndex + nextBatch.length) >= displayedItems.length;
+      pages.push({
+        items: nextBatch,
+        startIndex: currentIndex,
+        isFirst: false,
+        isLast: isLast
+      });
+      currentIndex += nextBatch.length;
+    }
+
+    return pages;
+  }, [displayedItems, isThermal, printLayout]);
+
+  // دالة تصوير الصفحات صفحة بصفحة دون أي قطع للأسطر نهائياً
   const generateInvoicePDF = async (): Promise<{ base64: string; blob: Blob; fileName: string } | null> => {
-    const invoiceEl = document.getElementById('printable-invoice');
-    const scrollContainer = scrollContainerRef.current;
-    if (!invoiceEl) return null;
+    const pageElements = document.querySelectorAll('.printable-invoice-page');
+    if (!pageElements || pageElements.length === 0) return null;
 
-    const prevScrollOverflow = scrollContainer ? scrollContainer.style.overflow : '';
-    const prevInvoiceMaxH = invoiceEl.style.maxHeight;
-    const prevInvoiceOverflow = invoiceEl.style.overflow;
+    const isA5 = printLayout === 'a5';
+    const pdfFormat = isA5 ? 'a5' : 'a4';
+    const pdf = new jsPDF({ 
+      orientation: 'portrait', 
+      unit: 'mm', 
+      format: is58mm ? [58, 200] : printLayout === 'thermal80' ? [80, 250] : pdfFormat 
+    });
 
-    if (scrollContainer) scrollContainer.style.overflow = 'visible';
-    invoiceEl.style.maxHeight = 'none';
-    invoiceEl.style.overflow = 'visible';
+    const pdfPageWidth = is58mm ? 58 : printLayout === 'thermal80' ? 80 : isA5 ? 148 : 210;
+    const pdfPageHeight = is58mm ? 200 : printLayout === 'thermal80' ? 250 : isA5 ? 210 : 297;
+    const margin = isThermal ? 3 : 5;
+    const printWidth = pdfPageWidth - margin * 2;
 
-    let dataUrl = '';
-    let naturalWidth = 0;
-    let naturalHeight = 0;
+    for (let i = 0; i < pageElements.length; i++) {
+      const pageEl = pageElements[i] as HTMLElement;
 
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 80));
-
-      dataUrl = await toPng(invoiceEl, {
+      const dataUrl = await toPng(pageEl, {
         quality: 1,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
         cacheBust: true,
         style: {
+          transform: 'none',
           letterSpacing: 'normal',
           wordSpacing: 'normal',
-          transform: 'none',
-        },
+        }
       });
 
       const img = new Image();
       img.src = dataUrl;
-      await new Promise((resolve) => {
-        img.onload = resolve;
-      });
+      await new Promise((r) => { img.onload = r; });
 
-      naturalWidth = img.naturalWidth || invoiceEl.scrollWidth || 794;
-      naturalHeight = img.naturalHeight || invoiceEl.scrollHeight;
-    } finally {
-      if (scrollContainer) scrollContainer.style.overflow = prevScrollOverflow;
-      invoiceEl.style.maxHeight = prevInvoiceMaxH;
-      invoiceEl.style.overflow = prevInvoiceOverflow;
+      const imgHeightMm = (img.naturalHeight * printWidth) / img.naturalWidth;
+
+      if (isThermal) {
+        // للورق الحراري نعدل حجم الورقة بدقة طول الفاتورة
+        const thermalPdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: [pdfPageWidth, imgHeightMm + margin * 2]
+        });
+        thermalPdf.addImage(dataUrl, 'PNG', margin, margin, printWidth, imgHeightMm, undefined, 'FAST');
+        const base64 = thermalPdf.output('datauristring').split(',')[1];
+        const blob = thermalPdf.output('blob');
+        return { base64, blob, fileName: `قائمة_${invoice.invoiceNumber}.pdf` };
+      }
+
+      if (i > 0) {
+        pdf.addPage(pdfFormat, 'portrait');
+      }
+
+      pdf.addImage(dataUrl, 'PNG', margin, margin, printWidth, imgHeightMm, undefined, 'FAST');
     }
-
-    if (!dataUrl || naturalHeight <= 0) return null;
 
     const fileName = `قائمة_${invoice.invoiceNumber}.pdf`;
-    let pdf: jsPDF;
-
-    if (is58mm) {
-      const margin = 2;
-      const mmWidth = 48;
-      const mmHeight = (naturalHeight * mmWidth) / naturalWidth;
-      pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [58, mmHeight + margin * 2] });
-      pdf.addImage(dataUrl, 'PNG', 5, margin, mmWidth, mmHeight, undefined, 'FAST');
-    } else if (printLayout === 'thermal80') {
-      const margin = 3;
-      const mmWidth = 72;
-      const mmHeight = (naturalHeight * mmWidth) / naturalWidth;
-      pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, mmHeight + margin * 2] });
-      pdf.addImage(dataUrl, 'PNG', 4, margin, mmWidth, mmHeight, undefined, 'FAST');
-    } else {
-      const isA5 = printLayout === 'a5';
-      const pdfFormat = isA5 ? 'a5' : 'a4';
-      const pdfPageWidth = isA5 ? 148 : 210;
-      const pdfPageHeight = isA5 ? 210 : 297;
-      const margin = isA5 ? 4 : 5;
-      const printableWidth = pdfPageWidth - margin * 2;
-      const printableHeight = pdfPageHeight - margin * 2;
-
-      const pageHeightPx = Math.floor((printableHeight * naturalWidth) / printableWidth);
-      pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: pdfFormat });
-
-      if (naturalHeight <= pageHeightPx) {
-        const mmHeight = (naturalHeight * printableWidth) / naturalWidth;
-        pdf.addImage(dataUrl, 'PNG', margin, margin, printableWidth, mmHeight, undefined, 'FAST');
-      } else {
-        const sourceImg = new Image();
-        sourceImg.src = dataUrl;
-        await new Promise((r) => { sourceImg.onload = r; });
-
-        let renderedHeight = 0;
-        let pageIndex = 0;
-
-        while (renderedHeight < naturalHeight) {
-          const sliceHeight = Math.min(pageHeightPx, naturalHeight - renderedHeight);
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = naturalWidth;
-          pageCanvas.height = sliceHeight;
-
-          const ctx = pageCanvas.getContext('2d');
-          if (ctx) {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, naturalWidth, sliceHeight);
-            ctx.drawImage(
-              sourceImg,
-              0,
-              renderedHeight,
-              naturalWidth,
-              sliceHeight,
-              0,
-              0,
-              naturalWidth,
-              sliceHeight
-            );
-
-            const sliceData = pageCanvas.toDataURL('image/png', 1.0);
-            const sliceMmHeight = (sliceHeight * printableWidth) / naturalWidth;
-
-            if (pageIndex > 0) {
-              pdf.addPage(pdfFormat, 'portrait');
-            }
-            pdf.addImage(sliceData, 'PNG', margin, margin, printableWidth, sliceMmHeight, undefined, 'FAST');
-          }
-
-          renderedHeight += sliceHeight;
-          pageIndex++;
-        }
-      }
-    }
-
     const base64 = pdf.output('datauristring').split(',')[1];
     const blob = pdf.output('blob');
     return { base64, blob, fileName };
@@ -228,11 +202,11 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
 
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
-    setPdfNotice('جاري إنشاء ملف PDF وحفظه...');
+    setPdfNotice('جاري إنشاء ملف PDF بصفحات متناسقة...');
     try {
       const pdfData = await generateInvoicePDF();
       if (!pdfData) {
-        setPdfNotice('فشل إنشاء ملف PDF، يرجى المحاولة مرة أخرى');
+        setPdfNotice('حدث خطأ أثناء المعالجة، أعد المحاولة');
         setTimeout(() => setPdfNotice(null), 3000);
         return;
       }
@@ -271,7 +245,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setPdfNotice('تم تنزيل ملف PDF بنجاح');
+      setPdfNotice('تم تنزيل ملف PDF الكامل بنجاح');
       setTimeout(() => setPdfNotice(null), 3000);
     } catch (err: any) {
       console.error(err);
@@ -522,87 +496,104 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
           </div>
         )}
 
-        {/* مساحة عرض ومعاينة الفاتورة */}
+        {/* عرض القوائم مقسمة لصفحات واقعية تمنع انقطاع السطور */}
         <div 
-          ref={scrollContainerRef}
-          className="print-invoice-scroll-area flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-200/80 flex justify-center print:p-0 print:m-0 print:bg-transparent print:overflow-visible print:block"
+          ref={pagesContainerRef}
+          className="print-invoice-scroll-area flex-1 overflow-y-auto p-3 sm:p-6 bg-slate-300 flex flex-col items-center gap-6 print:p-0 print:m-0 print:bg-transparent print:block"
         >
-          <div
-            id="printable-invoice"
-            dir="rtl"
-            style={{ letterSpacing: 'normal' }}
-            className={`bg-white shadow-xl text-black mx-auto transition-all print:p-0 print:m-0 print:border-none print:shadow-none print:rounded-none print:w-full print:max-w-none ${
-              is58mm
-                ? 'w-[230px] p-2 rounded-lg border border-slate-400 font-mono text-[9px]'
-                : printLayout === 'thermal80'
-                ? 'w-[320px] p-3 rounded-lg border border-slate-400 font-mono text-[10px]'
-                : printLayout === 'a5'
-                ? 'w-full max-w-[580px] p-3.5 rounded-lg border border-slate-400 font-sans text-[11px]'
-                : 'w-full max-w-[760px] p-4 sm:p-5 rounded-lg border border-slate-400 font-sans text-[11px]'
-            }`}
-          >
+          {paginatedPages.map((page, pageIdx) => (
+            <div
+              key={pageIdx}
+              className={`printable-invoice-page bg-white shadow-xl text-black transition-all print:p-0 print:m-0 print:border-none print:shadow-none print:rounded-none print:w-full print:page-break-after-always ${
+                is58mm
+                  ? 'w-[230px] p-2 font-mono text-[9px]'
+                  : printLayout === 'thermal80'
+                  ? 'w-[320px] p-3 font-mono text-[10px]'
+                  : printLayout === 'a5'
+                  ? 'w-[560px] min-h-[792px] p-4 font-sans text-[10px] flex flex-col justify-between'
+                  : 'w-[794px] min-h-[1123px] p-6 font-sans text-[11px] flex flex-col justify-between'
+              }`}
+            >
+              <div className="space-y-2">
+                {/* ترويسة الصفحة الأولى فقط */}
+                {page.isFirst && (
+                  <>
+                    {!isThermal ? (
+                      activeTemplate === 'modern' ? (
+                        <ModernInvoiceHeader
+                          settings={settings}
+                          invoiceNumber={invoice.invoiceNumber}
+                          isThermal={false}
+                        />
+                      ) : (
+                        <div className="border border-black rounded p-2 relative flex flex-col items-center justify-center text-center">
+                          <div className="absolute right-2 top-1.5">
+                            <StarburstSeal text={settings.headerRightSealText || (settings.enableWholesale ? "جملة" : "تجزئة")} />
+                          </div>
+                          <div className="absolute left-2 top-1.5">
+                            <StarburstSeal text={settings.headerLeftSealText || "مفرد"} />
+                          </div>
+                          <h1 className="text-lg font-black text-black">
+                            {settings.storeName || 'المحل'}
+                          </h1>
+                          <div className="text-[11px] font-bold text-black mt-0.5">
+                            {settings.managerLabel || 'بإدارة'}: {settings.ownerName || settings.storeName} · {settings.businessSubtitle || 'تجارة عامة'}
+                          </div>
+                        </div>
+                      )
+                    ) : (
+                      <div className="text-center border-b border-black pb-1.5 mb-1.5">
+                        <h1 className={`font-black ${is58mm ? 'text-xs' : 'text-sm'}`}>
+                          {settings.storeName || 'المحل'}
+                        </h1>
+                        <p className="text-[9px] mt-0.5">{settings.businessSubtitle || 'وصل مبيعات'}</p>
+                      </div>
+                    )}
 
-            {!isThermal ? (
-              <div className="space-y-2 text-black leading-tight">
-                {activeTemplate === 'modern' ? (
-                  <ModernInvoiceHeader
-                    settings={settings}
-                    invoiceNumber={invoice.invoiceNumber}
-                    isThermal={false}
-                  />
-                ) : (
-                  <div className="border border-black rounded-md p-2 relative flex flex-col items-center justify-center text-center">
-                    <div className="absolute right-2 top-1.5">
-                      <StarburstSeal text={settings.headerRightSealText || (settings.enableWholesale ? "جملة" : "تجزئة")} />
+                    {/* شريط معلومات الفاتورة */}
+                    <div className="border border-black rounded px-2 py-1 flex items-center justify-between text-[11px] font-bold text-black flex-wrap">
+                      <div><span>رقم القائمة: </span><span className="font-mono underline">{invoice.invoiceNumber}</span></div>
+                      <div><span>التاريخ: </span><span>{dayName} </span><span className="font-mono">{dateFormatted}</span></div>
+                      <div><span>السيد: </span><span className="underline">{invoice.customerName}</span></div>
+                      {!isThermal && paginatedPages.length > 1 && (
+                        <div className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-mono">
+                          صفحة 1 من {paginatedPages.length}
+                        </div>
+                      )}
                     </div>
-                    <div className="absolute left-2 top-1.5">
-                      <StarburstSeal text={settings.headerLeftSealText || "مفرد"} />
-                    </div>
-                    <h1 className="text-lg sm:text-xl font-black text-black">
-                      {settings.storeName || 'المحل'}
-                    </h1>
-                    <div className="text-[11px] font-bold text-black mt-0.5">
-                      {settings.managerLabel || 'بإدارة'}: {settings.ownerName || settings.storeName} · {settings.businessSubtitle || 'تجارة عامة'}
+                  </>
+                )}
+
+                {/* ترويسة مصغرة للصفحات التالية */}
+                {!page.isFirst && !isThermal && (
+                  <div className="border-b-2 border-black pb-1.5 flex items-center justify-between text-[11px] font-bold text-black">
+                    <div>تابع قائمة: <span className="font-mono">{invoice.invoiceNumber}</span> - السيد: {invoice.customerName}</div>
+                    <div className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-mono">
+                      صفحة {pageIdx + 1} من {paginatedPages.length}
                     </div>
                   </div>
                 )}
 
-                {/* شريط معلومات الفاتورة المدمج */}
-                <div className="border border-black rounded px-2.5 py-1 flex items-center justify-between text-[11px] font-bold text-black flex-wrap gap-1.5">
-                  <div className="flex items-center gap-1">
-                    <span>رقم القائمة:</span>
-                    <span className="font-mono text-xs underline">{invoice.invoiceNumber}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span>التاريخ:</span>
-                    <span>{dayName}</span>
-                    <span className="font-mono">{dateFormatted}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span>السيد:</span>
-                    <span className="font-bold underline">{invoice.customerName}</span>
-                  </div>
-                </div>
-
-                {/* جدول المواد بحجم ناعم وأسطر منسقة */}
+                {/* جدول المواد المعروضة في هذه الصفحة بالكامل */}
                 <div className="border border-black rounded overflow-hidden">
-                  <table className="w-full text-right border-collapse text-[10.5px]">
+                  <table className="w-full text-right border-collapse text-[11px]">
                     <thead>
                       <tr className="bg-slate-100 border-b border-black text-black font-black">
-                        <th className="py-0.5 px-1.5 border-l border-black text-center w-7">ت</th>
-                        <th className="py-0.5 px-2 border-l border-black">اسم المادة</th>
-                        <th className="py-0.5 px-1.5 border-l border-black text-center w-14">العدد</th>
-                        <th className="py-0.5 px-2 border-l border-black text-center w-20">السعر</th>
-                        <th className="py-0.5 px-2 text-center w-24">المبلغ</th>
+                        <th className="py-1 px-1.5 border-l border-black text-center w-8">ت</th>
+                        <th className="py-1 px-2 border-l border-black">اسم المادة</th>
+                        <th className="py-1 px-1.5 border-l border-black text-center w-16">العدد</th>
+                        <th className="py-1 px-2 border-l border-black text-center w-24">السعر</th>
+                        <th className="py-1 px-2 text-center w-28">المبلغ</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {displayedItems.map((item, index) => {
+                      {page.items.map((item, itemIdx) => {
                         const returnedQty = item.returnedQuantity || 0;
                         const netQty = Math.max(0, item.quantity - returnedQty);
+                        const rowNumber = page.startIndex + itemIdx + 1;
                         return (
-                          <tr key={index} className="border-b border-black/30 font-semibold leading-normal">
-                            <td className="py-0.5 px-1.5 border-l border-black text-center font-mono text-[10px]">{index + 1}</td>
+                          <tr key={itemIdx} className="border-b border-black/30 font-semibold leading-snug">
+                            <td className="py-0.5 px-1.5 border-l border-black text-center font-mono text-[10px]">{rowNumber}</td>
                             <td className="py-0.5 px-2 border-l border-black">
                               <div>{item.name || item.productName}</div>
                             </td>
@@ -617,134 +608,68 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     </tbody>
                   </table>
                 </div>
+              </div>
 
-                {/* أسفل الفاتورة وجدول الحسابات والملاحظات */}
-                <div className="flex justify-between items-start gap-2 pt-1">
-                  <div className="text-[10px] text-slate-700 flex-1">
-                    {settings.invoiceFooterNote && (
-                      <p className="border border-slate-300 rounded p-1.5 bg-slate-50 font-bold leading-tight">
-                        {settings.invoiceFooterNote}
-                      </p>
-                    )}
-                  </div>
+              {/* يظهر جدول الحسابات والملاحظات والتوقيع فقط في الصفحة الأخيرة بأسفل الورقة */}
+              {page.isLast && !isThermal && (
+                <div className="space-y-3 pt-3 mt-auto">
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="text-[10px] text-slate-700 flex-1">
+                      {settings.invoiceFooterNote && (
+                        <p className="border border-slate-300 rounded p-2 bg-slate-50 font-bold leading-relaxed">
+                          {settings.invoiceFooterNote}
+                        </p>
+                      )}
+                    </div>
 
-                  <div className="w-56 border border-black rounded overflow-hidden shrink-0">
-                    <table className="w-full text-right border-collapse text-[10.5px] font-bold">
-                      <tbody>
-                        <tr className="border-b border-black">
-                          <td className="py-0.5 px-2 border-l border-black bg-slate-100">مجموع القائمة</td>
-                          <td className="py-0.5 px-2 font-mono text-left">{invoiceTotal.toLocaleString()} {currencyLabel}</td>
-                        </tr>
-                        {previousDebt > 0 && (
+                    <div className="w-60 border border-black rounded overflow-hidden shrink-0">
+                      <table className="w-full text-right border-collapse text-[11px] font-bold">
+                        <tbody>
                           <tr className="border-b border-black">
-                            <td className="py-0.5 px-2 border-l border-black bg-slate-100">حساب سابق</td>
-                            <td className="py-0.5 px-2 font-mono text-left">{previousDebt.toLocaleString()} {currencyLabel}</td>
+                            <td className="py-0.5 px-2 border-l border-black bg-slate-100">مجموع القائمة</td>
+                            <td className="py-0.5 px-2 font-mono text-left">{invoiceTotal.toLocaleString()} {currencyLabel}</td>
                           </tr>
-                        )}
-                        <tr className="border-b border-black bg-slate-50 font-black">
-                          <td className="py-0.5 px-2 border-l border-black">المجموع الكلي</td>
-                          <td className="py-0.5 px-2 font-mono text-left text-xs">{grandTotal.toLocaleString()} {currencyLabel}</td>
-                        </tr>
-                        <tr className="border-b border-black">
-                          <td className="py-0.5 px-2 border-l border-black bg-slate-100">الواصل</td>
-                          <td className="py-0.5 px-2 font-mono text-left text-emerald-700">{paid.toLocaleString()} {currencyLabel}</td>
-                        </tr>
-                        <tr className="bg-slate-100 font-black">
-                          <td className="py-0.5 px-2 border-l border-black">الباقي</td>
-                          <td className="py-0.5 px-2 font-mono text-left text-rose-700">{totalRemainingDebt.toLocaleString()} {currencyLabel}</td>
-                        </tr>
-                      </tbody>
-                    </table>
+                          {previousDebt > 0 && (
+                            <tr className="border-b border-black">
+                              <td className="py-0.5 px-2 border-l border-black bg-slate-100">حساب سابق</td>
+                              <td className="py-0.5 px-2 font-mono text-left">{previousDebt.toLocaleString()} {currencyLabel}</td>
+                            </tr>
+                          )}
+                          <tr className="border-b border-black bg-slate-50 font-black">
+                            <td className="py-0.5 px-2 border-l border-black">المجموع الكلي</td>
+                            <td className="py-0.5 px-2 font-mono text-left text-xs">{grandTotal.toLocaleString()} {currencyLabel}</td>
+                          </tr>
+                          <tr className="border-b border-black">
+                            <td className="py-0.5 px-2 border-l border-black bg-slate-100">الواصل</td>
+                            <td className="py-0.5 px-2 font-mono text-left text-emerald-700">{paid.toLocaleString()} {currencyLabel}</td>
+                          </tr>
+                          <tr className="bg-slate-100 font-black">
+                            <td className="py-0.5 px-2 border-l border-black">الباقي</td>
+                            <td className="py-0.5 px-2 font-mono text-left text-rose-700">{totalRemainingDebt.toLocaleString()} {currencyLabel}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between pt-2 px-6 text-[11px] font-bold border-t border-black/40">
+                    <div>توقيع المستلم: .....................</div>
+                    <div>توقيع البائع: .....................</div>
                   </div>
                 </div>
+              )}
 
-                <div className="flex justify-between pt-2 px-3 text-[10.5px] font-bold">
-                  <div>توقيع المستلم: .....................</div>
-                  <div>توقيع البائع: .....................</div>
+              {/* أسفل الفاتورة للورق الحراري */}
+              {isThermal && (
+                <div className="border-t border-black pt-1 mt-2 space-y-0.5 text-[10px] font-bold">
+                  <div className="flex justify-between"><span>مجموع القائمة:</span><span>{invoiceTotal.toLocaleString()} {currencyLabel}</span></div>
+                  <div className="flex justify-between text-[11px] font-black border-t border-dotted border-black pt-0.5"><span>الإجمالي:</span><span>{grandTotal.toLocaleString()} {currencyLabel}</span></div>
+                  <div className="flex justify-between"><span>الواصل:</span><span>{paid.toLocaleString()} {currencyLabel}</span></div>
+                  <div className="flex justify-between border-t border-black pt-0.5 font-black"><span>المتبقي:</span><span>{totalRemainingDebt.toLocaleString()} {currencyLabel}</span></div>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-1.5 text-black font-mono leading-tight">
-                {activeTemplate === 'modern' ? (
-                  <ModernInvoiceHeader
-                    settings={settings}
-                    invoiceNumber={invoice.invoiceNumber}
-                    isThermal={true}
-                  />
-                ) : (
-                  <div className="text-center border-b border-black pb-1.5">
-                    <h1 className={`font-black ${is58mm ? 'text-xs' : 'text-sm'}`}>
-                      {settings.storeName || 'المحل'}
-                    </h1>
-                    <p className="text-[9px] mt-0.5">{settings.businessSubtitle || 'وصل مبيعات'}</p>
-                    {settings.phone && <p className="text-[9px] mt-0.5">هاتف: {settings.phone}</p>}
-                  </div>
-                )}
-
-                <div className="text-[9.5px] border-b border-dashed border-black pb-1 space-y-0.5">
-                  <div className="flex justify-between">
-                    <span>رقم القائمة:</span>
-                    <span className="font-bold">{invoice.invoiceNumber}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>التاريخ:</span>
-                    <span>{dateFormatted} {timeFormatted}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>العميل:</span>
-                    <span className="font-bold">{invoice.customerName}</span>
-                  </div>
-                </div>
-
-                <table className="w-full text-right text-[9.5px] border-collapse">
-                  <thead>
-                    <tr className="border-b border-black font-black">
-                      <th className="py-0.5">المادة</th>
-                      <th className="py-0.5 text-center w-7">ع</th>
-                      <th className="py-0.5 text-left w-12">المجموع</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayedItems.map((item, index) => {
-                      const returnedQty = item.returnedQuantity || 0;
-                      const netQty = Math.max(0, item.quantity - returnedQty);
-                      return (
-                        <tr key={index} className="border-b border-dotted border-black/50">
-                          <td className="py-0.5 leading-tight">
-                            <div>{item.name || item.productName}</div>
-                          </td>
-                          <td className="py-0.5 text-center font-bold">
-                            {item.isWeighted ? `${item.quantity} كغم` : netQty}
-                          </td>
-                          <td className="py-0.5 text-left font-bold">{Math.round(netQty * item.unitPrice).toLocaleString()}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-
-                <div className="border-t border-black pt-1 space-y-0.5 text-[10px] font-bold">
-                  <div className="flex justify-between">
-                    <span>مجموع القائمة:</span>
-                    <span>{invoiceTotal.toLocaleString()} {currencyLabel}</span>
-                  </div>
-                  <div className="flex justify-between text-[11px] font-black border-t border-dotted border-black pt-0.5">
-                    <span>الإجمالي:</span>
-                    <span>{grandTotal.toLocaleString()} {currencyLabel}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>الواصل:</span>
-                    <span>{paid.toLocaleString()} {currencyLabel}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-black pt-0.5 font-black">
-                    <span>المتبقي:</span>
-                    <span>{totalRemainingDebt.toLocaleString()} {currencyLabel}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </div>
+              )}
+            </div>
+          ))}
         </div>
 
       </div>
