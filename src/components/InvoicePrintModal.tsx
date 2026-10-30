@@ -97,57 +97,38 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       })
     : invoice.items;
 
-  // توليد ملف PDF كامل الارتفاع دون قص وبدون تشويه الخطوط
+  // توليد مستند PDF كامل دون شاشة بيضاء ودون تشويه
   const generateInvoicePDF = async (): Promise<{ base64: string; blob: Blob; fileName: string } | null> => {
-    const originalElement = document.getElementById('printable-invoice');
-    if (!originalElement) return null;
+    const invoiceEl = document.getElementById('printable-invoice');
+    const scrollContainer = scrollContainerRef.current;
+    if (!invoiceEl) return null;
 
-    // 1. إنشاء نسخة طبق الأصل خارج إطار العرض لتحرير كامل الارتفاع
-    const clone = originalElement.cloneNode(true) as HTMLElement;
-    const isA4 = printLayout === 'a4';
-    const isA5 = printLayout === 'a5';
-    const is80 = printLayout === 'thermal80';
+    // 1. تحرير الارتفاع والشريط مؤقتاً على العنصر الحقيقي لضمان التقاط كل المواد
+    const prevScrollOverflow = scrollContainer ? scrollContainer.style.overflow : '';
+    const prevInvoiceMaxH = invoiceEl.style.maxHeight;
+    const prevInvoiceOverflow = invoiceEl.style.overflow;
 
-    // العرض القياسي الدقيق بالبكسل لتفادي أي ضغط للنصوص
-    const targetPixelWidth = is58mm ? 384 : is80 ? 576 : isA5 ? 595 : 794;
-
-    clone.style.width = `${targetPixelWidth}px`;
-    clone.style.maxWidth = `${targetPixelWidth}px`;
-    clone.style.minWidth = `${targetPixelWidth}px`;
-    clone.style.height = 'auto';
-    clone.style.maxHeight = 'none';
-    clone.style.overflow = 'visible';
-    clone.style.position = 'fixed';
-    clone.style.top = '-99999px';
-    clone.style.left = '0';
-    clone.style.zIndex = '-9999';
-    clone.style.background = '#ffffff';
-    clone.style.transform = 'none';
-
-    // إزالة قيود الارتفاع من كل العناصر التابعة
-    const allChildren = clone.querySelectorAll('*');
-    allChildren.forEach((child) => {
-      const el = child as HTMLElement;
-      el.style.overflow = 'visible';
-      el.style.maxHeight = 'none';
-    });
-
-    document.body.appendChild(clone);
+    if (scrollContainer) scrollContainer.style.overflow = 'visible';
+    invoiceEl.style.maxHeight = 'none';
+    invoiceEl.style.overflow = 'visible';
 
     let dataUrl = '';
     let naturalWidth = 0;
     let naturalHeight = 0;
 
     try {
-      dataUrl = await toPng(clone, {
+      // إعطاء المتصفح لحظة لتطبيق التنسيق وإزالة أي قيود
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      dataUrl = await toPng(invoiceEl, {
         quality: 1,
         pixelRatio: 2,
         backgroundColor: '#ffffff',
-        skipFonts: true,
+        cacheBust: true,
         style: {
           letterSpacing: 'normal',
           wordSpacing: 'normal',
-          fontFamily: "'Cairo', 'Tajawal', Tahoma, Arial, sans-serif",
+          transform: 'none',
         },
       });
 
@@ -156,11 +137,17 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       await new Promise((resolve) => {
         img.onload = resolve;
       });
-      naturalWidth = img.naturalWidth || targetPixelWidth;
-      naturalHeight = img.naturalHeight || clone.scrollHeight;
+
+      naturalWidth = img.naturalWidth || invoiceEl.scrollWidth || 794;
+      naturalHeight = img.naturalHeight || invoiceEl.scrollHeight;
     } finally {
-      document.body.removeChild(clone);
+      // إعادة التنسيقات الأصلية فوراً
+      if (scrollContainer) scrollContainer.style.overflow = prevScrollOverflow;
+      invoiceEl.style.maxHeight = prevInvoiceMaxH;
+      invoiceEl.style.overflow = prevInvoiceOverflow;
     }
+
+    if (!dataUrl || naturalHeight <= 0) return null;
 
     const fileName = `قائمة_${invoice.invoiceNumber}.pdf`;
     let pdf: jsPDF;
@@ -171,55 +158,72 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       const mmHeight = (naturalHeight * mmWidth) / naturalWidth;
       pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [58, mmHeight + margin * 2] });
       pdf.addImage(dataUrl, 'PNG', 5, margin, mmWidth, mmHeight, undefined, 'FAST');
-    } else if (is80) {
+    } else if (printLayout === 'thermal80') {
       const margin = 3;
       const mmWidth = 72;
       const mmHeight = (naturalHeight * mmWidth) / naturalWidth;
       pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, mmHeight + margin * 2] });
       pdf.addImage(dataUrl, 'PNG', 4, margin, mmWidth, mmHeight, undefined, 'FAST');
-    } else if (isA5) {
-      // صفحة A5 (148 × 210 ملم) بنظام الصفحات المتعددة
-      const pdfPageWidth = 148;
-      const pdfPageHeight = 210;
-      const margin = 5;
-      const printableWidth = pdfPageWidth - margin * 2;
-      const totalImgHeight = (naturalHeight * printableWidth) / naturalWidth;
-
-      pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
-
-      let heightLeft = totalImgHeight;
-      let positionY = margin;
-
-      pdf.addImage(dataUrl, 'PNG', margin, positionY, printableWidth, totalImgHeight, undefined, 'FAST');
-      heightLeft -= (pdfPageHeight - margin * 2);
-
-      while (heightLeft > 0) {
-        positionY = margin - (totalImgHeight - heightLeft);
-        pdf.addPage('a5', 'portrait');
-        pdf.addImage(dataUrl, 'PNG', margin, positionY, printableWidth, totalImgHeight, undefined, 'FAST');
-        heightLeft -= (pdfPageHeight - margin * 2);
-      }
     } else {
-      // صفحة A4 (210 × 297 ملم) بنظام الصفحات المتعددة التلقائي
-      const pdfPageWidth = 210;
-      const pdfPageHeight = 297;
-      const margin = 6;
+      // تنسيقات الورق المكتبي A4 أو A5
+      const isA5 = printLayout === 'a5';
+      const pdfFormat = isA5 ? 'a5' : 'a4';
+      const pdfPageWidth = isA5 ? 148 : 210;
+      const pdfPageHeight = isA5 ? 210 : 297;
+      const margin = isA5 ? 4 : 6;
       const printableWidth = pdfPageWidth - margin * 2;
-      const totalImgHeight = (naturalHeight * printableWidth) / naturalWidth;
+      const printableHeight = pdfPageHeight - margin * 2;
 
-      pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageHeightPx = Math.floor((printableHeight * naturalWidth) / printableWidth);
+      pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: pdfFormat });
 
-      let heightLeft = totalImgHeight;
-      let positionY = margin;
+      // إذا كانت القائمة تسع في صفحة واحدة
+      if (naturalHeight <= pageHeightPx) {
+        const mmHeight = (naturalHeight * printableWidth) / naturalWidth;
+        pdf.addImage(dataUrl, 'PNG', margin, margin, printableWidth, mmHeight, undefined, 'FAST');
+      } else {
+        // تقسيم المحتوى إلى صفحات متتالية عبر canvas شرائح حقيقي
+        const sourceImg = new Image();
+        sourceImg.src = dataUrl;
+        await new Promise((r) => { sourceImg.onload = r; });
 
-      pdf.addImage(dataUrl, 'PNG', margin, positionY, printableWidth, totalImgHeight, undefined, 'FAST');
-      heightLeft -= (pdfPageHeight - margin * 2);
+        let renderedHeight = 0;
+        let pageIndex = 0;
 
-      while (heightLeft > 0) {
-        positionY = margin - (totalImgHeight - heightLeft);
-        pdf.addPage('a4', 'portrait');
-        pdf.addImage(dataUrl, 'PNG', margin, positionY, printableWidth, totalImgHeight, undefined, 'FAST');
-        heightLeft -= (pdfPageHeight - margin * 2);
+        while (renderedHeight < naturalHeight) {
+          const sliceHeight = Math.min(pageHeightPx, naturalHeight - renderedHeight);
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = naturalWidth;
+          pageCanvas.height = sliceHeight;
+
+          const ctx = pageCanvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, naturalWidth, sliceHeight);
+            ctx.drawImage(
+              sourceImg,
+              0,
+              renderedHeight,
+              naturalWidth,
+              sliceHeight,
+              0,
+              0,
+              naturalWidth,
+              sliceHeight
+            );
+
+            const sliceData = pageCanvas.toDataURL('image/png', 1.0);
+            const sliceMmHeight = (sliceHeight * printableWidth) / naturalWidth;
+
+            if (pageIndex > 0) {
+              pdf.addPage(pdfFormat, 'portrait');
+            }
+            pdf.addImage(sliceData, 'PNG', margin, margin, printableWidth, sliceMmHeight, undefined, 'FAST');
+          }
+
+          renderedHeight += sliceHeight;
+          pageIndex++;
+        }
       }
     }
 
@@ -231,10 +235,14 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
   // دالة الحفظ المباشر داخل ملفات الهاتف (Downloads) أو مشاركة الملف
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
-    setPdfNotice('جاري حفظ مستند PDF الكامل...');
+    setPdfNotice('جاري إنشاء ملف PDF وحفظه...');
     try {
       const pdfData = await generateInvoicePDF();
-      if (!pdfData) return;
+      if (!pdfData) {
+        setPdfNotice('فشل إنشاء ملف PDF، يرجى المحاولة مرة أخرى');
+        setTimeout(() => setPdfNotice(null), 3000);
+        return;
+      }
 
       const isNativeApp = Boolean((window as any).Capacitor?.isNativePlatform?.());
 
@@ -254,11 +262,11 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
             dialogTitle: 'اختر مجلد الحفظ أو التطبيق لفتح القائمة'
           });
 
-          setPdfNotice('تم حفظ ومشاركة الملف بنجاح!');
+          setPdfNotice('تم حفظ الملف ومشاركته بنجاح!');
           setTimeout(() => setPdfNotice(null), 4000);
           return;
         } catch (nativeErr) {
-          console.warn('Filesystem error, trying fallback download:', nativeErr);
+          console.warn('Filesystem error, falling back:', nativeErr);
         }
       }
 
@@ -271,7 +279,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setPdfNotice('تم تحميل ملف PDF الكامل بنجاح');
+      setPdfNotice('تم تنزيل ملف PDF الكامل بنجاح');
       setTimeout(() => setPdfNotice(null), 3000);
     } catch (err: any) {
       console.error(err);
