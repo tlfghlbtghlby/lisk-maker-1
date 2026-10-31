@@ -138,19 +138,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     || (currentUser as any)?.username 
     || (settings.storeName ? settings.storeName.trim() : 'azarstore');
   const storeIdentifier = currentUser?.uid ? `store_${currentUser.uid}` : `store_${realStoreId}`;
-  const storeId = storeIdentifier;
-  const activeStoreKey = `store_user_${realStoreId}`;
-
-  const encryptedStoreToken = typeof window !== 'undefined' 
-    ? (function() {
-        try {
-          return btoa(unescape(encodeURIComponent(String(realStoreId))));
-        } catch {
-          return btoa(String(realStoreId));
-        }
-      })()
-    : '';
-  const customerPriceCheckerUrl = `https://ckeckprice.vercel.app/#${encryptedStoreToken}`;
+  const customerPriceCheckerUrl = `https://ckeckprice.vercel.app/#${(function() {
+    try {
+      return btoa(unescape(encodeURIComponent(String(realStoreId))));
+    } catch {
+      return btoa(String(realStoreId));
+    }
+  })()}`;
 
   useEffect(() => {
     if (customerPriceCheckerUrl) {
@@ -294,7 +288,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [showSupervisorPin, setShowSupervisorPin] = useState(false);
   const [sessionsNotice, setSessionsNotice] = useState<string | null>(null);
 
-  // إعدادات تصعيد وتخفيض الأسعار مع استرجاع الأزرار
+  // إعدادات تصعيد وتخفيض الأسعار مع أزرار النسب
   const [bulkPercent, setBulkPercent] = useState<number>(15);
   const [customPercentInput, setCustomPercentInput] = useState<string>('15');
   const [priceDirection, setPriceDirection] = useState<'increase' | 'decrease'>('increase');
@@ -324,6 +318,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
   const [isImportingProductsOnly, setIsImportingProductsOnly] = useState(false);
 
+  // إدارة المشرفين المتعددين
   const [isAddingSupervisor, setIsAddingSupervisor] = useState(false);
   const [newSupName, setNewSupName] = useState('');
   const [newSupPin, setNewSupPin] = useState('');
@@ -333,6 +328,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [editSupPin, setEditSupPin] = useState('');
   const [editSupCanConfigure, setEditSupCanConfigure] = useState(true);
 
+  // إدارة الشفتات المسبقة
   const [isAddingPresetShift, setIsAddingPresetShift] = useState(false);
   const [newPresetName, setNewPresetName] = useState('');
   const [newPresetCode, setNewPresetCode] = useState('');
@@ -342,6 +338,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [editPresetCode, setEditPresetCode] = useState('');
   const [editPresetNotes, setEditPresetNotes] = useState('');
 
+  // تفاصيل الترويسة العصرية وشبكات التواصل
   const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplateType>(
     settings.invoiceTemplate || 'modern'
   );
@@ -1093,7 +1090,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </div>
       )}
 
-      {/* Store Settings Form (مع استرجاع كامل الترويسة الملونة والكلاسيكية) */}
+      {/* Store Settings Form (بيانات المحل والقوائم والترويسة الملونة والكلاسيكية كاملة) */}
       {(activeSettingsTab === 'store' || activeSettingsTab === 'all') && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
@@ -1116,6 +1113,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </div>
 
         <form onSubmit={handleSaveSettings} className="p-6 space-y-5">
+          {/* مظهر وثيم البرنامج */}
           <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1124,9 +1122,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   ثيم ومظهر برنامج المفكر المحاسبي
                 </span>
               </div>
-              <span className="text-[11px] text-slate-500 font-medium">
-                متوافق بالكامل مع هوية وشعار البرنامج
-              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1150,9 +1145,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     <div className="text-xs font-bold flex items-center gap-1.5">
                       <span>الثيم الداكن (ليلي فاخر)</span>
                       {theme === 'dark' && <Check className="w-3.5 h-3.5 text-amber-400" />}
-                    </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">
-                      كحلي داكن مع لمسات ذهبية براقة مطابقة للشعار
                     </div>
                   </div>
                 </div>
@@ -1178,9 +1170,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     <div className="text-xs font-bold flex items-center gap-1.5">
                       <span>الثيم الفاتح (نهاري مشرق)</span>
                       {theme === 'light' && <Check className="w-3.5 h-3.5 text-amber-600" />}
-                    </div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">
-                      رمادي فاتح نقي مع إبراز هوية المفكر سمارت
                     </div>
                   </div>
                 </div>
@@ -1285,7 +1274,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
-          {/* ترويسة القائمة الملونة والكلاسيكية مع التخصيص الكامل */}
+          {/* ترويسة القائمة الملونة والكلاسيكية مع كامل التفاصيل وشبكات التواصل */}
           <div className="bg-gradient-to-br from-indigo-50/60 via-white to-slate-50 border-2 border-indigo-200/80 rounded-2xl p-5 space-y-5 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -1305,7 +1294,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 </div>
               </div>
 
-              {/* أزرار اختيار التصميم العصري والكلاسيكي */}
+              {/* أزرار التبديل */}
               <div className="inline-flex p-1 bg-slate-200/80 rounded-xl border border-slate-300/80 text-xs font-bold">
                 <button
                   type="button"
@@ -1334,62 +1323,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div
-                onClick={() => setInvoiceTemplate('modern')}
-                className={`p-3.5 rounded-xl border-2 transition cursor-pointer ${
-                  invoiceTemplate === 'modern'
-                    ? 'border-indigo-500 bg-white shadow-xs ring-2 ring-indigo-500/20'
-                    : 'border-slate-200 bg-white/60 hover:bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-black text-indigo-900 flex items-center gap-1.5">
-                    <span>🎨 التصميم العصري الملون</span>
-                    <span className="text-[10px] bg-indigo-100 text-indigo-800 px-2 py-0.2 rounded-full font-bold">
-                      موصى به
-                    </span>
-                  </span>
-                  <input
-                    type="radio"
-                    name="invoiceTemplateRadio"
-                    checked={invoiceTemplate === 'modern'}
-                    onChange={() => setInvoiceTemplate('modern')}
-                    className="text-indigo-600 focus:ring-indigo-500"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  شريط علوي ملون مزدوج، دائرة بيضوية بيضاء فوق الاسم، خطوط عربية مميزة، صورة وسطية، باركود مرفوع من الجهاز، وأيقونات رسمية لشبكات التواصل (تليغرام، فيسبوك، واتساب، انستغرام).
-                </p>
-              </div>
-
-              <div
-                onClick={() => setInvoiceTemplate('classic')}
-                className={`p-3.5 rounded-xl border-2 transition cursor-pointer ${
-                  invoiceTemplate === 'classic'
-                    ? 'border-slate-800 bg-white shadow-xs ring-2 ring-slate-800/20'
-                    : 'border-slate-200 bg-white/60 hover:bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-black text-slate-800">
-                    🏛️ التصميم الكلاسيكي التقليدي
-                  </span>
-                  <input
-                    type="radio"
-                    name="invoiceTemplateRadio"
-                    checked={invoiceTemplate === 'classic'}
-                    onChange={() => setInvoiceTemplate('classic')}
-                    className="text-slate-800 focus:ring-slate-500"
-                  />
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  الترويسة التقليدية بالأختام النجمية الدائرية (جملة ومفرد)، وبادئة الإدارة ونوع التجارة الرسمية المعتادة.
-                </p>
-              </div>
-            </div>
-
-            {/* تخصيص تفاصيل الترويسة العصرية */}
+            {/* تفاصيل الترويسة العصرية */}
             <div className="border-t border-indigo-100 pt-5 space-y-5">
               <div className="flex items-center gap-2">
                 <Palette className="w-4 h-4 text-indigo-600" />
@@ -1398,7 +1332,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 </h4>
               </div>
 
-              {/* 1. الكلمة البيضوية فوق الاسم */}
+              {/* 1. الكلمة البيضوية فوق اسم المحل */}
               <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2.5">
                 <label className="text-xs font-bold text-slate-700 block">
                   الكلمة في الدائرة البيضوية البيضاء فوق اسم المحل
@@ -1407,12 +1341,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   type="text"
                   value={modernBadgeText}
                   onChange={(e) => setModernBadgeText(e.target.value)}
-                  placeholder="مثال: قرطاسية، سوبرماركت، أسواق..."
+                  placeholder="مثال: قرطاسية، سوبرماركت، أسواق، معرض..."
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg font-bold"
                 />
               </div>
 
-              {/* 2. الألوان المزدوجة */}
+              {/* 2. الخط العربي لاسم المحل */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <label className="text-xs font-bold text-slate-700 block">
+                  الخط العربي المعتمد لكتابة اسم المحل في الفاتورة
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'Aref Ruqaa', name: 'خط الرقعة الأصيل' },
+                    { id: 'Amiri', name: 'الخط الأميري الملكي' },
+                    { id: 'Reem Kufi', name: 'خط ريم الكوفي' },
+                    { id: 'Cairo', name: 'خط القاهرة العصري' },
+                    { id: 'Tajawal', name: 'خط تجوال الاحترافي' },
+                    { id: 'Changa', name: 'خط الشانغا العريض' },
+                    { id: 'El Messiri', name: 'خط المسيري المزخرف' },
+                    { id: 'Almarai', name: 'خط المراعي الرسمي' },
+                  ].map((font) => (
+                    <button
+                      key={font.id}
+                      type="button"
+                      onClick={() => setModernFontFamily(font.id)}
+                      className={`p-2.5 rounded-xl border text-right transition cursor-pointer flex flex-col justify-between ${
+                        modernFontFamily === font.id
+                          ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-500/20'
+                          : 'border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold text-slate-700">{font.name}</span>
+                      <span className="text-sm font-bold text-slate-900 mt-2 block truncate" style={{ fontFamily: font.id }}>
+                        {storeName || 'المحل التجاري'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. ألوان الشريط المزدوج */}
               <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
                 <label className="text-xs font-bold text-slate-700 block">
                   ألوان الشريط العلوي المزدوج (الجهة اليمنى والجهة اليسرى)
@@ -1456,50 +1425,289 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 </div>
               </div>
 
-              {/* 3. شبكات التواصل */}
+              {/* 4. صورة وأيقونة الوسط */}
               <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
-                <label className="text-xs font-bold text-slate-800 block">
-                  معرفات شبكات التواصل الاجتماعي في الفاتورة
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">الصورة أو الأيقونة في وسط الترويسة</label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setModernCenterIconType('preset')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                        modernCenterIconType === 'preset' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      أيقونات جاهزة
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModernCenterIconType('custom')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                        modernCenterIconType === 'custom' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      رفع صورة خاصة
+                    </button>
+                  </div>
+                </div>
+
+                {modernCenterIconType === 'preset' ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                    {[
+                      { id: 'stationery', name: 'أدوات وقرطاسية' },
+                      { id: 'market', name: 'سوبرماركت ومواد' },
+                      { id: 'hardware', name: 'معدات وإنشائية' },
+                      { id: 'gifts', name: 'هدايا وتزيين' },
+                      { id: 'clothes', name: 'ملابس وأزياء' },
+                      { id: 'general', name: 'تجارة عامة' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setModernCenterIconPreset(preset.id)}
+                        className={`p-2.5 rounded-xl border text-center transition ${
+                          modernCenterIconPreset === preset.id ? 'border-indigo-600 bg-indigo-50 font-bold' : 'border-slate-200'
+                        }`}
+                      >
+                        <span className="text-xs text-slate-800">{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <input ref={centerIconFileInputRef} type="file" accept="image/*" onChange={handleCenterIconFileUpload} className="hidden" />
+                    <button
+                      type="button"
+                      onClick={() => centerIconFileInputRef.current?.click()}
+                      className="px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>رفع صورة الوسط من الجهاز</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 5. شبكات التواصل الاجتماعي الأربعة كاملة (تليغرام، فيسبوك، واتساب، انستغرام) */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Share2 className="w-4 h-4 text-indigo-600" />
+                  <label className="text-xs font-bold text-slate-800 block">
+                    معرفات وأرقام شبكات التواصل الاجتماعي (مع إمكانية إظهار أو إخفاء أي منها)
+                  </label>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div className="p-3 rounded-xl border bg-emerald-50/50 border-emerald-300">
+                  {/* تليغرام */}
+                  <div className={`p-3 rounded-xl border transition ${modernShowTelegram ? 'bg-sky-50/50 border-sky-300' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-slate-800">واتساب (WhatsApp)</span>
-                      <input
-                        type="checkbox"
-                        checked={modernShowWhatsapp}
-                        onChange={(e) => setModernShowWhatsapp(e.target.checked)}
-                        className="rounded text-emerald-600"
-                      />
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-sky-500 text-white flex items-center justify-center">
+                          <Send className="w-3 h-3" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-800">تليغرام (Telegram)</span>
+                      </div>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-sky-800">
+                        <input
+                          type="checkbox"
+                          checked={modernShowTelegram}
+                          onChange={(e) => setModernShowTelegram(e.target.checked)}
+                          className="rounded text-sky-600"
+                        />
+                        <span>إظهار</span>
+                      </label>
                     </div>
                     <input
                       type="text"
-                      value={modernWhatsappNumber}
-                      onChange={(e) => setModernWhatsappNumber(e.target.value)}
-                      placeholder="رقم الواتساب"
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                      disabled={!modernShowTelegram}
+                      value={modernTelegramHandle}
+                      onChange={(e) => setModernTelegramHandle(e.target.value)}
+                      placeholder="@username أو رقم الهاتف"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono"
                     />
                   </div>
 
-                  <div className="p-3 rounded-xl border bg-blue-50/50 border-blue-300">
+                  {/* فيسبوك */}
+                  <div className={`p-3 rounded-xl border transition ${modernShowFacebook ? 'bg-blue-50/50 border-blue-300' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-slate-800">فيسبوك (Facebook)</span>
-                      <input
-                        type="checkbox"
-                        checked={modernShowFacebook}
-                        onChange={(e) => setModernShowFacebook(e.target.checked)}
-                        className="rounded text-blue-600"
-                      />
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                          f
+                        </div>
+                        <span className="text-xs font-bold text-slate-800">فيسبوك (Facebook)</span>
+                      </div>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-blue-800">
+                        <input
+                          type="checkbox"
+                          checked={modernShowFacebook}
+                          onChange={(e) => setModernShowFacebook(e.target.checked)}
+                          className="rounded text-blue-600"
+                        />
+                        <span>إظهار</span>
+                      </label>
                     </div>
                     <input
                       type="text"
+                      disabled={!modernShowFacebook}
                       value={modernFacebookName}
                       onChange={(e) => setModernFacebookName(e.target.value)}
-                      placeholder="اسم الصفحة"
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                      placeholder="اسم الصفحة على فيسبوك"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-bold"
+                    />
+                  </div>
+
+                  {/* واتساب */}
+                  <div className={`p-3 rounded-xl border transition ${modernShowWhatsapp ? 'bg-emerald-50/50 border-emerald-300' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center">
+                          <Phone className="w-3 h-3" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-800">واتساب (WhatsApp)</span>
+                      </div>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-emerald-800">
+                        <input
+                          type="checkbox"
+                          checked={modernShowWhatsapp}
+                          onChange={(e) => setModernShowWhatsapp(e.target.checked)}
+                          className="rounded text-emerald-600"
+                        />
+                        <span>إظهار</span>
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      disabled={!modernShowWhatsapp}
+                      value={modernWhatsappNumber}
+                      onChange={(e) => setModernWhatsappNumber(e.target.value)}
+                      placeholder="رقم الواتساب"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono"
+                    />
+                  </div>
+
+                  {/* انستغرام */}
+                  <div className={`p-3 rounded-xl border transition ${modernShowInstagram ? 'bg-pink-50/50 border-pink-300' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center">
+                          <Instagram className="w-3 h-3" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-800">انستغرام (Instagram)</span>
+                      </div>
+                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-pink-800">
+                        <input
+                          type="checkbox"
+                          checked={modernShowInstagram}
+                          onChange={(e) => setModernShowInstagram(e.target.checked)}
+                          className="rounded text-pink-600"
+                        />
+                        <span>إظهار</span>
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      disabled={!modernShowInstagram}
+                      value={modernInstagramHandle}
+                      onChange={(e) => setModernInstagramHandle(e.target.value)}
+                      placeholder="@instagram_handle"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono"
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* 6. نصوص الأنشطة والأنواط */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <label className="text-xs font-bold text-slate-700 block">
+                  نص الأنشطة والمواد المتوفرة (يظهر في الشريط الأيسر الملون)
+                </label>
+                <textarea
+                  rows={2}
+                  value={modernActivitiesText}
+                  onChange={(e) => setModernActivitiesText(e.target.value)}
+                  placeholder="مثال: بيع كافة القرطاسية والمستلزمات المدرسية والمكتبية والهدايا ولعب الأطفال"
+                  className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg font-medium"
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">شارة الشريط اليسرى (جملة)</label>
+                    <input
+                      type="text"
+                      value={modernBadgeLeftText}
+                      onChange={(e) => setModernBadgeLeftText(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg font-bold text-center"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">شارة الشريط اليمنى (مفرد)</label>
+                    <input
+                      type="text"
+                      value={modernBadgeRightText}
+                      onChange={(e) => setModernBadgeRightText(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg font-bold text-center"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">عبارة التوصيل (أسفل الترويسة)</label>
+                    <input
+                      type="text"
+                      value={modernDeliveryNote}
+                      onChange={(e) => setModernDeliveryNote(e.target.value)}
+                      placeholder="تتوفر خدمة التوصيل إلى كافة المحافظات"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* الأختام والنصوص الكلاسيكية */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">نص الختم الأيمن (الافتراضي: جملة أو تجزئة)</label>
+                <input
+                  type="text"
+                  value={headerRightSealText}
+                  onChange={(e) => setHeaderRightSealText(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">نص الختم الأيسر (الافتراضي: مفرد أو قطع)</label>
+                <input
+                  type="text"
+                  value={headerLeftSealText}
+                  onChange={(e) => setHeaderLeftSealText(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">بادئة اسم المدير / الإشراف</label>
+                <input
+                  type="text"
+                  value={managerLabel}
+                  onChange={(e) => setManagerLabel(e.target.value)}
+                  placeholder="بإدارة"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">نوع التجارة والنشاط</label>
+                <input
+                  type="text"
+                  value={businessSubtitle}
+                  onChange={(e) => setBusinessSubtitle(e.target.value)}
+                  placeholder="تجارة عامة وبيع الجملة والمفرد"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg font-medium"
+                />
               </div>
             </div>
           </div>
@@ -1531,7 +1739,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         <QuickAddItemsSection />
       )}
 
-      {/* Bulk Price Adjustment (مع استرجاع أزرار النسب المئوية كاملة) */}
+      {/* Bulk Price Adjustment */}
       {(activeSettingsTab === 'pricing' || activeSettingsTab === 'all') && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
@@ -1540,12 +1748,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">
-                تصعيد أو تخفيض أسعار المواد في المخزن
-              </h2>
-              <p className="text-xs text-slate-400">
-                رفع أو خفض الأسعار بنسبة مئوية عند تغير سعر السوق
-              </p>
+              <h2 className="text-base font-bold text-slate-900">تصعيد أو تخفيض أسعار المواد في المخزن</h2>
+              <p className="text-xs text-slate-400">رفع أو خفض الأسعار بنسبة مئوية عند تغير سعر السوق</p>
             </div>
           </div>
           <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">
@@ -1562,9 +1766,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           )}
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              نوع العملية المطلوبة:
-            </label>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">نوع العملية المطلوبة:</label>
             <div className="grid grid-cols-2 gap-3 max-w-md">
               <button
                 type="button"
@@ -1594,11 +1796,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
-          {/* أزرار تحديد النسبة المئوية السريعة المسترجعة */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              النسبة المئوية المراد تطبيقها:
-            </label>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">النسبة المئوية المراد تطبيقها:</label>
             <div className="flex flex-wrap items-center gap-2">
               {[5, 10, 15, 20, 25, 30].map((pct) => (
                 <button
@@ -1642,9 +1841,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-            <label className="block text-xs font-bold text-slate-800 mb-2">
-              الأسعار التي سيتم تعديلها:
-            </label>
+            <label className="block text-xs font-bold text-slate-800 mb-2">الأسعار التي سيتم تعديلها:</label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-emerald-400">
                 <input
@@ -1690,54 +1887,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   onChange={(e) => setRoundToHundreds(e.target.checked)}
                   className="rounded text-emerald-600 focus:ring-emerald-500"
                 />
-                <span className="text-xs text-slate-700 font-semibold">
-                  تقريب الأسعار تجارياً لأقرب 250 دينار (تجنب الكسور المعقدة في الصرف)
-                </span>
+                <span className="text-xs text-slate-700 font-semibold">تقريب الأسعار تجارياً لأقرب 250 دينار</span>
               </label>
             </div>
           </div>
 
           <div className="flex items-center justify-between pt-2">
-            <div className="text-xs text-slate-500">
-              {priceDirection === 'increase' ? 'الزيادة المقررة:' : 'الخصم المقرر:'}
-              <strong className="text-slate-900 mx-1">
-                {priceDirection === 'increase' ? '+' : '-'}{customPercentInput || '0'}%
-              </strong>
-              على {targetRetail && 'المفرد '}{targetWholesale && 'الجملة '}{targetCost && 'التكلفة'}
-            </div>
-
             <button
               type="button"
               disabled={isApplyingBulkPrices || products.length === 0}
               onClick={handleApplyBulkPrices}
               className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition flex items-center gap-2 shadow-xs cursor-pointer ${
-                isApplyingBulkPrices
-                  ? 'bg-slate-500 cursor-wait'
-                  : priceDirection === 'increase'
-                  ? 'bg-rose-600 hover:bg-rose-700'
-                  : 'bg-blue-600 hover:bg-blue-700'
+                isApplyingBulkPrices ? 'bg-slate-500 cursor-wait' : priceDirection === 'increase' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700'
               }`}
             >
-              {isApplyingBulkPrices ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>جاري تحديث أسعار المخزن...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>
-                    تطبيق {priceDirection === 'increase' ? 'تصعيد الأسعار' : 'تخفيض الأسعار'} الآن ({customPercentInput}%)
-                  </span>
-                </>
-              )}
+              <Sparkles className="w-4 h-4" />
+              <span>تطبيق {priceDirection === 'increase' ? 'تصعيد الأسعار' : 'تخفيض الأسعار'} الآن ({customPercentInput}%)</span>
             </button>
           </div>
         </div>
       </div>
       )}
 
-      {/* Security & Backup (استرجاع أزرار النسخ الاحتياطي الستة بالكامل) */}
+      {/* Security & Backup (أزرار النسخ الاحتياطي الستة كاملة) */}
       {(activeSettingsTab === 'security' || activeSettingsTab === 'all') && (
         <>
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-5">
@@ -1748,308 +1920,163 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-slate-900">تغيير كلمة المرور / رمز الحساب</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    أدخل كلمة المرور القديمة الحالية، ثم أدخل كلمة المرور الجديدة لحفظها فوراً
-                  </p>
                 </div>
               </div>
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
-                {currentUser?.displayName || currentUser?.email || 'حساب نشط'}
-              </span>
             </div>
-
-            {passwordFeedback && (
-              <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 border shadow-2xs ${
-                passwordFeedback.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                  : 'bg-rose-50 text-rose-800 border-rose-300'
-              }`}>
-                {passwordFeedback.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                )}
-                <span>{passwordFeedback.message}</span>
-              </div>
-            )}
 
             <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  كلمة المرور القديمة (الحالية) <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <input
-                    type={showOldPassword ? 'text' : 'password'}
-                    required
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    placeholder="أدخل كلمة المرور القديمة..."
-                    className="w-full pl-10 pr-3 py-2.5 text-xs font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-slate-50/50"
-                    dir="ltr"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowOldPassword(!showOldPassword)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">كلمة المرور القديمة</label>
+                <input
+                  type={showOldPassword ? 'text' : 'password'}
+                  required
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2 text-xs border border-slate-300 rounded-xl"
+                  dir="ltr"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    كلمة المرور الجديدة <span className="text-emerald-600">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showNewPassword ? 'text' : 'password'}
-                      required
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="6 خانات أو أكثر..."
-                      className="w-full pl-10 pr-3 py-2.5 text-xs font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50/50"
-                      dir="ltr"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">كلمة المرور الجديدة</label>
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 text-xs border border-slate-300 rounded-xl"
+                    dir="ltr"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    تأكيد كلمة المرور الجديدة <span className="text-emerald-600">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="أعد كتابة الجديدة..."
-                      className="w-full pl-10 pr-3 py-2.5 text-xs font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50/50"
-                      dir="ltr"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">تأكيد كلمة المرور الجديدة</label>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 text-xs border border-slate-300 rounded-xl"
+                    dir="ltr"
+                  />
                 </div>
               </div>
 
-              <div className="flex justify-end pt-2">
-                <button
-                  type="submit"
-                  disabled={isChangingPassword}
-                  className="px-5 py-2.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs transition cursor-pointer"
-                >
-                  حفظ كلمة المرور الجديدة
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={isChangingPassword}
+                className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl"
+              >
+                حفظ كلمة المرور الجديدة
+              </button>
             </form>
           </div>
 
-          {/* بطاقات النسخ الاحتياطي الستة المسترجعة بالكامل */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
               <div>
                 <h3 className="font-bold text-base text-slate-900">النسخ الاحتياطي وإدارة البيانات</h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  احفظ نسخة مخصصة من المواد، أو إعدادات الحساب، أو نسخة شاملة، مع استعادة المواد وتصفية المخزن بأمان
-                </p>
+                <p className="text-xs text-slate-400 mt-0.5">احفظ نسخة مخصصة من المواد، أو إعدادات الحساب، أو نسخة شاملة</p>
               </div>
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 self-start sm:self-auto font-mono">
-                {products.length} مادة بالمخزن
-              </span>
             </div>
 
-            {importStatus && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-800 flex items-center gap-1.5 shadow-2xs">
-                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{importStatus}</span>
-              </div>
-            )}
-
-            {importError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs font-bold text-rose-800 flex items-center gap-1.5 shadow-2xs">
-                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>{importError}</span>
-              </div>
-            )}
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* 1. Custom Download Backup */}
               <button
                 type="button"
                 onClick={() => setIsExportModalOpen(true)}
                 className="p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/20 text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
               >
                 <div className="flex items-center justify-between w-full mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition shadow-xs">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition">
                     <Download className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100/80 text-emerald-800">
-                    تخصيص حر ⚙️
-                  </span>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">تخصيص حر ⚙️</span>
                 </div>
                 <div>
-                  <div className="font-extrabold text-sm text-slate-900 group-hover:text-emerald-950 transition">
-                    تحميل نسخة احتياطية (تخصيص حسب الرغبة)
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                    حفظ المواد فقط بدون بيانات الزبائن، أو إعدادات الحساب، أو نسخة شاملة لكل السجلات.
-                  </div>
+                  <div className="font-extrabold text-sm text-slate-900">تحميل نسخة احتياطية (تخصيص حسب الرغبة)</div>
+                  <div className="text-[11px] text-slate-500 mt-1">حفظ المواد فقط بدون بيانات الزبائن، أو إعدادات الحساب، أو نسخة شاملة.</div>
                 </div>
               </button>
 
-              {/* 2. Full Restore */}
               <div
                 onClick={() => fileInputRef.current?.click()}
                 className="p-4 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/20 text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
               >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  accept=".json"
-                  className="hidden"
-                />
+                <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".json" className="hidden" />
                 <div className="flex items-center justify-between w-full mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition shadow-xs">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition">
                     <Upload className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100/80 text-blue-800">
-                    ملف شامل
-                  </span>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">ملف شامل</span>
                 </div>
                 <div>
-                  <div className="font-extrabold text-sm text-slate-900 group-hover:text-blue-950 transition">
-                    استعادة نسخة شاملة من ملف
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                    رفع ملف نسخة احتياطية سابقة واسترجاع كافة البيانات (المواد، العملاء، الفواتير، الإعدادات).
-                  </div>
+                  <div className="font-extrabold text-sm text-slate-900">استعادة نسخة شاملة من ملف</div>
+                  <div className="text-[11px] text-slate-500 mt-1">رفع ملف نسخة احتياطية سابقة واسترجاع كافة البيانات.</div>
                 </div>
               </div>
 
-              {/* 3. Restore Products Only */}
               <div
                 onClick={() => !isImportingProductsOnly && productsOnlyFileInputRef.current?.click()}
-                className={`p-4 rounded-xl border text-right flex flex-col justify-between transition group shadow-2xs ${
-                  isImportingProductsOnly
-                    ? 'border-indigo-300 bg-indigo-50/50 cursor-wait'
-                    : 'border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/20 cursor-pointer'
-                }`}
+                className="p-4 rounded-xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/20 text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
               >
-                <input
-                  type="file"
-                  ref={productsOnlyFileInputRef}
-                  onChange={handleProductsOnlyFileSelect}
-                  accept=".json"
-                  className="hidden"
-                />
+                <input type="file" ref={productsOnlyFileInputRef} onChange={handleProductsOnlyFileSelect} accept=".json" className="hidden" />
                 <div className="flex items-center justify-between w-full mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition shadow-xs">
-                    {isImportingProductsOnly ? (
-                      <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" />
-                    ) : (
-                      <PackageCheck className="w-4 h-4" />
-                    )}
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
+                    <PackageCheck className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
-                    جديد • للمواد فقط
-                  </span>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">للمواد فقط</span>
                 </div>
                 <div>
-                  <div className="font-extrabold text-sm text-slate-900 group-hover:text-indigo-950 transition">
-                    استعادة نسخة المواد فقط (إدخال تلقائي للمخزن)
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                    رفع ملف المواد وإدخالها فوراً للمخزن والسيرفر كأنك أدخلتها يدوياً دون المساس ببيانات زبائنك.
-                  </div>
+                  <div className="font-extrabold text-sm text-slate-900">استعادة نسخة المواد فقط (إدخال تلقائي للمخزن)</div>
+                  <div className="text-[11px] text-slate-500 mt-1">رفع ملف المواد وإدخالها فوراً للمخزن والسيرفر كأنك أدخلتها يدوياً.</div>
                 </div>
               </div>
 
-              {/* 4. Wipe All Products From Server */}
               <button
                 type="button"
                 onClick={() => setIsWipeModalOpen(true)}
                 className="p-4 rounded-xl border border-slate-200 hover:border-rose-400 hover:bg-rose-50/30 text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
               >
                 <div className="flex items-center justify-between w-full mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition shadow-xs">
+                  <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition">
                     <Trash2 className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
-                    محمي برمز الحساب 🔒
-                  </span>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">محمي برمز الحساب 🔒</span>
                 </div>
                 <div>
-                  <div className="font-extrabold text-sm text-rose-950 transition">
-                    مسح وتصفية كافة المواد من السيرفر
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                    تصفير وحذف جميع المواد نهائياً من قاعدة بيانات السيرفر بعد إدخال رمز الحساب لتأكيد الأمان.
-                  </div>
+                  <div className="font-extrabold text-sm text-rose-950">مسح وتصفية كافة المواد من السيرفر</div>
+                  <div className="text-[11px] text-slate-500 mt-1">تصفير وحذف جميع المواد نهائياً من قاعدة بيانات السيرفر بأمان.</div>
                 </div>
               </button>
-              
-              {/* 5. Duplicate Products Review & Cleaner */}
+
               <button
                 type="button"
                 onClick={() => setIsDuplicatesModalOpen(true)}
                 className="p-4 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/30 text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
               >
                 <div className="flex items-center justify-between w-full mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition shadow-xs">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition">
                     <Copy className="w-4 h-4" />
                   </div>
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                    duplicateGroups.length > 0
-                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                      : 'bg-emerald-100 text-emerald-800'
-                  }`}>
-                    {duplicateGroups.length > 0 ? `${duplicateGroups.reduce((a,c)=>a+c.duplicateItems.length,0)} مكرر مكتشف` : 'المخزن نظيف'}
-                  </span>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">المواد المكررة</span>
                 </div>
                 <div>
-                  <div className="font-extrabold text-sm text-amber-950 transition">
-                    كشف ومراجعة المواد المكررة وإلغاؤها
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                    فحص المواد المتطابقة في الباركود أو المتشابهة 100% بالاسم والأسعار مع خيار عرضها وحذفها أو دمج رصيدها.
-                  </div>
+                  <div className="font-extrabold text-sm text-amber-950">كشف ومراجعة المواد المكررة وإلغاؤها</div>
+                  <div className="text-[11px] text-slate-500 mt-1">فحص المواد المتطابقة في الباركود أو المتشابهة 100% بالاسم والأسعار.</div>
                 </div>
               </button>
 
-              {/* 6. Offline Lifetime Guarantee Badge */}
               <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 text-right flex flex-col justify-between shadow-2xs">
                 <div className="flex items-center justify-between w-full mb-3">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
                     <ShieldCheck className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-950">
-                    أوفلاين مدى الحياة • بدون إعلانات
-                  </span>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-950">أوفلاين مدى الحياة</span>
                 </div>
                 <div>
-                  <div className="font-extrabold text-sm text-emerald-950">
-                    نظام أوفلاين محلي مستقل 100%
-                  </div>
-                  <div className="text-[11px] text-emerald-900 mt-1 leading-relaxed">
-                    يعمل البرنامج بدون إنترنت مدى الحياة، وجميع قواعد البيانات محفوظة مشفرة على قرص جهازك (%APPDATA%) بدون أي إعلانات أو نوافذ منبثقة.
-                  </div>
+                  <div className="font-extrabold text-sm text-emerald-950">نظام أوفلاين محلي مستقل 100%</div>
+                  <div className="text-[11px] text-emerald-900 mt-1">يعمل البرنامج بدون إنترنت، وجميع قواعد البيانات محفوظة مشفرة على قرص جهازك.</div>
                 </div>
               </div>
             </div>
@@ -2107,50 +2134,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               <button
                 type="button"
                 onClick={() => setIsActiveSessionsModalOpen(true)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Monitor className="w-3.5 h-3.5" />
                 <span>إدارة ومراقبة الجلسات</span>
               </button>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-              {deviceSessions.slice(0, 3).map((sess) => (
-                <div key={sess.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                      {sess.deviceType === 'mobile' ? <Smartphone className="w-3.5 h-3.5 text-amber-600" /> : <Monitor className="w-3.5 h-3.5 text-indigo-600" />}
-                      {sess.deviceName}
-                    </span>
-                    {sess.deviceId === currentDeviceId && (
-                      <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-black">
-                        هذا الجهاز
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    الموقع: {sess.location}
-                  </div>
-                  <div className="text-[10px] text-slate-400">
-                    {sess.activeShiftName ? `شفت مفتوح: ${sess.activeShiftName}` : 'لا يوجد شفت مفتوح'}
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
 
           {/* إعدادات رمز المشرف والجلسة الافتراضية */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-5">
-            <div className="border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-emerald-600" />
-                <span>إعدادات رمز المشرف والجلسة الافتراضية</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                تحديد الرمز السري المطلوب لدخول جلسة المشرف، والجلسة التي يبدأ بها النظام عند الفتح
-              </p>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <label className="block text-xs font-bold text-slate-800">
@@ -2162,70 +2155,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     value={supervisorPin}
                     onChange={(e) => setSupervisorPin(e.target.value)}
                     placeholder="1122"
-                    className="w-full pl-10 pr-3.5 py-2 text-sm font-mono font-bold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                    className="w-full pl-10 pr-3.5 py-2 text-sm font-mono font-bold bg-white border border-slate-300 rounded-lg"
                   />
                   <button
                     type="button"
                     onClick={() => setShowSupervisorPin(!showSupervisorPin)}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 p-1"
                   >
                     {showSupervisorPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  الرمز الافتراضي: <span className="font-mono font-bold text-slate-800">1122</span>. كلمة مرور الأدمن تعمل أيضاً لفتح جلسة المشرف كرمز ماستر.
-                </p>
               </div>
 
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <label className="block text-xs font-bold text-slate-800">
-                  الجلسة الافتراضية عند فتح التطبيق:
-                </label>
+                <label className="block text-xs font-bold text-slate-800">الجلسة الافتراضية عند فتح التطبيق:</label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={() => setDefaultSessionOnLaunch('employee')}
-                    className={`p-2.5 rounded-lg border text-center transition cursor-pointer text-xs font-bold ${
-                      defaultSessionOnLaunch === 'employee'
-                        ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-300'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    className={`p-2.5 rounded-lg border text-center text-xs font-bold ${
+                      defaultSessionOnLaunch === 'employee' ? 'bg-emerald-700 text-white' : 'bg-white text-slate-700'
                     }`}
                   >
-                    جلسة الموظف
-                    <div className="text-[10px] font-normal opacity-85 mt-0.5">موصى به للأمان</div>
+                    الموظف
                   </button>
-
                   <button
                     type="button"
                     onClick={() => setDefaultSessionOnLaunch('supervisor')}
-                    className={`p-2.5 rounded-lg border text-center transition cursor-pointer text-xs font-bold ${
-                      defaultSessionOnLaunch === 'supervisor'
-                        ? 'bg-blue-800 text-white border-blue-800 shadow-xs ring-2 ring-blue-300'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    className={`p-2.5 rounded-lg border text-center text-xs font-bold ${
+                      defaultSessionOnLaunch === 'supervisor' ? 'bg-blue-800 text-white' : 'bg-white text-slate-700'
                     }`}
                   >
-                    جلسة المشرف
-                    <div className="text-[10px] font-normal opacity-85 mt-0.5">وسطية</div>
+                    المشرف
                   </button>
-
                   <button
                     type="button"
                     onClick={() => setDefaultSessionOnLaunch('admin')}
-                    className={`p-2.5 rounded-lg border text-center transition cursor-pointer text-xs font-bold ${
-                      defaultSessionOnLaunch === 'admin'
-                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs ring-2 ring-slate-400'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    className={`p-2.5 rounded-lg border text-center text-xs font-bold ${
+                      defaultSessionOnLaunch === 'admin' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'
                     }`}
                   >
-                    جلسة الأدمن
-                    <div className="text-[10px] font-normal opacity-85 mt-0.5">كامل الصلاحيات</div>
+                    الأدمن
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* إدارة المشرفين المتعددين (Multiple Supervisors) */}
+          {/* إدارة المشرفين المتعددين */}
           {sessionRole === 'admin' && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -2234,12 +2211,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     <UserCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-extrabold text-slate-900">
-                      إدارة المشرفين المتعددين (Supervisors)
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      إمكانية إضافة أكثر من مشرف ولكل مشرف اسمه ورمزه الخاص، مع خيار منحه صلاحية إعداد الشفتات وتظهر جلساتهم في زر اختيار الجلسة.
-                    </p>
+                    <h3 className="text-sm font-extrabold text-slate-900">إدارة المشرفين المتعددين (Supervisors)</h3>
                   </div>
                 </div>
 
@@ -2247,7 +2219,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   <button
                     type="button"
                     onClick={() => setIsAddingSupervisor(true)}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
                   >
                     <UserPlus className="w-4 h-4" />
                     <span>إضافة مشرف جديد</span>
@@ -2257,192 +2229,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
 
               {isAddingSupervisor && (
                 <form onSubmit={handleAddSupervisorSubmit} className="bg-blue-50/70 border border-blue-200 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between border-b border-blue-200/80 pb-2">
-                    <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
-                      <UserPlus className="w-4 h-4 text-blue-600" />
-                      إضافة مشرف جديد للنظام
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingSupervisor(false)}
-                      className="text-blue-700 hover:text-blue-900 text-xs font-bold"
-                    >
-                      إلغاء
-                    </button>
-                  </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">اسم المشرف:</label>
-                      <input
-                        type="text"
-                        value={newSupName}
-                        onChange={(e) => setNewSupName(e.target.value)}
-                        placeholder="مثال: المشرف أحمد"
-                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-                        autoFocus
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">الرمز السري للمشرف (PIN):</label>
-                      <input
-                        type="text"
-                        value={newSupPin}
-                        onChange={(e) => setNewSupPin(e.target.value)}
-                        placeholder="مثال: 5566"
-                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <label className="flex items-center gap-2 p-2 bg-white rounded-lg border border-blue-200 cursor-pointer text-xs font-bold text-blue-950">
                     <input
-                      type="checkbox"
-                      checked={newSupCanConfigure}
-                      onChange={(e) => setNewSupCanConfigure(e.target.checked)}
-                      className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                      type="text"
+                      value={newSupName}
+                      onChange={(e) => setNewSupName(e.target.value)}
+                      placeholder="اسم المشرف"
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg"
+                      autoFocus
                     />
-                    <span>السماح لهذا المشرف بإعداد وتعديل قوالب الشفتات المسبقة</span>
-                  </label>
-
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingSupervisor(false)}
-                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg transition"
-                    >
-                      إلغاء
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
-                    >
-                      حفظ المشرف
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {editingSupId && (
-                <form onSubmit={handleEditSupervisorSubmit} className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
-                    <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                      <Edit2 className="w-4 h-4 text-amber-600" />
-                      تعديل بيانات المشرف
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setEditingSupId(null)}
-                      className="text-amber-700 hover:text-amber-900 text-xs font-bold"
-                    >
-                      إلغاء
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">اسم المشرف:</label>
-                      <input
-                        type="text"
-                        value={editSupName}
-                        onChange={(e) => setEditSupName(e.target.value)}
-                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">الرمز السري (PIN):</label>
-                      <input
-                        type="text"
-                        value={editSupPin}
-                        onChange={(e) => setEditSupPin(e.target.value)}
-                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <label className="flex items-center gap-2 p-2 bg-white rounded-lg border border-amber-200 cursor-pointer text-xs font-bold text-slate-900">
                     <input
-                      type="checkbox"
-                      checked={editSupCanConfigure}
-                      onChange={(e) => setEditSupCanConfigure(e.target.checked)}
-                      className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                      type="text"
+                      value={newSupPin}
+                      onChange={(e) => setNewSupPin(e.target.value)}
+                      placeholder="رمز PIN"
+                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg"
                     />
-                    <span>السماح لهذا المشرف بإعداد وتعديل قوالب الشفتات المسبقة</span>
-                  </label>
-
+                  </div>
                   <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setEditingSupId(null)}
-                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg transition"
-                    >
-                      إلغاء
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
-                    >
-                      حفظ التعديلات
-                    </button>
+                    <button type="button" onClick={() => setIsAddingSupervisor(false)} className="px-3 py-1.5 text-xs text-slate-600">إلغاء</button>
+                    <button type="submit" className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold">حفظ</button>
                   </div>
                 </form>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {(settings.supervisors || []).map((sup) => (
-                  <div
-                    key={sup.id}
-                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between gap-3 hover:border-blue-300 hover:bg-blue-50/20 transition shadow-2xs"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
-                          <UserCheck className="w-3.5 h-3.5 text-blue-600" />
-                          {sup.name}
-                        </span>
-                        <span className="text-[10px] font-mono font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200">
-                          رمز: {sup.pin}
-                        </span>
-                      </div>
-                      <div className="mt-2 flex items-center gap-1">
-                        {sup.canConfigureShifts ? (
-                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-200">
-                            ✓ مخوّل بإعداد الشفتات
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-md">
-                            بدون صلاحية إعداد شفتات
-                          </span>
-                        )}
-                      </div>
+                  <div key={sup.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900">{sup.name}</span>
+                      <span className="text-[10px] font-mono font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">رمز: {sup.pin}</span>
                     </div>
-
                     <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-200/60">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingSupId(sup.id);
-                          setEditSupName(sup.name);
-                          setEditSupPin(sup.pin);
-                          setEditSupCanConfigure(!!sup.canConfigureShifts);
-                        }}
-                        className="px-2 py-1 text-[11px] font-bold text-slate-600 hover:text-blue-700 hover:bg-white rounded transition flex items-center gap-1 cursor-pointer"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                        <span>تعديل</span>
-                      </button>
                       {(settings.supervisors || []).length > 1 && (
                         <button
                           type="button"
-                          onClick={async () => {
-                            if (window.confirm(`هل أنت متأكد من حذف المشرف (${sup.name})؟`)) {
-                              await deleteSupervisor(sup.id);
-                            }
-                          }}
-                          className="px-2 py-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded transition flex items-center gap-1 cursor-pointer"
+                          onClick={() => deleteSupervisor(sup.id)}
+                          className="px-2 py-1 text-[11px] font-bold text-rose-600"
                         >
-                          <Trash2 className="w-3 h-3" />
-                          <span>حذف</span>
+                          حذف
                         </button>
                       )}
                     </div>
@@ -2452,7 +2277,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           )}
 
-          {/* قوالب الشفتات المعدة مسبقاً (Preset Shifts) */}
+          {/* قوالب الشفتات المعدة مسبقاً */}
           {(sessionRole === 'admin' || hasPermission('canConfigureShifts')) && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -2461,12 +2286,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-extrabold text-slate-900">
-                      قوالب الشفتات المعدة مسبقاً (Preset Shifts)
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      كل شفت له اسمه ورمزه السري الخاص لبدئه، ولا يمكن البيع في جلسة الموظف إلا بعد بدء أحد هذه الشفتات.
-                    </p>
+                    <h3 className="text-sm font-extrabold text-slate-900">قوالب الشفتات المعدة مسبقاً (Preset Shifts)</h3>
                   </div>
                 </div>
 
@@ -2474,7 +2294,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   <button
                     type="button"
                     onClick={() => setIsAddingPresetShift(true)}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
                   >
                     <Plus className="w-4 h-4" />
                     <span>إضافة شفت مسبق جديد</span>
@@ -2484,179 +2304,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
 
               {isAddingPresetShift && (
                 <form onSubmit={handleAddPresetShiftSubmit} className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between border-b border-indigo-200/80 pb-2">
-                    <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                      <Plus className="w-4 h-4 text-indigo-600" />
-                      إضافة شفت عمل جديد
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingPresetShift(false)}
-                      className="text-indigo-700 hover:text-indigo-900 text-xs font-bold"
-                    >
-                      إلغاء
-                    </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      value={newPresetName}
+                      onChange={(e) => setNewPresetName(e.target.value)}
+                      placeholder="اسم الشفت"
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg"
+                      autoFocus
+                    />
+                    <input
+                      type="text"
+                      value={newPresetCode}
+                      onChange={(e) => setNewPresetCode(e.target.value)}
+                      placeholder="الرمز السري (PIN)"
+                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg"
+                    />
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">اسم الشفت:</label>
-                      <input
-                        type="text"
-                        value={newPresetName}
-                        onChange={(e) => setNewPresetName(e.target.value)}
-                        placeholder="مثال: شفت الصباح - كاشير 1"
-                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
-                        autoFocus
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">الرمز السري للشفت (PIN):</label>
-                      <input
-                        type="text"
-                        value={newPresetCode}
-                        onChange={(e) => setNewPresetCode(e.target.value)}
-                        placeholder="مثال: 1234"
-                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">ملاحظات (اختياري):</label>
-                      <input
-                        type="text"
-                        value={newPresetNotes}
-                        onChange={(e) => setNewPresetNotes(e.target.value)}
-                        placeholder="مثال: الصالة الرئيسية"
-                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-
                   <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setIsAddingPresetShift(false)}
-                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg transition"
-                    >
-                      إلغاء
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
-                    >
-                      حفظ قالب الشفت
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {editingPresetId && (
-                <form onSubmit={handleEditPresetShiftSubmit} className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
-                    <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                      <Edit2 className="w-4 h-4 text-amber-600" />
-                      تعديل بيانات الشفت
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setEditingPresetId(null)}
-                      className="text-amber-700 hover:text-amber-900 text-xs font-bold"
-                    >
-                      إلغاء
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">اسم الشفت:</label>
-                      <input
-                        type="text"
-                        value={editPresetName}
-                        onChange={(e) => setEditPresetName(e.target.value)}
-                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">الرمز السري للشفت (PIN):</label>
-                      <input
-                        type="text"
-                        value={editPresetCode}
-                        onChange={(e) => setEditPresetCode(e.target.value)}
-                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">ملاحظات (اختياري):</label>
-                      <input
-                        type="text"
-                        value={editPresetNotes}
-                        onChange={(e) => setEditPresetNotes(e.target.value)}
-                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setEditingPresetId(null)}
-                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg transition"
-                    >
-                      إلغاء
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
-                    >
-                      حفظ التعديلات
-                    </button>
+                    <button type="button" onClick={() => setIsAddingPresetShift(false)} className="px-3 py-1.5 text-xs text-slate-600">إلغاء</button>
+                    <button type="submit" className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold">حفظ</button>
                   </div>
                 </form>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {(settings.presetShifts || []).map((preset) => (
-                  <div
-                    key={preset.id}
-                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between gap-3 hover:border-indigo-300 hover:bg-indigo-50/20 transition shadow-2xs"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-900">{preset.name}</span>
-                        <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
-                          رمز: {preset.code}
-                        </span>
-                      </div>
-                      {preset.notes && (
-                        <p className="text-[11px] text-slate-500 mt-1">{preset.notes}</p>
-                      )}
+                  <div key={preset.id} className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900">{preset.name}</span>
+                      <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full">رمز: {preset.code}</span>
                     </div>
-
                     <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-200/60">
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingPresetId(preset.id);
-                          setEditPresetName(preset.name);
-                          setEditPresetCode(preset.code);
-                          setEditPresetNotes(preset.notes || '');
-                        }}
-                        className="px-2 py-1 text-[11px] font-bold text-slate-600 hover:text-indigo-700 hover:bg-white rounded transition flex items-center gap-1 cursor-pointer"
+                        onClick={() => deletePresetShift(preset.id)}
+                        className="px-2 py-1 text-[11px] font-bold text-rose-600"
                       >
-                        <Edit2 className="w-3 h-3" />
-                        <span>تعديل</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (window.confirm(`هل أنت متأكد من حذف قالب الشفت (${preset.name})؟`)) {
-                            await deletePresetShift(preset.id);
-                          }
-                        }}
-                        className="px-2 py-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded transition flex items-center gap-1 cursor-pointer"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        <span>حذف</span>
+                        حذف
                       </button>
                     </div>
                   </div>
@@ -2671,21 +2356,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
-                    <Users className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-extrabold text-slate-900">صلاحيات جلسة الموظف العادي</h4>
-                    <p className="text-[11px] text-slate-500">الموظف اليومي / الكاشير</p>
-                  </div>
+                  <Users className="w-4 h-4 text-emerald-800" />
+                  <h4 className="text-sm font-extrabold text-slate-900">صلاحيات جلسة الموظف العادي</h4>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setEmployeePermissions({ ...DEFAULT_EMPLOYEE_PERMISSIONS })}
-                  className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer"
+                  className="text-[11px] text-emerald-700 font-bold underline cursor-pointer"
                 >
-                  استعادة الضبط القياسي
+                  استعادة الضبط
                 </button>
               </div>
 
@@ -2702,15 +2381,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   { key: 'canViewCustomers' as const, label: 'الدخول لسجل الزبائن وحسابات الديون', desc: 'رؤية كشوفات الديون (محظور افتراضياً)' },
                   { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال (محظور افتراضياً)' },
                   { key: 'canAccessShifts' as const, label: 'الدخول لسجل وتبويب الشفتات', desc: 'معاينة شفتات العمل ومبيعاتها وقوائمها' },
-                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات والورديات', desc: 'الضغط على زر بدء الشفت وتشغيل المؤقت وإنهائه' },
+                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات والورديات', desc: 'تشغيل مؤقت الشفت وإنهائه' },
                   { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي (محظور افتراضياً)' },
                 ].map((item) => (
                   <label
                     key={item.key}
                     className={`flex items-start gap-3 p-2.5 rounded-xl border transition cursor-pointer ${
-                      employeePermissions[item.key]
-                        ? 'bg-emerald-50/60 border-emerald-200 text-slate-900'
-                        : 'bg-slate-50 border-slate-200/80 text-slate-500'
+                      employeePermissions[item.key] ? 'bg-emerald-50/60 border-emerald-200 text-slate-900' : 'bg-slate-50 border-slate-200/80 text-slate-500'
                     }`}
                   >
                     <input
@@ -2727,15 +2404,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     <div className="flex-1">
                       <div className="text-xs font-bold leading-tight flex items-center justify-between">
                         <span>{item.label}</span>
-                        {employeePermissions[item.key] ? (
-                          <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-bold">
-                            مسموح
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.2 rounded font-bold">
-                            محظور
-                          </span>
-                        )}
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                          employeePermissions[item.key] ? 'text-emerald-700 bg-emerald-100' : 'text-slate-500 bg-slate-200'
+                        }`}>
+                          {employeePermissions[item.key] ? 'مسموح' : 'محظور'}
+                        </span>
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5">{item.desc}</div>
                     </div>
@@ -2748,21 +2421,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center font-bold">
-                    <UserCheck className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-extrabold text-slate-900">صلاحيات جلسة المشرف المعتمد</h4>
-                    <p className="text-[11px] text-slate-500">مشرف الصالة / المدير التنفيذي</p>
-                  </div>
+                  <UserCheck className="w-4 h-4 text-blue-800" />
+                  <h4 className="text-sm font-extrabold text-slate-900">صلاحيات جلسة المشرف المعتمد</h4>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => setSupervisorPermissions({ ...DEFAULT_SUPERVISOR_PERMISSIONS })}
-                  className="text-[11px] text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer"
+                  className="text-[11px] text-blue-700 font-bold underline cursor-pointer"
                 >
-                  استعادة الضبط القياسي
+                  استعادة الضبط
                 </button>
               </div>
 
@@ -2773,21 +2440,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   { key: 'canViewCostPrice' as const, label: 'عرض أسعار التكلفة والشراء', desc: 'السماح برؤية سعر رأس المال في الجداول ونوافذ التعديل' },
                   { key: 'canEditProductPrice' as const, label: 'تعديل السعر في القائمة للزبون (أيقونة القلم الصغير)', desc: 'تعديل سعر المادة في القائمة النشطة' },
                   { key: 'canViewInvoices' as const, label: 'الدخول لسجل الفواتير ومعاينة القوائم', desc: 'معاينة وطباعة القوائم' },
-                  { key: 'canReturnInvoice' as const, label: 'استعادة الفواتير وإرجاع المواد للمخزن', desc: 'إلغاء البيع واسترجاع البضاعة (مفعل للمشرف)' },
-                  { key: 'canViewCustomers' as const, label: 'الدخول لسجل الزبائن وحسابات الديون', desc: 'متابعة حسابات الزبائن (مفعل للمشرف)' },
+                  { key: 'canReturnInvoice' as const, label: 'استعادة الفواتير وإرجاع المواد للمخزن', desc: 'إلغاء البيع واسترجاع البضاعة' },
+                  { key: 'canViewCustomers' as const, label: 'الدخول لسجل الزبائن وحسابات الديون', desc: 'متابعة حسابات الزبائن' },
                   { key: 'canAccessInventory' as const, label: 'الدخول لقسم المواد والمخزون', desc: 'معاينة المخزن وجرد الأصناف' },
                   { key: 'canAccessShifts' as const, label: 'الدخول لسجل وتبويب الشفتات', desc: 'معاينة شفتات العمل ومبيعاتها وقوائمها' },
-                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات والورديات', desc: 'الضغط على زر بدء الشفت وتشغيل المؤقت وإنهائه' },
-                  { key: 'canDeleteInvoice' as const, label: 'حذف القوائم نهائياً', desc: 'حذف سجلات الفواتير نهائياً (محظور للمشرف)' },
-                  { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال (محظور للمشرف)' },
-                  { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي (محظور للمشرف)' },
+                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات والورديات', desc: 'تشغيل مؤقت الشفت وإنهائه' },
+                  { key: 'canDeleteInvoice' as const, label: 'حذف القوائم نهائياً', desc: 'حذف سجلات الفواتير نهائياً' },
+                  { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال' },
+                  { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي' },
                 ].map((item) => (
                   <label
                     key={item.key}
                     className={`flex items-start gap-3 p-2.5 rounded-xl border transition cursor-pointer ${
-                      supervisorPermissions[item.key]
-                        ? 'bg-blue-50/60 border-blue-200 text-slate-900'
-                        : 'bg-slate-50 border-slate-200/80 text-slate-500'
+                      supervisorPermissions[item.key] ? 'bg-blue-50/60 border-blue-200 text-slate-900' : 'bg-slate-50 border-slate-200/80 text-slate-500'
                     }`}
                   >
                     <input
@@ -2804,15 +2469,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     <div className="flex-1">
                       <div className="text-xs font-bold leading-tight flex items-center justify-between">
                         <span>{item.label}</span>
-                        {supervisorPermissions[item.key] ? (
-                          <span className="text-[10px] text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded font-bold">
-                            مسموح
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.2 rounded font-bold">
-                            محظور
-                          </span>
-                        )}
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                          supervisorPermissions[item.key] ? 'text-blue-700 bg-blue-100' : 'text-slate-500 bg-slate-200'
+                        }`}>
+                          {supervisorPermissions[item.key] ? 'مسموح' : 'محظور'}
+                        </span>
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5">{item.desc}</div>
                     </div>
@@ -2826,7 +2487,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             <button
               type="button"
               onClick={handleSaveSessionsOnly}
-              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black cursor-pointer"
+              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black"
             >
               حفظ وتثبيت إعدادات وصلاحيات الجلسات
             </button>
