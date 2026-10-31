@@ -401,6 +401,7 @@ export interface RolePermissions {
   canManageShifts: boolean;
   canConfigureShifts: boolean;
   canManageSalesReps?: boolean;
+  canViewCostPrice?: boolean; // الصلاحية الجديدة لمشاهدة أسعار التكلفة والشراء
 }
 
 export const DEFAULT_EMPLOYEE_PERMISSIONS: RolePermissions = {
@@ -418,6 +419,7 @@ export const DEFAULT_EMPLOYEE_PERMISSIONS: RolePermissions = {
   canManageShifts: true,
   canConfigureShifts: false,
   canManageSalesReps: false,
+  canViewCostPrice: false, // محظور افتراضياً للموظف
 };
 
 export const DEFAULT_SUPERVISOR_PERMISSIONS: RolePermissions = {
@@ -435,6 +437,7 @@ export const DEFAULT_SUPERVISOR_PERMISSIONS: RolePermissions = {
   canManageShifts: true,
   canConfigureShifts: true,
   canManageSalesReps: true,
+  canViewCostPrice: true, // مسموح افتراضياً للمشرف
 };
 
 export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
@@ -452,4 +455,5 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   canManageShifts: true,
   canConfigureShifts: true,
   canManageSalesReps: true,
+  canViewCostPrice: true,
 };
