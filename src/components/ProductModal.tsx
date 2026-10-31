@@ -18,7 +18,8 @@ import {
   Layers,
   HelpCircle,
   Globe2,
-  Store
+  Store,
+  Lock
 } from 'lucide-react';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { lookupProductDetails, LookupPreference } from '../utils/productLookup';
@@ -36,7 +37,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   productToEdit,
   initialCode,
 }) => {
-  const { addProduct, updateProduct, products, formatMoney, settings } = useApp();
+  const { addProduct, updateProduct, products, formatMoney, settings, hasPermission } = useApp();
 
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -50,6 +51,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [piecesPerCarton, setPiecesPerCarton] = useState<number | ''>(1);
   const [isWeighted, setIsWeighted] = useState(false);
   const [notes, setNotes] = useState('');
+
+  // فحص صلاحية إظهار أسعار التكلفة
+  const canViewCost = hasPermission('canViewCostPrice');
 
   // حالات البحث التلقائي ومصدر الاستعلام المفضل
   const [lookupPreference, setLookupPreference] = useState<LookupPreference>(() => {
@@ -375,7 +379,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
             {/* قسم الباركود والاسم */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-              {/* حقل الباركود */}
               <div className="sm:col-span-6 space-y-1">
                 <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
@@ -421,7 +424,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
               </div>
 
-              {/* حقل اسم المادة */}
               <div className="sm:col-span-6 space-y-1">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -440,7 +442,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
             {/* التصنيف، الوحدة، وميزة الوزن */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* القسم / التصنيف */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
                   <Layers className="w-3.5 h-3.5 text-blue-400" />
@@ -463,7 +464,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
               </div>
 
-              {/* الوحدة */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
                   <Box className="w-3.5 h-3.5 text-purple-400" />
@@ -487,7 +487,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </select>
               </div>
 
-              {/* مادة وزنية */}
               <div className="space-y-1 flex flex-col justify-end">
                 <label className="text-xs font-semibold text-slate-300 invisible sm:block">خيارات</label>
                 <button
@@ -512,7 +511,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
             </div>
 
-            {/* سعة الكرتون فقط (تم حذف حقول الرصيد المكررة من هنا) */}
+            {/* سعة الكرتون */}
             <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
@@ -539,70 +538,74 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
             </div>
 
-            {/* بطاقات التسعير الثلاثة الكلاسيكية بالوضع المظلم (كرتون + قطعة لكل نوع) */}
+            {/* بطاقات التسعير */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-bold px-1 text-slate-200">
                 <span className="flex items-center gap-1.5">
                   <TrendingUp className="w-4 h-4 text-emerald-400" />
                   <span>تسعير المادة ({settings.currency || 'د.ع'})</span>
                 </span>
-                <span className="text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                  الربح: {formatMoney(profitPerPiece)} ({profitMarginPercent}%)
-                </span>
+                {canViewCost && (
+                  <span className="text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                    الربح: {formatMoney(profitPerPiece)} ({profitMarginPercent}%)
+                  </span>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* 1. بطاقة سعر التكلفة / الشراء */}
-                <div className="bg-[#070e1b] border border-slate-800 rounded-2xl p-3.5 space-y-3">
-                  <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
-                    <span className="text-xs font-bold text-slate-200">1. سعر التكلفة / الشراء</span>
-                    <span className="text-[10px] font-bold text-slate-400 bg-slate-800/70 px-2 py-0.5 rounded-md">
-                      رأس المال
-                    </span>
-                  </div>
+              <div className={`grid grid-cols-1 ${canViewCost ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
+                {/* 1. بطاقة سعر التكلفة / الشراء (تظهر فقط عند توفر الصلاحية) */}
+                {canViewCost && (
+                  <div className="bg-[#070e1b] border border-slate-800 rounded-2xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
+                      <span className="text-xs font-bold text-slate-200">1. سعر التكلفة / الشراء</span>
+                      <span className="text-[10px] font-bold text-slate-400 bg-slate-800/70 px-2 py-0.5 rounded-md">
+                        رأس المال
+                      </span>
+                    </div>
 
-                  {numPieces > 1 && (
-                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 space-y-1">
-                      <label className="text-[11px] font-semibold text-slate-300 block text-right">
-                        سعر الكرتون الكامل:
+                    {numPieces > 1 && (
+                      <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-300 block text-right">
+                          سعر الكرتون الكامل:
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="any"
+                            min="0"
+                            value={costPrice === '' ? '' : parseFloat((numCost * numPieces).toFixed(2))}
+                            onChange={(e) => handleCartonCostChange(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full bg-[#060b13] border border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-white font-mono font-semibold focus:outline-none focus:border-emerald-500 text-left"
+                          />
+                          <span className="absolute left-2.5 top-2 text-[10px] text-slate-400 font-bold">
+                            {settings.currency || 'دينار'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-2.5 space-y-1">
+                      <label className="text-[11px] font-semibold text-emerald-400 block text-right">
+                        {numPieces > 1 ? `تكلفة القطعة (${numPieces} ق):` : 'سعر الشراء للقطعة:'}
                       </label>
                       <div className="relative">
                         <input
                           type="number"
                           step="any"
                           min="0"
-                          value={costPrice === '' ? '' : parseFloat((numCost * numPieces).toFixed(2))}
-                          onChange={(e) => handleCartonCostChange(e.target.value)}
+                          value={costPrice}
+                          onChange={(e) => setCostPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                           placeholder="0.00"
-                          className="w-full bg-[#060b13] border border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-white font-mono font-semibold focus:outline-none focus:border-emerald-500 text-left"
+                          className="w-full bg-[#060b13] border border-emerald-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-400 text-left"
                         />
-                        <span className="absolute left-2.5 top-2 text-[10px] text-slate-400 font-bold">
+                        <span className="absolute left-2.5 top-2 text-[10px] text-emerald-500/80 font-bold">
                           {settings.currency || 'دينار'}
                         </span>
                       </div>
                     </div>
-                  )}
-
-                  <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-2.5 space-y-1">
-                    <label className="text-[11px] font-semibold text-emerald-400 block text-right">
-                      {numPieces > 1 ? `تكلفة القطعة (${numPieces} ق):` : 'سعر الشراء للقطعة:'}
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="any"
-                        min="0"
-                        value={costPrice}
-                        onChange={(e) => setCostPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                        placeholder="0.00"
-                        className="w-full bg-[#060b13] border border-emerald-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-400 text-left"
-                      />
-                      <span className="absolute left-2.5 top-2 text-[10px] text-emerald-500/80 font-bold">
-                        {settings.currency || 'دينار'}
-                      </span>
-                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* 2. بطاقة سعر بيع المفرد */}
                 <div className="bg-[#070e1b] border border-emerald-500/40 rounded-2xl p-3.5 space-y-3">
@@ -788,7 +791,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         </div>
       </div>
 
-      {/* نافذة ماسح الباركود بالكاميرا */}
       <BarcodeScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
