@@ -43,9 +43,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [name, setName] = useState('');
   const [category, setCategory] = useState('عام');
   const [unit, setUnit] = useState('قطعة');
-  const [costPrice, setCostPrice] = useState<number | ''>(0);
-  const [retailPrice, setRetailPrice] = useState<number | ''>(0);
-  const [wholesalePrice, setWholesalePrice] = useState<number | ''>(0);
+  
+  // حالات الإدخال النصية المستقلة لمنع فرض الكسور والفواصل أثناء الكتابة
+  const [cartonCostInput, setCartonCostInput] = useState<string>('0');
+  const [pieceCostInput, setPieceCostInput] = useState<string>('0');
+
+  const [cartonRetailInput, setCartonRetailInput] = useState<string>('0');
+  const [pieceRetailInput, setPieceRetailInput] = useState<string>('0');
+
+  const [cartonWholesaleInput, setCartonWholesaleInput] = useState<string>('0');
+  const [pieceWholesaleInput, setPieceWholesaleInput] = useState<string>('0');
+
   const [stock, setStock] = useState<number | ''>(0);
   const [minStock, setMinStock] = useState<number | ''>(5);
   const [piecesPerCarton, setPiecesPerCarton] = useState<number | ''>(1);
@@ -142,13 +150,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setName(productToEdit.name || '');
       setCategory(productToEdit.category || 'عام');
       setUnit(productToEdit.unit || 'قطعة');
-      setCostPrice(productToEdit.costPrice ?? 0);
-      setRetailPrice(productToEdit.retailPrice ?? 0);
-      setWholesalePrice(productToEdit.wholesalePrice ?? 0);
-      setStock(productToEdit.stock ?? 0);
-      setMinStock(productToEdit.minStock ?? 5);
+      
       const ppc = productToEdit.piecesPerCarton || 1;
       setPiecesPerCarton(ppc);
+
+      const cost = productToEdit.costPrice ?? 0;
+      setPieceCostInput(String(cost));
+      setCartonCostInput(String(Math.round(cost * ppc)));
+
+      const retail = productToEdit.retailPrice ?? 0;
+      setPieceRetailInput(String(retail));
+      setCartonRetailInput(String(Math.round(retail * ppc)));
+
+      const wholesale = productToEdit.wholesalePrice ?? 0;
+      setPieceWholesaleInput(String(wholesale));
+      setCartonWholesaleInput(String(Math.round(wholesale * ppc)));
+
+      setStock(productToEdit.stock ?? 0);
+      setMinStock(productToEdit.minStock ?? 5);
       setIsWeighted(!!productToEdit.isWeighted);
       setNotes(productToEdit.notes || '');
     } else {
@@ -157,12 +176,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setName('');
       setCategory('عام');
       setUnit('قطعة');
-      setCostPrice(0);
-      setRetailPrice(0);
-      setWholesalePrice(0);
+      
+      setPiecesPerCarton(1);
+      setCartonCostInput('0');
+      setPieceCostInput('0');
+      setCartonRetailInput('0');
+      setPieceRetailInput('0');
+      setCartonWholesaleInput('0');
+      setPieceWholesaleInput('0');
+
       setStock(0);
       setMinStock(5);
-      setPiecesPerCarton(1);
       setIsWeighted(false);
       setNotes('');
 
@@ -186,41 +210,103 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     triggerAutoLookup(scannedCode);
   };
 
-  const numCost = typeof costPrice === 'number' ? costPrice : 0;
-  const numRetail = typeof retailPrice === 'number' ? retailPrice : 0;
-  const numWholesale = typeof wholesalePrice === 'number' ? wholesalePrice : 0;
   const numPieces = typeof piecesPerCarton === 'number' && piecesPerCarton > 0 ? piecesPerCarton : 1;
+  const numCost = parseFloat(pieceCostInput) || 0;
+  const numRetail = parseFloat(pieceRetailInput) || 0;
+  const numWholesale = parseFloat(pieceWholesaleInput) || 0;
   const numStock = typeof stock === 'number' ? stock : 0;
 
   const profitPerPiece = numRetail - numCost;
   const profitMarginPercent = numCost > 0 ? ((profitPerPiece / numCost) * 100).toFixed(1) : '0';
 
-  // معالجات المزامنة اللحظية بين أسعار الكرتون والقطع
+  // معالجات المزامنة النصية المرنة بدون فرض فواصل أو أرقام
   const handleCartonCostChange = (val: string) => {
-    if (val === '') {
-      setCostPrice('');
+    setCartonCostInput(val);
+    if (val.trim() === '' || val === '0') {
+      setPieceCostInput(val);
       return;
     }
-    const c = parseFloat(val) || 0;
-    setCostPrice(numPieces > 1 ? parseFloat((c / numPieces).toFixed(2)) : c);
+    const c = parseFloat(val);
+    if (!isNaN(c)) {
+      setPieceCostInput(numPieces > 1 ? String(parseFloat((c / numPieces).toFixed(2))) : String(c));
+    }
+  };
+
+  const handlePieceCostChange = (val: string) => {
+    setPieceCostInput(val);
+    if (val.trim() === '' || val === '0') {
+      setCartonCostInput(val);
+      return;
+    }
+    const p = parseFloat(val);
+    if (!isNaN(p)) {
+      setCartonCostInput(String(parseFloat((p * numPieces).toFixed(2))));
+    }
   };
 
   const handleCartonRetailChange = (val: string) => {
-    if (val === '') {
-      setRetailPrice('');
+    setCartonRetailInput(val);
+    if (val.trim() === '' || val === '0') {
+      setPieceRetailInput(val);
       return;
     }
-    const r = parseFloat(val) || 0;
-    setRetailPrice(numPieces > 1 ? parseFloat((r / numPieces).toFixed(2)) : r);
+    const r = parseFloat(val);
+    if (!isNaN(r)) {
+      setPieceRetailInput(numPieces > 1 ? String(parseFloat((r / numPieces).toFixed(2))) : String(r));
+    }
+  };
+
+  const handlePieceRetailChange = (val: string) => {
+    setPieceRetailInput(val);
+    if (val.trim() === '' || val === '0') {
+      setCartonRetailInput(val);
+      return;
+    }
+    const p = parseFloat(val);
+    if (!isNaN(p)) {
+      setCartonRetailInput(String(parseFloat((p * numPieces).toFixed(2))));
+    }
   };
 
   const handleCartonWholesaleChange = (val: string) => {
-    if (val === '') {
-      setWholesalePrice('');
+    setCartonWholesaleInput(val);
+    if (val.trim() === '' || val === '0') {
+      setPieceWholesaleInput(val);
       return;
     }
-    const w = parseFloat(val) || 0;
-    setWholesalePrice(numPieces > 1 ? parseFloat((w / numPieces).toFixed(2)) : w);
+    const w = parseFloat(val);
+    if (!isNaN(w)) {
+      setPieceWholesaleInput(numPieces > 1 ? String(parseFloat((w / numPieces).toFixed(2))) : String(w));
+    }
+  };
+
+  const handlePieceWholesaleChange = (val: string) => {
+    setPieceWholesaleInput(val);
+    if (val.trim() === '' || val === '0') {
+      setCartonWholesaleInput(val);
+      return;
+    }
+    const p = parseFloat(val);
+    if (!isNaN(p)) {
+      setCartonWholesaleInput(String(parseFloat((p * numPieces).toFixed(2))));
+    }
+  };
+
+  const handlePiecesPerCartonUpdate = (newPieces: number | '') => {
+    setPiecesPerCarton(newPieces);
+    const validPieces = typeof newPieces === 'number' && newPieces > 0 ? newPieces : 1;
+    if (pieceCostInput && pieceCostInput !== '0') {
+      const p = parseFloat(pieceCostInput) || 0;
+      setCartonCostInput(String(parseFloat((p * validPieces).toFixed(2))));
+    }
+    if (pieceRetailInput && pieceRetailInput !== '0') {
+      const p = parseFloat(pieceRetailInput) || 0;
+      setCartonRetailInput(String(parseFloat((p * validPieces).toFixed(2))));
+    }
+    if (pieceWholesaleInput && pieceWholesaleInput !== '0') {
+      const p = parseFloat(pieceWholesaleInput) || 0;
+      setCartonWholesaleInput(String(parseFloat((p * validPieces).toFixed(2))));
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -531,7 +617,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   value={piecesPerCarton}
                   onChange={(e) => {
                     const v = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1);
-                    setPiecesPerCarton(v);
+                    handlePiecesPerCartonUpdate(v);
                   }}
                   className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold"
                 />
@@ -553,7 +639,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
 
               <div className={`grid grid-cols-1 ${canViewCost ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
-                {/* 1. بطاقة سعر التكلفة / الشراء (تظهر فقط عند توفر الصلاحية) */}
+                {/* 1. بطاقة سعر التكلفة / الشراء */}
                 {canViewCost && (
                   <div className="bg-[#070e1b] border border-slate-800 rounded-2xl p-3.5 space-y-3">
                     <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
@@ -570,12 +656,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         </label>
                         <div className="relative">
                           <input
-                            type="number"
-                            step="any"
-                            min="0"
-                            value={costPrice === '' ? '' : parseFloat((numCost * numPieces).toFixed(2))}
+                            type="text"
+                            inputMode="decimal"
+                            value={cartonCostInput}
                             onChange={(e) => handleCartonCostChange(e.target.value)}
-                            placeholder="0.00"
+                            placeholder="0"
                             className="w-full bg-[#060b13] border border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-white font-mono font-semibold focus:outline-none focus:border-emerald-500 text-left"
                           />
                           <span className="absolute left-2.5 top-2 text-[10px] text-slate-400 font-bold">
@@ -591,12 +676,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       </label>
                       <div className="relative">
                         <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={costPrice}
-                          onChange={(e) => setCostPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                          placeholder="0.00"
+                          type="text"
+                          inputMode="decimal"
+                          value={pieceCostInput}
+                          onChange={(e) => handlePieceCostChange(e.target.value)}
+                          placeholder="0"
                           className="w-full bg-[#060b13] border border-emerald-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-400 text-left"
                         />
                         <span className="absolute left-2.5 top-2 text-[10px] text-emerald-500/80 font-bold">
@@ -626,12 +710,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       </label>
                       <div className="relative">
                         <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={retailPrice === '' ? '' : parseFloat((numRetail * numPieces).toFixed(2))}
+                          type="text"
+                          inputMode="decimal"
+                          value={cartonRetailInput}
                           onChange={(e) => handleCartonRetailChange(e.target.value)}
-                          placeholder="0.00"
+                          placeholder="0"
                           className="w-full bg-[#060b13] border border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-white font-mono font-semibold focus:outline-none focus:border-emerald-500 text-left"
                         />
                         <span className="absolute left-2.5 top-2 text-[10px] text-slate-400 font-bold">
@@ -647,13 +730,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </label>
                     <div className="relative">
                       <input
-                        type="number"
-                        step="any"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
                         required
-                        value={retailPrice}
-                        onChange={(e) => setRetailPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                        placeholder="0.00"
+                        value={pieceRetailInput}
+                        onChange={(e) => handlePieceRetailChange(e.target.value)}
+                        placeholder="0"
                         className="w-full bg-[#060b13] border border-blue-500/50 rounded-lg py-1.5 pr-3 pl-12 text-sm text-blue-400 font-mono font-bold focus:outline-none focus:border-blue-400 text-left"
                       />
                       <span className="absolute left-2.5 top-2 text-[10px] text-blue-400 font-bold">
@@ -682,12 +764,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       </label>
                       <div className="relative">
                         <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={wholesalePrice === '' ? '' : parseFloat((numWholesale * numPieces).toFixed(2))}
+                          type="text"
+                          inputMode="decimal"
+                          value={cartonWholesaleInput}
                           onChange={(e) => handleCartonWholesaleChange(e.target.value)}
-                          placeholder="0.00"
+                          placeholder="0"
                           className="w-full bg-[#060b13] border border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-white font-mono font-semibold focus:outline-none focus:border-amber-500 text-left"
                         />
                         <span className="absolute left-2.5 top-2 text-[10px] text-slate-400 font-bold">
@@ -703,12 +784,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </label>
                     <div className="relative">
                       <input
-                        type="number"
-                        step="any"
-                        min="0"
-                        value={wholesalePrice}
-                        onChange={(e) => setWholesalePrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                        placeholder="0.00"
+                        type="text"
+                        inputMode="decimal"
+                        value={pieceWholesaleInput}
+                        onChange={(e) => handlePieceWholesaleChange(e.target.value)}
+                        placeholder="0"
                         className="w-full bg-[#060b13] border border-purple-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-purple-300 font-mono font-bold focus:outline-none focus:border-purple-400 text-left"
                       />
                       <span className="absolute left-2.5 top-2 text-[10px] text-purple-400 font-bold">
