@@ -21,6 +21,8 @@ import { SplashScreen } from './components/SplashScreen';
 import { CustomerPriceChecker } from './components/CustomerPriceChecker';
 import { Product, Invoice } from './types';
 import { Boxes, FileText, Users, BarChart3, Settings, ArrowRight, Clock, Briefcase } from 'lucide-react';
+import { StatusBar, Style } from '@capacitor/status-bar';
+import { App as CapApp } from '@capacitor/app';
 
 const MainContent: React.FC = () => {
   const { 
@@ -38,6 +40,50 @@ const MainContent: React.FC = () => {
 
   const [isGuest, setIsGuest] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('pos');
+
+  // ضبط شريط الحالة (Status Bar) ودعم زر الرجوع في أندرويد
+  useEffect(() => {
+    const isNative = typeof window !== 'undefined' && Boolean((window as any).Capacitor?.isNativePlatform?.());
+    if (!isNative) return;
+
+    const setupNativeUI = async () => {
+      try {
+        await StatusBar.setStyle({ style: Style.Dark });
+        await StatusBar.setBackgroundColor({ color: '#0b1728' });
+        await StatusBar.setOverlaysWebView({ overlay: false });
+      } catch (err) {
+        console.warn('Native StatusBar setup notice:', err);
+      }
+    };
+    setupNativeUI();
+
+    let backListener: any;
+    const setupBackButton = async () => {
+      try {
+        backListener = await CapApp.addListener('backButton', ({ canGoBack }) => {
+          const openModals = document.querySelectorAll('button[aria-label="close"], .modal-close-btn');
+          if (openModals.length > 0) {
+            (openModals[openModals.length - 1] as HTMLButtonElement).click();
+          } else if (activeTab !== 'pos') {
+            setActiveTab('pos');
+          } else if (canGoBack) {
+            window.history.back();
+          } else {
+            CapApp.exitApp();
+          }
+        });
+      } catch (err) {
+        console.warn('Native backButton setup notice:', err);
+      }
+    };
+    setupBackButton();
+
+    return () => {
+      if (backListener && typeof backListener.remove === 'function') {
+        backListener.remove();
+      }
+    };
+  }, [activeTab]);
 
   // مزامنة فورية تلقائية مع سيرفر Electron المحلي عند كل تغيير في المواد أو الإعدادات
   useEffect(() => {
@@ -410,7 +456,6 @@ export default function App() {
   const [enteredPass, setEnteredPass] = useState('');
   const [errorMsg, setErrorMsg] = useState(false);
 
-  // التحقق التلقائي: إذا كان التطبيق يعمل داخل Electron على الويندوز يفتح المبيعات مباشرة
   const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const isElectron = !!((window as any).electronAPI || (window as any).electron);
