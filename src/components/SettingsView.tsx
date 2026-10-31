@@ -294,6 +294,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [showSupervisorPin, setShowSupervisorPin] = useState(false);
   const [sessionsNotice, setSessionsNotice] = useState<string | null>(null);
 
+  // إعدادات تصعيد وتخفيض الأسعار مع استرجاع الأزرار
   const [bulkPercent, setBulkPercent] = useState<number>(15);
   const [customPercentInput, setCustomPercentInput] = useState<string>('15');
   const [priceDirection, setPriceDirection] = useState<'increase' | 'decrease'>('increase');
@@ -323,7 +324,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
   const [isImportingProductsOnly, setIsImportingProductsOnly] = useState(false);
 
-  // إدارة المشرفين المتعددين
   const [isAddingSupervisor, setIsAddingSupervisor] = useState(false);
   const [newSupName, setNewSupName] = useState('');
   const [newSupPin, setNewSupPin] = useState('');
@@ -333,7 +333,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [editSupPin, setEditSupPin] = useState('');
   const [editSupCanConfigure, setEditSupCanConfigure] = useState(true);
 
-  // إدارة الشفتات المسبقة
   const [isAddingPresetShift, setIsAddingPresetShift] = useState(false);
   const [newPresetName, setNewPresetName] = useState('');
   const [newPresetCode, setNewPresetCode] = useState('');
@@ -1094,7 +1093,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </div>
       )}
 
-      {/* Store Settings Form */}
+      {/* Store Settings Form (مع استرجاع كامل الترويسة الملونة والكلاسيكية) */}
       {(activeSettingsTab === 'store' || activeSettingsTab === 'all') && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
@@ -1283,231 +1282,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 <option value="a5">نصف ورقة عادية (A5)</option>
                 <option value="a4">فاتورة قياس A4 رسمية كاملة</option>
               </select>
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                اختيار (58mm) يقوم بضبط هوامش الفاتورة لتلائم طابعات الإيصالات الصغيرة وتفادي اقتطاع الأسعار.
-              </span>
             </div>
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
-                  <Printer className="w-4 h-4" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-800 block">
-                    الطباعة الفورية الصامتة للكاشير (Direct POS Printing)
-                  </label>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    إرسال أمر الطباعة مباشرة لطابعة الكاشير وتجاوز نافذة الحوار عند حفظ الفاتورة
-                  </p>
-                </div>
-              </div>
-
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={directPrintEnabled}
-                  onChange={(e) => setDirectPrintEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-              </label>
-            </div>
-
-            <div className="pt-3 border-t border-slate-200/80">
-              <label className="block text-xs font-bold text-slate-800 mb-1 flex items-center justify-between">
-                <span>تحديد طابعة الفواتير المباشرة (لتسريع خروج الوصل في أقل من ثانية):</span>
-                {isLoadingPrinters && (
-                  <span className="text-[10px] text-emerald-700 flex items-center gap-1 font-normal">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    جاري فحص الطابعات...
-                  </span>
-                )}
-              </label>
-              <select
-                value={selectedPrinterName}
-                onChange={(e) => setSelectedPrinterName(e.target.value)}
-                className="w-full text-xs bg-white border border-slate-300 rounded-lg px-3 py-2 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="">-- استخدام الطابعة الافتراضية للنظام (Default Printer) --</option>
-                {availablePrinters.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.displayName || p.name} {p.isDefault ? '(الافتراضية الحالية)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-            <div>
-              <label className="text-xs font-bold text-slate-800 block">
-                نظام البيع بالجملة وأسعار الجملة
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div
-                onClick={() => setEnableWholesale(true)}
-                className={`p-3 rounded-lg border cursor-pointer transition select-none flex items-start gap-2.5 ${
-                  enableWholesale
-                    ? 'bg-white border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
-                    : 'bg-slate-100/70 border-slate-200 hover:bg-white'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="wholesaleMode"
-                  checked={enableWholesale}
-                  onChange={() => setEnableWholesale(true)}
-                  className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
-                />
-                <div>
-                  <div className="text-xs font-bold text-slate-900">
-                    محل يبيع جملة ومفرد (تفعيل الجملة)
-                  </div>
-                </div>
-              </div>
-
-              <div
-                onClick={() => setEnableWholesale(false)}
-                className={`p-3 rounded-lg border cursor-pointer transition select-none flex items-start gap-2.5 ${
-                  !enableWholesale
-                    ? 'bg-white border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
-                    : 'bg-slate-100/70 border-slate-200 hover:bg-white'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="wholesaleMode"
-                  checked={!enableWholesale}
-                  onChange={() => setEnableWholesale(false)}
-                  className="mt-0.5 text-blue-600 focus:ring-blue-500"
-                />
-                <div>
-                  <div className="text-xs font-bold text-slate-900">
-                    محل مفرد وتجزئة فقط (إلغاء بيع الجملة)
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-indigo-50/50 border border-indigo-200 rounded-xl p-4 sm:p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black shrink-0">
-                  <Briefcase className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-slate-900">
-                    ميزة بيع القوائم بواسطة المندوبين وتحديد الأرباح والعمولات
-                  </h3>
-                </div>
-              </div>
-
-              <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                <input
-                  type="checkbox"
-                  checked={enableSalesReps}
-                  onChange={(e) => setEnableSalesReps(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-              </label>
-            </div>
-
-            {enableSalesReps && (
-              <div className="pt-3 border-t border-indigo-100 space-y-3 animate-in fade-in">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="bg-white p-3 rounded-xl border border-indigo-200/80 flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-bold text-slate-900">إظهار اسم المندوب في القائمة المطبوعة</div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={defaultShowRepOnInvoice}
-                        onChange={(e) => setDefaultShowRepOnInvoice(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                    </label>
-                  </div>
-
-                  <div className="bg-white p-3 rounded-xl border border-indigo-200/80 flex flex-col justify-between">
-                    <div className="text-xs font-bold text-slate-900 mb-1">طريقة احتساب النسبة الافتراضية للمندوب</div>
-                    <select
-                      value={repCommissionDefaultType}
-                      onChange={(e) => setRepCommissionDefaultType(e.target.value as any)}
-                      className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="percentage_profit">نسبة من صافي الربح (تقتطع من هامش الربح فقط)</option>
-                      <option value="percentage_sales">نسبة من إجمالي المبيعات (تقتطع من قيمة الفاتورة)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-            <div>
-              <label className="text-xs font-bold text-slate-800 block">
-                نظام عرض شاشة الكمبيوتر (وضع الحاسبة)
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div
-                onClick={() => setDesktopLayout('full')}
-                className={`p-3 rounded-lg border cursor-pointer transition select-none flex items-start gap-2.5 ${
-                  desktopLayout === 'full'
-                    ? 'bg-white border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
-                    : 'bg-slate-100/70 border-slate-200 hover:bg-white'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="desktopLayoutMode"
-                  checked={desktopLayout === 'full'}
-                  onChange={() => setDesktopLayout('full')}
-                  className="mt-0.5 text-blue-600 focus:ring-blue-500"
-                />
-                <div>
-                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>وضع الكمبيوتر الكامل</span>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                onClick={() => setDesktopLayout('partial')}
-                className={`p-3 rounded-lg border cursor-pointer transition select-none flex items-start gap-2.5 ${
-                  desktopLayout === 'partial'
-                    ? 'bg-white border-slate-700 ring-2 ring-slate-400/20 shadow-xs'
-                    : 'bg-slate-100/70 border-slate-200 hover:bg-white'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="desktopLayoutMode"
-                  checked={desktopLayout === 'partial'}
-                  onChange={() => setDesktopLayout('partial')}
-                  className="mt-0.5 text-slate-700 focus:ring-slate-500"
-                />
-                <div>
-                  <div className="text-xs font-bold text-slate-900">
-                    وضع الكمبيوتر الجزئي
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Modern vs Classic Invoice Template Selection */}
+          {/* ترويسة القائمة الملونة والكلاسيكية مع التخصيص الكامل */}
           <div className="bg-gradient-to-br from-indigo-50/60 via-white to-slate-50 border-2 border-indigo-200/80 rounded-2xl p-5 space-y-5 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -1517,10 +1295,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 <div>
                   <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                     <span>تصميم وشكل ترويسة القائمة المطبوعة</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                      جديد وحصري
+                    </span>
                   </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    اختر بين التصميم العصري الملون أو التصميم الكلاسيكي المعتاد
+                  </p>
                 </div>
               </div>
 
+              {/* أزرار اختيار التصميم العصري والكلاسيكي */}
               <div className="inline-flex p-1 bg-slate-200/80 rounded-xl border border-slate-300/80 text-xs font-bold">
                 <button
                   type="button"
@@ -1561,6 +1346,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-black text-indigo-900 flex items-center gap-1.5">
                     <span>🎨 التصميم العصري الملون</span>
+                    <span className="text-[10px] bg-indigo-100 text-indigo-800 px-2 py-0.2 rounded-full font-bold">
+                      موصى به
+                    </span>
                   </span>
                   <input
                     type="radio"
@@ -1570,6 +1358,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     className="text-indigo-600 focus:ring-indigo-500"
                   />
                 </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  شريط علوي ملون مزدوج، دائرة بيضوية بيضاء فوق الاسم، خطوط عربية مميزة، صورة وسطية، باركود مرفوع من الجهاز، وأيقونات رسمية لشبكات التواصل (تليغرام، فيسبوك، واتساب، انستغرام).
+                </p>
               </div>
 
               <div
@@ -1592,30 +1383,123 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     className="text-slate-800 focus:ring-slate-500"
                   />
                 </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  الترويسة التقليدية بالأختام النجمية الدائرية (جملة ومفرد)، وبادئة الإدارة ونوع التجارة الرسمية المعتادة.
+                </p>
               </div>
             </div>
-          </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">نص الختم الأيمن</label>
+            {/* تخصيص تفاصيل الترويسة العصرية */}
+            <div className="border-t border-indigo-100 pt-5 space-y-5">
+              <div className="flex items-center gap-2">
+                <Palette className="w-4 h-4 text-indigo-600" />
+                <h4 className="text-xs font-black text-slate-800">
+                  تخصيص عناصر وهوية التصميم العصري (الألوان، الخطوط، الباركود، وشبكات التواصل)
+                </h4>
+              </div>
+
+              {/* 1. الكلمة البيضوية فوق الاسم */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-2.5">
+                <label className="text-xs font-bold text-slate-700 block">
+                  الكلمة في الدائرة البيضوية البيضاء فوق اسم المحل
+                </label>
                 <input
                   type="text"
-                  value={headerRightSealText}
-                  onChange={(e) => setHeaderRightSealText(e.target.value)}
+                  value={modernBadgeText}
+                  onChange={(e) => setModernBadgeText(e.target.value)}
+                  placeholder="مثال: قرطاسية، سوبرماركت، أسواق..."
                   className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg font-bold"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">نص الختم الأيسر</label>
-                <input
-                  type="text"
-                  value={headerLeftSealText}
-                  onChange={(e) => setHeaderLeftSealText(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg font-bold"
-                />
+              {/* 2. الألوان المزدوجة */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <label className="text-xs font-bold text-slate-700 block">
+                  ألوان الشريط العلوي المزدوج (الجهة اليمنى والجهة اليسرى)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <input
+                      type="color"
+                      value={modernRightColor}
+                      onChange={(e) => setModernRightColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg cursor-pointer border border-slate-300"
+                    />
+                    <div className="flex-1">
+                      <div className="text-[11px] font-bold text-slate-800">لون جهة الاسم والرمز (الشريط الأيمن)</div>
+                      <input
+                        type="text"
+                        value={modernRightColor}
+                        onChange={(e) => setModernRightColor(e.target.value)}
+                        className="text-xs font-mono font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 mt-0.5 w-24"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <input
+                      type="color"
+                      value={modernLeftColor}
+                      onChange={(e) => setModernLeftColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg cursor-pointer border border-slate-300"
+                    />
+                    <div className="flex-1">
+                      <div className="text-[11px] font-bold text-slate-800">لون جهة الأنشطة والمواد (الشريط الأيسر)</div>
+                      <input
+                        type="text"
+                        value={modernLeftColor}
+                        onChange={(e) => setModernLeftColor(e.target.value)}
+                        className="text-xs font-mono font-bold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 mt-0.5 w-24"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. شبكات التواصل */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
+                <label className="text-xs font-bold text-slate-800 block">
+                  معرفات شبكات التواصل الاجتماعي في الفاتورة
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="p-3 rounded-xl border bg-emerald-50/50 border-emerald-300">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-slate-800">واتساب (WhatsApp)</span>
+                      <input
+                        type="checkbox"
+                        checked={modernShowWhatsapp}
+                        onChange={(e) => setModernShowWhatsapp(e.target.checked)}
+                        className="rounded text-emerald-600"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      value={modernWhatsappNumber}
+                      onChange={(e) => setModernWhatsappNumber(e.target.value)}
+                      placeholder="رقم الواتساب"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+
+                  <div className="p-3 rounded-xl border bg-blue-50/50 border-blue-300">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-slate-800">فيسبوك (Facebook)</span>
+                      <input
+                        type="checkbox"
+                        checked={modernShowFacebook}
+                        onChange={(e) => setModernShowFacebook(e.target.checked)}
+                        className="rounded text-blue-600"
+                      />
+                    </div>
+                    <input
+                      type="text"
+                      value={modernFacebookName}
+                      onChange={(e) => setModernFacebookName(e.target.value)}
+                      placeholder="اسم الصفحة"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1647,7 +1531,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         <QuickAddItemsSection />
       )}
 
-      {/* Bulk Price Adjustment */}
+      {/* Bulk Price Adjustment (مع استرجاع أزرار النسب المئوية كاملة) */}
       {(activeSettingsTab === 'pricing' || activeSettingsTab === 'all') && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between">
@@ -1656,27 +1540,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900">تصعيد أو تخفيض أسعار المواد في المخزن</h2>
+              <h2 className="text-base font-bold text-slate-900">
+                تصعيد أو تخفيض أسعار المواد في المخزن
+              </h2>
+              <p className="text-xs text-slate-400">
+                رفع أو خفض الأسعار بنسبة مئوية عند تغير سعر السوق
+              </p>
             </div>
           </div>
+          <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">
+            {products.length} مادة بالمخزن
+          </span>
         </div>
 
         <div className="p-6 space-y-5">
           {bulkPriceSuccess && (
-            <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2">
+            <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-800 flex items-center gap-2 shadow-2xs animate-fadeIn">
               <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>{bulkPriceSuccess}</span>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">نوع العملية المطلوبة:</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              نوع العملية المطلوبة:
+            </label>
             <div className="grid grid-cols-2 gap-3 max-w-md">
               <button
                 type="button"
                 onClick={() => setPriceDirection('increase')}
-                className={`p-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 ${
-                  priceDirection === 'increase' ? 'bg-rose-50 border-rose-500 text-rose-700' : 'bg-slate-50 border-slate-200 text-slate-600'
+                className={`p-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+                  priceDirection === 'increase'
+                    ? 'bg-rose-50 border-rose-500 text-rose-700 ring-2 ring-rose-500/20 shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white'
                 }`}
               >
                 <TrendingUp className="w-4 h-4 text-rose-600" />
@@ -1686,8 +1582,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               <button
                 type="button"
                 onClick={() => setPriceDirection('decrease')}
-                className={`p-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 ${
-                  priceDirection === 'decrease' ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-600'
+                className={`p-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
+                  priceDirection === 'decrease'
+                    ? 'bg-blue-50 border-blue-500 text-blue-700 ring-2 ring-blue-500/20 shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-white'
                 }`}
               >
                 <TrendingDown className="w-4 h-4 text-blue-600" />
@@ -1696,70 +1594,467 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
+          {/* أزرار تحديد النسبة المئوية السريعة المسترجعة */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              النسبة المئوية المراد تطبيقها:
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              {[5, 10, 15, 20, 25, 30].map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => {
+                    setBulkPercent(pct);
+                    setCustomPercentInput(String(pct));
+                  }}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                    customPercentInput === String(pct)
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {pct}%
+                </button>
+              ))}
+
+              <div className="flex items-center gap-1.5 mr-2">
+                <span className="text-xs text-slate-500 font-bold">أو نسبة مخصصة:</span>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="500"
+                    step="0.5"
+                    value={customPercentInput}
+                    onChange={(e) => {
+                      setCustomPercentInput(e.target.value);
+                      const parsed = parseFloat(e.target.value);
+                      if (!isNaN(parsed)) setBulkPercent(parsed);
+                    }}
+                    placeholder="20"
+                    className="w-20 pl-7 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg text-center font-black focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <Percent className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <label className="block text-xs font-bold text-slate-800 mb-2">
+              الأسعار التي سيتم تعديلها:
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-emerald-400">
+                <input
+                  type="checkbox"
+                  checked={targetRetail}
+                  onChange={(e) => setTargetRetail(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-xs font-bold text-slate-800">سعر البيع المفرد (التجزئة)</span>
+              </label>
+
+              {settings.enableWholesale && (
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-emerald-400">
+                  <input
+                    type="checkbox"
+                    checked={targetWholesale}
+                    onChange={(e) => setTargetWholesale(e.target.checked)}
+                    className="rounded text-amber-600 focus:ring-amber-500"
+                  />
+                  <span className="text-xs font-bold text-slate-800">سعر بيع الجملة</span>
+                </label>
+              )}
+
+              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white border border-slate-200 cursor-pointer hover:border-emerald-400">
+                <input
+                  type="checkbox"
+                  checked={targetCost}
+                  onChange={(e) => setTargetCost(e.target.checked)}
+                  className="rounded text-slate-600 focus:ring-slate-500"
+                />
+                <div>
+                  <span className="text-xs font-bold text-slate-800 block">سعر التكلفة والشراء</span>
+                  <span className="text-[10px] text-slate-400">في حال ارتفعت تكلفة الاستيراد</span>
+                </div>
+              </label>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-slate-200/80 flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={roundToHundreds}
+                  onChange={(e) => setRoundToHundreds(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-xs text-slate-700 font-semibold">
+                  تقريب الأسعار تجارياً لأقرب 250 دينار (تجنب الكسور المعقدة في الصرف)
+                </span>
+              </label>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between pt-2">
+            <div className="text-xs text-slate-500">
+              {priceDirection === 'increase' ? 'الزيادة المقررة:' : 'الخصم المقرر:'}
+              <strong className="text-slate-900 mx-1">
+                {priceDirection === 'increase' ? '+' : '-'}{customPercentInput || '0'}%
+              </strong>
+              على {targetRetail && 'المفرد '}{targetWholesale && 'الجملة '}{targetCost && 'التكلفة'}
+            </div>
+
             <button
               type="button"
               disabled={isApplyingBulkPrices || products.length === 0}
               onClick={handleApplyBulkPrices}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700"
+              className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition flex items-center gap-2 shadow-xs cursor-pointer ${
+                isApplyingBulkPrices
+                  ? 'bg-slate-500 cursor-wait'
+                  : priceDirection === 'increase'
+                  ? 'bg-rose-600 hover:bg-rose-700'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
-              تطبيق التعديل على الأسعار
+              {isApplyingBulkPrices ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>جاري تحديث أسعار المخزن...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  <span>
+                    تطبيق {priceDirection === 'increase' ? 'تصعيد الأسعار' : 'تخفيض الأسعار'} الآن ({customPercentInput}%)
+                  </span>
+                </>
+              )}
             </button>
           </div>
         </div>
       </div>
       )}
 
-      {/* Security & Backup */}
+      {/* Security & Backup (استرجاع أزرار النسخ الاحتياطي الستة بالكامل) */}
       {(activeSettingsTab === 'security' || activeSettingsTab === 'all') && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-5">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <div className="flex items-center gap-2.5">
-              <KeyRound className="w-5 h-5 text-amber-700" />
-              <h3 className="font-bold text-base text-slate-900">تغيير كلمة المرور / رمز الحساب</h3>
+        <>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/80 text-amber-700 flex items-center justify-center shadow-2xs">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900">تغيير كلمة المرور / رمز الحساب</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    أدخل كلمة المرور القديمة الحالية، ثم أدخل كلمة المرور الجديدة لحفظها فوراً
+                  </p>
+                </div>
+              </div>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-mono">
+                {currentUser?.displayName || currentUser?.email || 'حساب نشط'}
+              </span>
             </div>
+
+            {passwordFeedback && (
+              <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 border shadow-2xs ${
+                passwordFeedback.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                  : 'bg-rose-50 text-rose-800 border-rose-300'
+              }`}>
+                {passwordFeedback.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                )}
+                <span>{passwordFeedback.message}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  كلمة المرور القديمة (الحالية) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showOldPassword ? 'text' : 'password'}
+                    required
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    placeholder="أدخل كلمة المرور القديمة..."
+                    className="w-full pl-10 pr-3 py-2.5 text-xs font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-slate-50/50"
+                    dir="ltr"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOldPassword(!showOldPassword)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    كلمة المرور الجديدة <span className="text-emerald-600">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="6 خانات أو أكثر..."
+                      className="w-full pl-10 pr-3 py-2.5 text-xs font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50/50"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    تأكيد كلمة المرور الجديدة <span className="text-emerald-600">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="أعد كتابة الجديدة..."
+                      className="w-full pl-10 pr-3 py-2.5 text-xs font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50/50"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="px-5 py-2.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs transition cursor-pointer"
+                >
+                  حفظ كلمة المرور الجديدة
+                </button>
+              </div>
+            </form>
           </div>
 
-          <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">كلمة المرور القديمة</label>
-              <input
-                type={showOldPassword ? 'text' : 'password'}
-                required
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
-              />
+          {/* بطاقات النسخ الاحتياطي الستة المسترجعة بالكامل */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="font-bold text-base text-slate-900">النسخ الاحتياطي وإدارة البيانات</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  احفظ نسخة مخصصة من المواد، أو إعدادات الحساب، أو نسخة شاملة، مع استعادة المواد وتصفية المخزن بأمان
+                </p>
+              </div>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 self-start sm:self-auto font-mono">
+                {products.length} مادة بالمخزن
+              </span>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">كلمة المرور الجديدة</label>
-              <input
-                type={showNewPassword ? 'text' : 'password'}
-                required
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
-              />
+
+            {importStatus && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs font-bold text-emerald-800 flex items-center gap-1.5 shadow-2xs">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{importStatus}</span>
+              </div>
+            )}
+
+            {importError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs font-bold text-rose-800 flex items-center gap-1.5 shadow-2xs">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{importError}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* 1. Custom Download Backup */}
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(true)}
+                className="p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:bg-emerald-50/20 text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition shadow-xs">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100/80 text-emerald-800">
+                    تخصيص حر ⚙️
+                  </span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-slate-900 group-hover:text-emerald-950 transition">
+                    تحميل نسخة احتياطية (تخصيص حسب الرغبة)
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    حفظ المواد فقط بدون بيانات الزبائن، أو إعدادات الحساب، أو نسخة شاملة لكل السجلات.
+                  </div>
+                </div>
+              </button>
+
+              {/* 2. Full Restore */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="p-4 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/20 text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept=".json"
+                  className="hidden"
+                />
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition shadow-xs">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100/80 text-blue-800">
+                    ملف شامل
+                  </span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-slate-900 group-hover:text-blue-950 transition">
+                    استعادة نسخة شاملة من ملف
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    رفع ملف نسخة احتياطية سابقة واسترجاع كافة البيانات (المواد، العملاء، الفواتير، الإعدادات).
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Restore Products Only */}
+              <div
+                onClick={() => !isImportingProductsOnly && productsOnlyFileInputRef.current?.click()}
+                className={`p-4 rounded-xl border text-right flex flex-col justify-between transition group shadow-2xs ${
+                  isImportingProductsOnly
+                    ? 'border-indigo-300 bg-indigo-50/50 cursor-wait'
+                    : 'border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/20 cursor-pointer'
+                }`}
+              >
+                <input
+                  type="file"
+                  ref={productsOnlyFileInputRef}
+                  onChange={handleProductsOnlyFileSelect}
+                  accept=".json"
+                  className="hidden"
+                />
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition shadow-xs">
+                    {isImportingProductsOnly ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" />
+                    ) : (
+                      <PackageCheck className="w-4 h-4" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                    جديد • للمواد فقط
+                  </span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-slate-900 group-hover:text-indigo-950 transition">
+                    استعادة نسخة المواد فقط (إدخال تلقائي للمخزن)
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    رفع ملف المواد وإدخالها فوراً للمخزن والسيرفر كأنك أدخلتها يدوياً دون المساس ببيانات زبائنك.
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Wipe All Products From Server */}
+              <button
+                type="button"
+                onClick={() => setIsWipeModalOpen(true)}
+                className="p-4 rounded-xl border border-slate-200 hover:border-rose-400 hover:bg-rose-50/30 text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition shadow-xs">
+                    <Trash2 className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                    محمي برمز الحساب 🔒
+                  </span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-rose-950 transition">
+                    مسح وتصفية كافة المواد من السيرفر
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    تصفير وحذف جميع المواد نهائياً من قاعدة بيانات السيرفر بعد إدخال رمز الحساب لتأكيد الأمان.
+                  </div>
+                </div>
+              </button>
+              
+              {/* 5. Duplicate Products Review & Cleaner */}
+              <button
+                type="button"
+                onClick={() => setIsDuplicatesModalOpen(true)}
+                className="p-4 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/30 text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition shadow-xs">
+                    <Copy className="w-4 h-4" />
+                  </div>
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    duplicateGroups.length > 0
+                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                      : 'bg-emerald-100 text-emerald-800'
+                  }`}>
+                    {duplicateGroups.length > 0 ? `${duplicateGroups.reduce((a,c)=>a+c.duplicateItems.length,0)} مكرر مكتشف` : 'المخزن نظيف'}
+                  </span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-amber-950 transition">
+                    كشف ومراجعة المواد المكررة وإلغاؤها
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    فحص المواد المتطابقة في الباركود أو المتشابهة 100% بالاسم والأسعار مع خيار عرضها وحذفها أو دمج رصيدها.
+                  </div>
+                </div>
+              </button>
+
+              {/* 6. Offline Lifetime Guarantee Badge */}
+              <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 text-right flex flex-col justify-between shadow-2xs">
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-950">
+                    أوفلاين مدى الحياة • بدون إعلانات
+                  </span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-emerald-950">
+                    نظام أوفلاين محلي مستقل 100%
+                  </div>
+                  <div className="text-[11px] text-emerald-900 mt-1 leading-relaxed">
+                    يعمل البرنامج بدون إنترنت مدى الحياة، وجميع قواعد البيانات محفوظة مشفرة على قرص جهازك (%APPDATA%) بدون أي إعلانات أو نوافذ منبثقة.
+                  </div>
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">تأكيد كلمة المرور</label>
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isChangingPassword}
-              className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl"
-            >
-              حفظ كلمة المرور الجديدة
-            </button>
-          </form>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Sessions Management */}
@@ -2527,19 +2822,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
-          <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-center gap-2 text-xs text-slate-600">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>يتم حفظ الصلاحيات والرمز السري محلياً وسحابياً ومزامنتها فوراً مع كافة الأجهزة.</span>
-            </div>
-
+          <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
             <button
               type="button"
               onClick={handleSaveSessionsOnly}
-              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition flex items-center gap-2 shadow-xs cursor-pointer w-full sm:w-auto justify-center"
+              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black cursor-pointer"
             >
-              <Check className="w-4 h-4" />
-              <span>حفظ وتثبيت إعدادات وصلاحيات الجلسات</span>
+              حفظ وتثبيت إعدادات وصلاحيات الجلسات
             </button>
           </div>
         </>
