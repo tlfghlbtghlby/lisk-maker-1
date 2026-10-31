@@ -1,0 +1,91 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ Android ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Install Dependencies
+        run: |
+          rm -f package-lock.json bun.lock
+          npm cache clean --force
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npm install -D @capacitor/cli @capacitor/android @capacitor/assets @capacitor/status-bar @capacitor/app --legacy-peer-deps
+
+      - name: Build Web Application
+        run: npm run build
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+
+      - name: Initialize and Sync Android Project
+        run: |
+          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
+            echo '{"appId":"com.listmaker.pos","appName":"برنامج المفكر المحاسبي","webDir":"dist"}' > capacitor.config.json
+          fi
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+
+          mkdir -p assets
+          if [ -f "public/logo.png" ]; then
+            cp public/logo.png assets/icon.png
+          elif [ -f "public/icon.ico" ]; then
+            cp public/icon.ico assets/icon.png
+          fi
+
+          if [ -f "assets/icon.png" ]; then
+            npx @capacitor/assets generate --android || true
+          fi
+
+          npx cap sync android
+
+      - name: Add Camera Permission to AndroidManifest
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if [ -f "$MANIFEST" ]; then
+            python3 -c "
+          with open('$MANIFEST', 'r') as f:
+              content = f.read()
+          if 'android.permission.CAMERA' not in content:
+              permission = '<uses-permission android:name=\"android.permission.CAMERA\" />\n    <uses-feature android:name=\"android.hardware.camera\" android:required=\"false\" />\n    <application'
+              content = content.replace('<application', permission, 1)
+              with open('$MANIFEST', 'w') as f:
+                  f.write(content)
+          "
+          fi
+
+      - name: Accept Android SDK Licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Make Gradle Executable
+        run: chmod +x android/gradlew
+
+      - name: Build Android Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlMufakir-Android-APK
+          path: android/app/build/outputs/apk/debug/*.apk

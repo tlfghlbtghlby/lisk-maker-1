@@ -7,7 +7,6 @@ export interface StoreFeatures {
   enableCustomerPriceChecker: boolean;
   enableShifts: boolean;
   enableSalesReps: boolean;
-  enableOffers: boolean;
   enableModernDesign: boolean;
   allowedRoles: {
     admin: boolean;
@@ -21,7 +20,6 @@ export const DEFAULT_STORE_FEATURES: StoreFeatures = {
   enableCustomerPriceChecker: true,
   enableShifts: true,
   enableSalesReps: true,
-  enableOffers: true,
   enableModernDesign: true,
   allowedRoles: {
     admin: true,
@@ -80,6 +78,8 @@ export interface InvoiceItem {
   returnedQuantity?: number;
   total: number;
   isCustomPrice?: boolean;
+  notes?: string;
+  isGift?: boolean;
 }
 
 export interface ReturnedItemRecord {
@@ -311,6 +311,11 @@ export interface UserProfile {
   isPermanent?: boolean;
   subscriptionNotes?: string;
   features?: StoreFeatures;
+  enableShifts?: boolean;
+  enableSalesReps?: boolean;
+  enableSupervisor?: boolean;
+  enableEmployee?: boolean;
+  enableCustomerPriceChecker?: boolean;
 }
 
 export type PrintFormatType = 'a4' | 'a5' | 'thermal' | 'thermal80' | 'thermal58';
@@ -373,6 +378,8 @@ export interface StoreSettings {
   theme?: 'light' | 'dark';
   enableShifts?: boolean;
   enableCustomerPriceChecker?: boolean;
+  enableSupervisor?: boolean;
+  enableEmployee?: boolean;
   features?: StoreFeatures;
 }
 
@@ -394,6 +401,7 @@ export interface RolePermissions {
   canManageShifts: boolean;
   canConfigureShifts: boolean;
   canManageSalesReps?: boolean;
+  canViewCostPrice?: boolean; // الصلاحية الجديدة لمشاهدة أسعار التكلفة والشراء
 }
 
 export const DEFAULT_EMPLOYEE_PERMISSIONS: RolePermissions = {
@@ -411,6 +419,7 @@ export const DEFAULT_EMPLOYEE_PERMISSIONS: RolePermissions = {
   canManageShifts: true,
   canConfigureShifts: false,
   canManageSalesReps: false,
+  canViewCostPrice: false, // محظور افتراضياً للموظف
 };
 
 export const DEFAULT_SUPERVISOR_PERMISSIONS: RolePermissions = {
@@ -428,6 +437,7 @@ export const DEFAULT_SUPERVISOR_PERMISSIONS: RolePermissions = {
   canManageShifts: true,
   canConfigureShifts: true,
   canManageSalesReps: true,
+  canViewCostPrice: true, // مسموح افتراضياً للمشرف
 };
 
 export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
@@ -445,4 +455,5 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   canManageShifts: true,
   canConfigureShifts: true,
   canManageSalesReps: true,
+  canViewCostPrice: true,
 };
