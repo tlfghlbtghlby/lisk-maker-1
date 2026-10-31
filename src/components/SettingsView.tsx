@@ -323,6 +323,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
   const [isImportingProductsOnly, setIsImportingProductsOnly] = useState(false);
 
+  // إدارة المشرفين المتعددين
   const [isAddingSupervisor, setIsAddingSupervisor] = useState(false);
   const [newSupName, setNewSupName] = useState('');
   const [newSupPin, setNewSupPin] = useState('');
@@ -332,6 +333,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [editSupPin, setEditSupPin] = useState('');
   const [editSupCanConfigure, setEditSupCanConfigure] = useState(true);
 
+  // إدارة الشفتات المسبقة
   const [isAddingPresetShift, setIsAddingPresetShift] = useState(false);
   const [newPresetName, setNewPresetName] = useState('');
   const [newPresetCode, setNewPresetCode] = useState('');
@@ -1787,21 +1789,608 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </button>
           </div>
 
-          {/* Permissions Matrix */}
+          {/* الأجهزة المتصلة والمتزامنة مع النظام */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
+                  <Cpu className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                    <span>الأجهزة المتصلة والمتزامنة مع النظام</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 font-bold">
+                      {deviceSessions.length} أجهزة
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    تتبع الهواتف والكمبيوترات المتصلة، موقع كل جهاز ونوعه، وإمكانية فتح شفت مختلف في آن واحد من كل جلسة.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsActiveSessionsModalOpen(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                <span>إدارة ومراقبة الجلسات</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {deviceSessions.slice(0, 3).map((sess) => (
+                <div key={sess.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                      {sess.deviceType === 'mobile' ? <Smartphone className="w-3.5 h-3.5 text-amber-600" /> : <Monitor className="w-3.5 h-3.5 text-indigo-600" />}
+                      {sess.deviceName}
+                    </span>
+                    {sess.deviceId === currentDeviceId && (
+                      <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-black">
+                        هذا الجهاز
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    الموقع: {sess.location}
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    {sess.activeShiftName ? `شفت مفتوح: ${sess.activeShiftName}` : 'لا يوجد شفت مفتوح'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* إعدادات رمز المشرف والجلسة الافتراضية */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-5">
+            <div className="border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-emerald-600" />
+                <span>إعدادات رمز المشرف والجلسة الافتراضية</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                تحديد الرمز السري المطلوب لدخول جلسة المشرف، والجلسة التي يبدأ بها النظام عند الفتح
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="block text-xs font-bold text-slate-800">
+                  الرمز السري لجلسة المشرف (Supervisor PIN):
+                </label>
+                <div className="relative">
+                  <input
+                    type={showSupervisorPin ? 'text' : 'password'}
+                    value={supervisorPin}
+                    onChange={(e) => setSupervisorPin(e.target.value)}
+                    placeholder="1122"
+                    className="w-full pl-10 pr-3.5 py-2 text-sm font-mono font-bold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSupervisorPin(!showSupervisorPin)}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                  >
+                    {showSupervisorPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  الرمز الافتراضي: <span className="font-mono font-bold text-slate-800">1122</span>. كلمة مرور الأدمن تعمل أيضاً لفتح جلسة المشرف كرمز ماستر.
+                </p>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <label className="block text-xs font-bold text-slate-800">
+                  الجلسة الافتراضية عند فتح التطبيق:
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDefaultSessionOnLaunch('employee')}
+                    className={`p-2.5 rounded-lg border text-center transition cursor-pointer text-xs font-bold ${
+                      defaultSessionOnLaunch === 'employee'
+                        ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-300'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    جلسة الموظف
+                    <div className="text-[10px] font-normal opacity-85 mt-0.5">موصى به للأمان</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDefaultSessionOnLaunch('supervisor')}
+                    className={`p-2.5 rounded-lg border text-center transition cursor-pointer text-xs font-bold ${
+                      defaultSessionOnLaunch === 'supervisor'
+                        ? 'bg-blue-800 text-white border-blue-800 shadow-xs ring-2 ring-blue-300'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    جلسة المشرف
+                    <div className="text-[10px] font-normal opacity-85 mt-0.5">وسطية</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDefaultSessionOnLaunch('admin')}
+                    className={`p-2.5 rounded-lg border text-center transition cursor-pointer text-xs font-bold ${
+                      defaultSessionOnLaunch === 'admin'
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-xs ring-2 ring-slate-400'
+                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                    }`}
+                  >
+                    جلسة الأدمن
+                    <div className="text-[10px] font-normal opacity-85 mt-0.5">كامل الصلاحيات</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* إدارة المشرفين المتعددين (Multiple Supervisors) */}
+          {sessionRole === 'admin' && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                    <UserCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">
+                      إدارة المشرفين المتعددين (Supervisors)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      إمكانية إضافة أكثر من مشرف ولكل مشرف اسمه ورمزه الخاص، مع خيار منحه صلاحية إعداد الشفتات وتظهر جلساتهم في زر اختيار الجلسة.
+                    </p>
+                  </div>
+                </div>
+
+                {!isAddingSupervisor && !editingSupId && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingSupervisor(true)}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>إضافة مشرف جديد</span>
+                  </button>
+                )}
+              </div>
+
+              {isAddingSupervisor && (
+                <form onSubmit={handleAddSupervisorSubmit} className="bg-blue-50/70 border border-blue-200 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-blue-200/80 pb-2">
+                    <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                      <UserPlus className="w-4 h-4 text-blue-600" />
+                      إضافة مشرف جديد للنظام
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingSupervisor(false)}
+                      className="text-blue-700 hover:text-blue-900 text-xs font-bold"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">اسم المشرف:</label>
+                      <input
+                        type="text"
+                        value={newSupName}
+                        onChange={(e) => setNewSupName(e.target.value)}
+                        placeholder="مثال: المشرف أحمد"
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">الرمز السري للمشرف (PIN):</label>
+                      <input
+                        type="text"
+                        value={newSupPin}
+                        onChange={(e) => setNewSupPin(e.target.value)}
+                        placeholder="مثال: 5566"
+                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 p-2 bg-white rounded-lg border border-blue-200 cursor-pointer text-xs font-bold text-blue-950">
+                    <input
+                      type="checkbox"
+                      checked={newSupCanConfigure}
+                      onChange={(e) => setNewSupCanConfigure(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <span>السماح لهذا المشرف بإعداد وتعديل قوالب الشفتات المسبقة</span>
+                  </label>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingSupervisor(false)}
+                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg transition"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      حفظ المشرف
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {editingSupId && (
+                <form onSubmit={handleEditSupervisorSubmit} className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                    <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                      <Edit2 className="w-4 h-4 text-amber-600" />
+                      تعديل بيانات المشرف
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingSupId(null)}
+                      className="text-amber-700 hover:text-amber-900 text-xs font-bold"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">اسم المشرف:</label>
+                      <input
+                        type="text"
+                        value={editSupName}
+                        onChange={(e) => setEditSupName(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">الرمز السري (PIN):</label>
+                      <input
+                        type="text"
+                        value={editSupPin}
+                        onChange={(e) => setEditSupPin(e.target.value)}
+                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 p-2 bg-white rounded-lg border border-amber-200 cursor-pointer text-xs font-bold text-slate-900">
+                    <input
+                      type="checkbox"
+                      checked={editSupCanConfigure}
+                      onChange={(e) => setEditSupCanConfigure(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    />
+                    <span>السماح لهذا المشرف بإعداد وتعديل قوالب الشفتات المسبقة</span>
+                  </label>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingSupId(null)}
+                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg transition"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      حفظ التعديلات
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {(settings.supervisors || []).map((sup) => (
+                  <div
+                    key={sup.id}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between gap-3 hover:border-blue-300 hover:bg-blue-50/20 transition shadow-2xs"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
+                          <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                          {sup.name}
+                        </span>
+                        <span className="text-[10px] font-mono font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full border border-blue-200">
+                          رمز: {sup.pin}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-1">
+                        {sup.canConfigureShifts ? (
+                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md border border-emerald-200">
+                            ✓ مخوّل بإعداد الشفتات
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-md">
+                            بدون صلاحية إعداد شفتات
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-200/60">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingSupId(sup.id);
+                          setEditSupName(sup.name);
+                          setEditSupPin(sup.pin);
+                          setEditSupCanConfigure(!!sup.canConfigureShifts);
+                        }}
+                        className="px-2 py-1 text-[11px] font-bold text-slate-600 hover:text-blue-700 hover:bg-white rounded transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        <span>تعديل</span>
+                      </button>
+                      {(settings.supervisors || []).length > 1 && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (window.confirm(`هل أنت متأكد من حذف المشرف (${sup.name})؟`)) {
+                              await deleteSupervisor(sup.id);
+                            }
+                          }}
+                          className="px-2 py-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded transition flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>حذف</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* قوالب الشفتات المعدة مسبقاً (Preset Shifts) */}
+          {(sessionRole === 'admin' || hasPermission('canConfigureShifts')) && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">
+                      قوالب الشفتات المعدة مسبقاً (Preset Shifts)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      كل شفت له اسمه ورمزه السري الخاص لبدئه، ولا يمكن البيع في جلسة الموظف إلا بعد بدء أحد هذه الشفتات.
+                    </p>
+                  </div>
+                </div>
+
+                {!isAddingPresetShift && !editingPresetId && (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingPresetShift(true)}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>إضافة شفت مسبق جديد</span>
+                  </button>
+                )}
+              </div>
+
+              {isAddingPresetShift && (
+                <form onSubmit={handleAddPresetShiftSubmit} className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-indigo-200/80 pb-2">
+                    <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                      <Plus className="w-4 h-4 text-indigo-600" />
+                      إضافة شفت عمل جديد
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingPresetShift(false)}
+                      className="text-indigo-700 hover:text-indigo-900 text-xs font-bold"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">اسم الشفت:</label>
+                      <input
+                        type="text"
+                        value={newPresetName}
+                        onChange={(e) => setNewPresetName(e.target.value)}
+                        placeholder="مثال: شفت الصباح - كاشير 1"
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                        autoFocus
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">الرمز السري للشفت (PIN):</label>
+                      <input
+                        type="text"
+                        value={newPresetCode}
+                        onChange={(e) => setNewPresetCode(e.target.value)}
+                        placeholder="مثال: 1234"
+                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">ملاحظات (اختياري):</label>
+                      <input
+                        type="text"
+                        value={newPresetNotes}
+                        onChange={(e) => setNewPresetNotes(e.target.value)}
+                        placeholder="مثال: الصالة الرئيسية"
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingPresetShift(false)}
+                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg transition"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      حفظ قالب الشفت
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {editingPresetId && (
+                <form onSubmit={handleEditPresetShiftSubmit} className="bg-amber-50/70 border border-amber-200 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+                    <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                      <Edit2 className="w-4 h-4 text-amber-600" />
+                      تعديل بيانات الشفت
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPresetId(null)}
+                      className="text-amber-700 hover:text-amber-900 text-xs font-bold"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">اسم الشفت:</label>
+                      <input
+                        type="text"
+                        value={editPresetName}
+                        onChange={(e) => setEditPresetName(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">الرمز السري للشفت (PIN):</label>
+                      <input
+                        type="text"
+                        value={editPresetCode}
+                        onChange={(e) => setEditPresetCode(e.target.value)}
+                        className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">ملاحظات (اختياري):</label>
+                      <input
+                        type="text"
+                        value={editPresetNotes}
+                        onChange={(e) => setEditPresetNotes(e.target.value)}
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingPresetId(null)}
+                      className="px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-200 rounded-lg transition"
+                    >
+                      إلغاء
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                    >
+                      حفظ التعديلات
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {(settings.presetShifts || []).map((preset) => (
+                  <div
+                    key={preset.id}
+                    className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex flex-col justify-between gap-3 hover:border-indigo-300 hover:bg-indigo-50/20 transition shadow-2xs"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-900">{preset.name}</span>
+                        <span className="text-[10px] font-mono font-bold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
+                          رمز: {preset.code}
+                        </span>
+                      </div>
+                      {preset.notes && (
+                        <p className="text-[11px] text-slate-500 mt-1">{preset.notes}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-200/60">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingPresetId(preset.id);
+                          setEditPresetName(preset.name);
+                          setEditPresetCode(preset.code);
+                          setEditPresetNotes(preset.notes || '');
+                        }}
+                        className="px-2 py-1 text-[11px] font-bold text-slate-600 hover:text-indigo-700 hover:bg-white rounded transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                        <span>تعديل</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm(`هل أنت متأكد من حذف قالب الشفت (${preset.name})؟`)) {
+                            await deletePresetShift(preset.id);
+                          }
+                        }}
+                        className="px-2 py-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>حذف</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* مصفوفة الصلاحيات مع وجود canViewCostPrice */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* 1. Employee Permissions */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-emerald-800" />
-                  <h4 className="text-sm font-extrabold text-slate-900">صلاحيات جلسة الموظف العادي</h4>
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-900">صلاحيات جلسة الموظف العادي</h4>
+                    <p className="text-[11px] text-slate-500">الموظف اليومي / الكاشير</p>
+                  </div>
                 </div>
+
                 <button
                   type="button"
                   onClick={() => setEmployeePermissions({ ...DEFAULT_EMPLOYEE_PERMISSIONS })}
-                  className="text-[11px] text-emerald-700 font-bold underline"
+                  className="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold underline cursor-pointer"
                 >
-                  استعادة الضبط
+                  استعادة الضبط القياسي
                 </button>
               </div>
 
@@ -1810,21 +2399,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   { key: 'canSell' as const, label: 'البيع وإعداد الفواتير الجديدة (POS)', desc: 'إنشاء وحفظ وطباعة القوائم' },
                   { key: 'canAddNewProduct' as const, label: 'إضافة مواد جديدة للمخزن', desc: 'إدخال المواد وتحديد أسعارها' },
                   { key: 'canViewCostPrice' as const, label: 'عرض أسعار التكلفة والشراء', desc: 'السماح برؤية سعر رأس المال في الجداول ونوافذ التعديل' },
-                  { key: 'canEditProductPrice' as const, label: 'تعديل السعر في القائمة للزبون', desc: 'تعديل سعر المادة في القائمة النشطة' },
-                  { key: 'canViewInvoices' as const, label: 'الدخول لسجل الفواتير ومعاينة القوائم', desc: 'معاينة القوائم السابقة' },
+                  { key: 'canEditProductPrice' as const, label: 'تعديل السعر في القائمة للزبون (أيقونة القلم الصغير)', desc: 'تعديل سعر المادة في القائمة النشطة فقط' },
+                  { key: 'canViewInvoices' as const, label: 'الدخول لسجل الفواتير ومعاينة القوائم', desc: 'معاينة وطباعة القوائم السابقة دون تعديل' },
                   { key: 'canAccessInventory' as const, label: 'الدخول لقسم المواد والمخزون', desc: 'معاينة الأصناف وجرد الكميات' },
-                  { key: 'canReturnInvoice' as const, label: 'استعادة الفواتير وإرجاع المواد', desc: 'إرجاع القوائم' },
-                  { key: 'canDeleteInvoice' as const, label: 'حذف القوائم نهائياً', desc: 'حذف سجلات الفواتير' },
-                  { key: 'canViewCustomers' as const, label: 'الدخول لسجل الزبائن وحسابات الديون', desc: 'رؤية كشوفات الديون' },
-                  { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال' },
-                  { key: 'canAccessShifts' as const, label: 'الدخول لسجل وتبويب الشفتات', desc: 'معاينة شفتات العمل' },
-                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات والورديات', desc: 'تشغيل مؤقت الشفت وإنهائه' },
-                  { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي' },
+                  { key: 'canReturnInvoice' as const, label: 'استعادة الفواتير وإرجاع المواد للمخزن', desc: 'إرجاع القوائم (محظور افتراضياً للموظف)' },
+                  { key: 'canDeleteInvoice' as const, label: 'حذف القوائم نهائياً', desc: 'حذف سجلات الفواتير (محظور افتراضياً للموظف)' },
+                  { key: 'canViewCustomers' as const, label: 'الدخول لسجل الزبائن وحسابات الديون', desc: 'رؤية كشوفات الديون (محظور افتراضياً)' },
+                  { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال (محظور افتراضياً)' },
+                  { key: 'canAccessShifts' as const, label: 'الدخول لسجل وتبويب الشفتات', desc: 'معاينة شفتات العمل ومبيعاتها وقوائمها' },
+                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات والورديات', desc: 'الضغط على زر بدء الشفت وتشغيل المؤقت وإنهائه' },
+                  { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي (محظور افتراضياً)' },
                 ].map((item) => (
                   <label
                     key={item.key}
                     className={`flex items-start gap-3 p-2.5 rounded-xl border transition cursor-pointer ${
-                      employeePermissions[item.key] ? 'bg-emerald-50/60 border-emerald-200 text-slate-900' : 'bg-slate-50 border-slate-200/80 text-slate-500'
+                      employeePermissions[item.key]
+                        ? 'bg-emerald-50/60 border-emerald-200 text-slate-900'
+                        : 'bg-slate-50 border-slate-200/80 text-slate-500'
                     }`}
                   >
                     <input
@@ -1841,11 +2432,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     <div className="flex-1">
                       <div className="text-xs font-bold leading-tight flex items-center justify-between">
                         <span>{item.label}</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                          employeePermissions[item.key] ? 'text-emerald-700 bg-emerald-100' : 'text-slate-500 bg-slate-200'
-                        }`}>
-                          {employeePermissions[item.key] ? 'مسموح' : 'محظور'}
-                        </span>
+                        {employeePermissions[item.key] ? (
+                          <span className="text-[10px] text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded font-bold">
+                            مسموح
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.2 rounded font-bold">
+                            محظور
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5">{item.desc}</div>
                     </div>
@@ -1858,15 +2453,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-blue-800" />
-                  <h4 className="text-sm font-extrabold text-slate-900">صلاحيات جلسة المشرف المعتمد</h4>
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center font-bold">
+                    <UserCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-900">صلاحيات جلسة المشرف المعتمد</h4>
+                    <p className="text-[11px] text-slate-500">مشرف الصالة / المدير التنفيذي</p>
+                  </div>
                 </div>
+
                 <button
                   type="button"
                   onClick={() => setSupervisorPermissions({ ...DEFAULT_SUPERVISOR_PERMISSIONS })}
-                  className="text-[11px] text-blue-700 font-bold underline"
+                  className="text-[11px] text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer"
                 >
-                  استعادة الضبط
+                  استعادة الضبط القياسي
                 </button>
               </div>
 
@@ -1875,21 +2476,23 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   { key: 'canSell' as const, label: 'البيع وإعداد الفواتير الجديدة (POS)', desc: 'إنشاء وحفظ وطباعة القوائم' },
                   { key: 'canAddNewProduct' as const, label: 'إضافة مواد جديدة للمخزن', desc: 'إدخال المواد وتعديل أسعارها' },
                   { key: 'canViewCostPrice' as const, label: 'عرض أسعار التكلفة والشراء', desc: 'السماح برؤية سعر رأس المال في الجداول ونوافذ التعديل' },
-                  { key: 'canEditProductPrice' as const, label: 'تعديل السعر في القائمة للزبون', desc: 'تعديل سعر المادة في القائمة النشطة' },
+                  { key: 'canEditProductPrice' as const, label: 'تعديل السعر في القائمة للزبون (أيقونة القلم الصغير)', desc: 'تعديل سعر المادة في القائمة النشطة' },
                   { key: 'canViewInvoices' as const, label: 'الدخول لسجل الفواتير ومعاينة القوائم', desc: 'معاينة وطباعة القوائم' },
-                  { key: 'canReturnInvoice' as const, label: 'استعادة الفواتير وإرجاع المواد', desc: 'إلغاء البيع واسترجاع البضاعة' },
-                  { key: 'canViewCustomers' as const, label: 'الدخول لسجل الزبائن وحسابات الديون', desc: 'متابعة حسابات الزبائن' },
+                  { key: 'canReturnInvoice' as const, label: 'استعادة الفواتير وإرجاع المواد للمخزن', desc: 'إلغاء البيع واسترجاع البضاعة (مفعل للمشرف)' },
+                  { key: 'canViewCustomers' as const, label: 'الدخول لسجل الزبائن وحسابات الديون', desc: 'متابعة حسابات الزبائن (مفعل للمشرف)' },
                   { key: 'canAccessInventory' as const, label: 'الدخول لقسم المواد والمخزون', desc: 'معاينة المخزن وجرد الأصناف' },
-                  { key: 'canAccessShifts' as const, label: 'الدخول لسجل وتبويب الشفتات', desc: 'معاينة شفتات العمل' },
-                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات والورديات', desc: 'تشغيل مؤقت الشفت وإنهائه' },
-                  { key: 'canDeleteInvoice' as const, label: 'حذف القوائم نهائياً', desc: 'حذف سجلات الفواتير' },
-                  { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال' },
-                  { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي' },
+                  { key: 'canAccessShifts' as const, label: 'الدخول لسجل وتبويب الشفتات', desc: 'معاينة شفتات العمل ومبيعاتها وقوائمها' },
+                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات والورديات', desc: 'الضغط على زر بدء الشفت وتشغيل المؤقت وإنهائه' },
+                  { key: 'canDeleteInvoice' as const, label: 'حذف القوائم نهائياً', desc: 'حذف سجلات الفواتير نهائياً (محظور للمشرف)' },
+                  { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال (محظور للمشرف)' },
+                  { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي (محظور للمشرف)' },
                 ].map((item) => (
                   <label
                     key={item.key}
                     className={`flex items-start gap-3 p-2.5 rounded-xl border transition cursor-pointer ${
-                      supervisorPermissions[item.key] ? 'bg-blue-50/60 border-blue-200 text-slate-900' : 'bg-slate-50 border-slate-200/80 text-slate-500'
+                      supervisorPermissions[item.key]
+                        ? 'bg-blue-50/60 border-blue-200 text-slate-900'
+                        : 'bg-slate-50 border-slate-200/80 text-slate-500'
                     }`}
                   >
                     <input
@@ -1906,11 +2509,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     <div className="flex-1">
                       <div className="text-xs font-bold leading-tight flex items-center justify-between">
                         <span>{item.label}</span>
-                        <span className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                          supervisorPermissions[item.key] ? 'text-blue-700 bg-blue-100' : 'text-slate-500 bg-slate-200'
-                        }`}>
-                          {supervisorPermissions[item.key] ? 'مسموح' : 'محظور'}
-                        </span>
+                        {supervisorPermissions[item.key] ? (
+                          <span className="text-[10px] text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded font-bold">
+                            مسموح
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 bg-slate-200 px-1.5 py-0.2 rounded font-bold">
+                            محظور
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] text-slate-400 mt-0.5">{item.desc}</div>
                     </div>
@@ -1920,13 +2527,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
-          <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 flex items-center justify-between">
+          <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>يتم حفظ الصلاحيات والرمز السري محلياً وسحابياً ومزامنتها فوراً مع كافة الأجهزة.</span>
+            </div>
+
             <button
               type="button"
               onClick={handleSaveSessionsOnly}
-              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black"
+              className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black transition flex items-center gap-2 shadow-xs cursor-pointer w-full sm:w-auto justify-center"
             >
-              حفظ وتثبيت إعدادات وصلاحيات الجلسات
+              <Check className="w-4 h-4" />
+              <span>حفظ وتثبيت إعدادات وصلاحيات الجلسات</span>
             </button>
           </div>
         </>
