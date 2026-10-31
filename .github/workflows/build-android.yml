@@ -29,7 +29,7 @@ jobs:
           rm -f package-lock.json bun.lock
           npm cache clean --force
           npm install --legacy-peer-deps --no-audit --no-fund
-          npm install -D @capacitor/cli @capacitor/android --legacy-peer-deps
+          npm install -D @capacitor/cli @capacitor/android @capacitor/assets --legacy-peer-deps
 
       - name: Build Web Application
         run: npm run build
@@ -44,6 +44,19 @@ jobs:
           if [ ! -d "android" ]; then
             npx cap add android
           fi
+
+          # تجهيز الأيقونة الخاصة وتوليد جميع مقاسات الأندرويد تلقائياً
+          mkdir -p assets
+          if [ -f "public/logo.png" ]; then
+            cp public/logo.png assets/icon.png
+          elif [ -f "public/icon.ico" ]; then
+            cp public/icon.ico assets/icon.png
+          fi
+
+          if [ -f "assets/icon.png" ]; then
+            npx @capacitor/assets generate --android || true
+          fi
+
           npx cap sync android
 
       - name: Add Camera Permission to AndroidManifest
