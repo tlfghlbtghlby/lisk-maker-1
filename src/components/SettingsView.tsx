@@ -138,6 +138,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     || (currentUser as any)?.storeId 
     || (currentUser as any)?.username 
     || (settings.storeName ? settings.storeName.trim() : 'azarstore');
+
   const customerPriceCheckerUrl = `https://ckeckprice.vercel.app/#${(function() {
     try {
       return btoa(unescape(encodeURIComponent(String(realStoreId))));
@@ -149,9 +150,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   useEffect(() => {
     if (customerPriceCheckerUrl) {
       QRCode.toDataURL(customerPriceCheckerUrl, { width: 350, margin: 2 }, (err, url) => {
-        if (!err && url) {
-          setQrCodeDataUrl(url);
-        }
+        if (!err && url) setQrCodeDataUrl(url);
       });
     }
   }, [customerPriceCheckerUrl]);
@@ -168,7 +167,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           if (url) setHotspotUrl(url);
         });
       }
-
       if (typeof electron.updateLocalCatalog === 'function') {
         electron.updateLocalCatalog({
           storeName: settings.storeName || 'المتجر',
@@ -216,14 +214,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       a.click();
       document.body.removeChild(a);
     };
-
     if (qrCodeDataUrl) {
       download(qrCodeDataUrl);
     } else {
       QRCode.toDataURL(customerPriceCheckerUrl, { width: 400, margin: 2 }, (err, url) => {
-        if (!err && url) {
-          download(url);
-        }
+        if (!err && url) download(url);
       });
     }
   };
@@ -231,12 +226,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [printFormat, setPrintFormat] = useState<'a4' | 'a5' | 'thermal' | 'thermal80' | 'thermal58'>(
     settings.printFormat || 'a4'
   );
-  const [directPrintEnabled, setDirectPrintEnabled] = useState<boolean>(
-    settings.directPrintEnabled ?? false
-  );
-  const [selectedPrinterName, setSelectedPrinterName] = useState<string>(
-    (settings as any).selectedPrinterName || ''
-  );
+  const [directPrintEnabled, setDirectPrintEnabled] = useState<boolean>(settings.directPrintEnabled ?? false);
+  const [selectedPrinterName, setSelectedPrinterName] = useState<string>((settings as any).selectedPrinterName || '');
   const [availablePrinters, setAvailablePrinters] = useState<any[]>([]);
   const [isLoadingPrinters, setIsLoadingPrinters] = useState(false);
 
@@ -247,11 +238,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         setIsLoadingPrinters(true);
         try {
           const list = await electronBridge.getPrinters();
-          if (Array.isArray(list)) {
-            setAvailablePrinters(list);
-          }
+          if (Array.isArray(list)) setAvailablePrinters(list);
         } catch (e) {
-          console.warn('تعذر جلب الطابعات من النظام:', e);
+          console.warn('تعذر جلب الطابعات:', e);
         } finally {
           setIsLoadingPrinters(false);
         }
@@ -288,7 +277,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [showSupervisorPin, setShowSupervisorPin] = useState(false);
   const [sessionsNotice, setSessionsNotice] = useState<string | null>(null);
 
-  // إعدادات تصعيد وتخفيض الأسعار
   const [bulkPercent, setBulkPercent] = useState<number>(15);
   const [customPercentInput, setCustomPercentInput] = useState<string>('15');
   const [priceDirection, setPriceDirection] = useState<'increase' | 'decrease'>('increase');
@@ -338,76 +326,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [editPresetCode, setEditPresetCode] = useState('');
   const [editPresetNotes, setEditPresetNotes] = useState('');
 
-  // الترويسة الملونة
-  const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplateType>(
-    settings.invoiceTemplate || 'modern'
-  );
-  const [modernBadgeText, setModernBadgeText] = useState(
-    settings.modernHeader?.badgeText ?? 'قرطاسية'
-  );
-  const [modernFontFamily, setModernFontFamily] = useState(
-    settings.modernHeader?.fontFamily ?? 'Aref Ruqaa'
-  );
-  const [modernRightColor, setModernRightColor] = useState(
-    settings.modernHeader?.rightBannerColor ?? '#1e40af'
-  );
-  const [modernLeftColor, setModernLeftColor] = useState(
-    settings.modernHeader?.leftBannerColor ?? '#ea580c'
-  );
+  // تفاصيل الترويسة الملونة
+  const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplateType>(settings.invoiceTemplate || 'modern');
+  const [modernBadgeText, setModernBadgeText] = useState(settings.modernHeader?.badgeText ?? 'قرطاسية');
+  const [modernFontFamily, setModernFontFamily] = useState(settings.modernHeader?.fontFamily ?? 'Aref Ruqaa');
+  const [modernRightColor, setModernRightColor] = useState(settings.modernHeader?.rightBannerColor ?? '#1e40af');
+  const [modernLeftColor, setModernLeftColor] = useState(settings.modernHeader?.leftBannerColor ?? '#ea580c');
   const [modernActivitiesText, setModernActivitiesText] = useState(
     settings.modernHeader?.activitiesText ?? 'بيع كافة القرطاسية والمستلزمات المدرسية والمكتبية والهدايا ولعب الأطفال'
   );
-  const [modernBadgeLeftText, setModernBadgeLeftText] = useState(
-    settings.modernHeader?.badgeLeftText ?? 'جملة'
-  );
-  const [modernBadgeRightText, setModernBadgeRightText] = useState(
-    settings.modernHeader?.badgeRightText ?? 'مفرد'
-  );
-  const [modernCenterIconType, setModernCenterIconType] = useState<'preset' | 'custom'>(
-    settings.modernHeader?.centerIconType ?? 'preset'
-  );
-  const [modernCenterIconPreset, setModernCenterIconPreset] = useState(
-    settings.modernHeader?.centerIconPreset ?? 'stationery'
-  );
-  const [modernCenterIconCustomUrl, setModernCenterIconCustomUrl] = useState(
-    settings.modernHeader?.centerIconCustomUrl ?? ''
-  );
-  const [modernBarcodeImageUrl, setModernBarcodeImageUrl] = useState(
-    settings.modernHeader?.barcodeImageUrl ?? ''
-  );
-  const [modernShowBarcode, setModernShowBarcode] = useState<boolean>(
-    settings.modernHeader?.showBarcode ?? true
-  );
-  const [modernShowTelegram, setModernShowTelegram] = useState<boolean>(
-    settings.modernHeader?.showTelegram ?? true
-  );
-  const [modernTelegramHandle, setModernTelegramHandle] = useState(
-    settings.modernHeader?.telegramHandle ?? ''
-  );
-  const [modernShowFacebook, setModernShowFacebook] = useState<boolean>(
-    settings.modernHeader?.showFacebook ?? true
-  );
-  const [modernFacebookName, setModernFacebookName] = useState(
-    settings.modernHeader?.facebookName ?? ''
-  );
-  const [modernShowWhatsapp, setModernShowWhatsapp] = useState<boolean>(
-    settings.modernHeader?.showWhatsapp ?? true
-  );
-  const [modernWhatsappNumber, setModernWhatsappNumber] = useState(
-    settings.modernHeader?.whatsappNumber ?? settings.phone ?? ''
-  );
-  const [modernShowInstagram, setModernShowInstagram] = useState<boolean>(
-    settings.modernHeader?.showInstagram ?? true
-  );
-  const [modernInstagramHandle, setModernInstagramHandle] = useState(
-    settings.modernHeader?.instagramHandle ?? ''
-  );
+  const [modernBadgeLeftText, setModernBadgeLeftText] = useState(settings.modernHeader?.badgeLeftText ?? 'جملة');
+  const [modernBadgeRightText, setModernBadgeRightText] = useState(settings.modernHeader?.badgeRightText ?? 'مفرد');
+  const [modernCenterIconType, setModernCenterIconType] = useState<'preset' | 'custom'>(settings.modernHeader?.centerIconType ?? 'preset');
+  const [modernCenterIconPreset, setModernCenterIconPreset] = useState(settings.modernHeader?.centerIconPreset ?? 'stationery');
+  const [modernCenterIconCustomUrl, setModernCenterIconCustomUrl] = useState(settings.modernHeader?.centerIconCustomUrl ?? '');
+  const [modernBarcodeImageUrl, setModernBarcodeImageUrl] = useState(settings.modernHeader?.barcodeImageUrl ?? '');
+  const [modernShowBarcode, setModernShowBarcode] = useState<boolean>(settings.modernHeader?.showBarcode ?? true);
+  const [modernShowTelegram, setModernShowTelegram] = useState<boolean>(settings.modernHeader?.showTelegram ?? true);
+  const [modernTelegramHandle, setModernTelegramHandle] = useState(settings.modernHeader?.telegramHandle ?? '');
+  const [modernShowFacebook, setModernShowFacebook] = useState<boolean>(settings.modernHeader?.showFacebook ?? true);
+  const [modernFacebookName, setModernFacebookName] = useState(settings.modernHeader?.facebookName ?? '');
+  const [modernShowWhatsapp, setModernShowWhatsapp] = useState<boolean>(settings.modernHeader?.showWhatsapp ?? true);
+  const [modernWhatsappNumber, setModernWhatsappNumber] = useState(settings.modernHeader?.whatsappNumber ?? settings.phone ?? '');
+  const [modernShowInstagram, setModernShowInstagram] = useState<boolean>(settings.modernHeader?.showInstagram ?? true);
+  const [modernInstagramHandle, setModernInstagramHandle] = useState(settings.modernHeader?.instagramHandle ?? '');
   const [modernDeliveryNote, setModernDeliveryNote] = useState(
     settings.modernHeader?.deliveryNote ?? 'تتوفر خدمة التوصيل إلى كافة المحافظات'
   );
 
   const barcodeFileInputRef = useRef<HTMLInputElement>(null);
   const centerIconFileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const productsOnlyFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleBarcodeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -434,9 +384,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     };
     reader.readAsDataURL(file);
   };
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const productsOnlyFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (settings) {
@@ -629,39 +576,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       alert('يرجى تحديد نسبة مئوية صحيحة أكبر من صفر');
       return;
     }
-
     if (!targetRetail && !targetWholesale && !targetCost) {
       alert('يرجى اختيار نوع سعر واحد على الأقل للتطبيق');
       return;
     }
-
     const actualPercent = priceDirection === 'increase' ? rawNum : -rawNum;
     const directionWord = priceDirection === 'increase' ? 'تصعيد ورفع' : 'تخفيض';
-
-    const confirmed = confirm(
-      `هل أنت متأكد من ${directionWord} أسعار المواد بنسبة ${rawNum}% لكافة مواد المخزن (${products.length} مادة)؟`
-    );
-
+    const confirmed = confirm(`هل أنت متأكد من ${directionWord} أسعار المواد بنسبة ${rawNum}% لكافة مواد المخزن (${products.length} مادة)؟`);
     if (!confirmed) return;
 
     setIsApplyingBulkPrices(true);
     try {
       const res = await applyBulkPriceAdjustment(
         actualPercent,
-        {
-          retail: targetRetail,
-          wholesale: targetWholesale,
-          cost: targetCost,
-        },
+        { retail: targetRetail, wholesale: targetWholesale, cost: targetCost },
         roundToHundreds
       );
-
-      setBulkPriceSuccess(
-        `تم بنجاح ${directionWord} أسعار ${res.updatedCount} مادة بنسبة ${rawNum}%!`
-      );
+      setBulkPriceSuccess(`تم بنجاح ${directionWord} أسعار ${res.updatedCount} مادة بنسبة ${rawNum}%!`);
       setTimeout(() => setBulkPriceSuccess(null), 5000);
     } catch (err: any) {
-      console.error('Error applying bulk prices:', err);
       alert('حدث خطأ أثناء تحديث الأسعار: ' + (err.message || err));
     } finally {
       setIsApplyingBulkPrices(false);
@@ -671,16 +604,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordFeedback(null);
-
     if (!oldPassword.trim()) {
       setPasswordFeedback({ type: 'error', message: 'يرجى إدخال كلمة المرور القديمة' });
       return;
     }
-    if (!newPassword.trim()) {
-      setPasswordFeedback({ type: 'error', message: 'يرجى إدخال كلمة المرور الجديدة' });
-      return;
-    }
-    if (newPassword.trim().length < 6) {
+    if (!newPassword.trim() || newPassword.trim().length < 6) {
       setPasswordFeedback({ type: 'error', message: 'يجب ألا تقل كلمة المرور الجديدة عن 6 خانات' });
       return;
     }
@@ -688,21 +616,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setPasswordFeedback({ type: 'error', message: 'كلمة المرور الجديدة غير متطابقة مع التأكيد' });
       return;
     }
-    if (!currentUser) {
-      setPasswordFeedback({ type: 'error', message: 'يجب تسجيل الدخول لتغيير كلمة المرور' });
-      return;
-    }
+    if (!currentUser) return;
 
     setIsChangingPassword(true);
     try {
       const res = await changeAccountPassword(currentUser.uid, oldPassword.trim(), newPassword.trim());
       if (res.success) {
-        if (currentUser) {
-          currentUser.password = newPassword.trim();
-        }
-        try {
-          localStorage.setItem('last_known_account_password', newPassword.trim());
-        } catch {}
+        if (currentUser) currentUser.password = newPassword.trim();
+        try { localStorage.setItem('last_known_account_password', newPassword.trim()); } catch {}
         setPasswordFeedback({ type: 'success', message: res.message || 'تم حفظ وتحديث كلمة المرور الجديدة بنجاح!' });
         setOldPassword('');
         setNewPassword('');
@@ -721,7 +642,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
@@ -743,11 +663,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const handleProductsOnlyFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setIsImportingProductsOnly(true);
     setImportError(null);
-    setImportStatus('جاري استيراد ورفع المواد للمخزن والسيرفر كأنها أُضيفت يدوياً...');
-
+    setImportStatus('جاري استيراد ورفع المواد للمخزن والسيرفر...');
     const reader = new FileReader();
     reader.onload = async (event) => {
       try {
@@ -755,7 +673,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         const res = await importProductsOnly(content, 'merge');
         if (res.success) {
           setImportError(null);
-          setImportStatus(`✅ تمت استعادة وإدخال ${res.count} مادة بنجاح إلى المخزن والسيرفر كأنك أدخلتها يدوياً!`);
+          setImportStatus(`✅ تمت استعادة وإدخال ${res.count} مادة بنجاح!`);
           setTimeout(() => setImportStatus(null), 5000);
         } else {
           setImportStatus(null);
@@ -765,18 +683,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       } catch (err: any) {
         setImportStatus(null);
         setImportError(err.message || 'حدث خطأ أثناء قراءة ملف المواد');
-        setTimeout(() => setImportError(null), 5000);
       } finally {
         setIsImportingProductsOnly(false);
-        if (productsOnlyFileInputRef.current) {
-          productsOnlyFileInputRef.current.value = '';
-        }
+        if (productsOnlyFileInputRef.current) productsOnlyFileInputRef.current.value = '';
       }
-    };
-    reader.onerror = () => {
-      setImportStatus(null);
-      setImportError('حدث خطأ أثناء قراءة الملف من الجهاز');
-      setIsImportingProductsOnly(false);
     };
     reader.readAsText(file);
   };
@@ -810,9 +720,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
                 {currentUser ? (
-                  <>
-                    الحساب: <strong className="text-white">{currentUser.displayName || currentUser.email}</strong> · مزامنة كاملة لجميع الأجهزة
-                  </>
+                  <>الحساب: <strong className="text-white">{currentUser.displayName || currentUser.email}</strong> · مزامنة كاملة لجميع الأجهزة</>
                 ) : (
                   'أنت تعمل حالياً في وضع الضيف المحلي دون تسجيل حساب'
                 )}
@@ -826,7 +734,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="button"
                 onClick={logout}
                 className="px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                title="تسجيل الخروج من الحساب الحالي"
               >
                 <LogOut className="w-3.5 h-3.5 text-slate-400" />
                 <span>تسجيل الخروج</span>
@@ -836,7 +743,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </div>
       </div>
 
-      {/* التبويبات العلوية */}
+      {/* شريط التبويبات */}
       <div className="flex items-center gap-1.5 p-1.5 bg-slate-200/80 dark:bg-[#070e1b] rounded-2xl overflow-x-auto border border-slate-300/60 dark:border-slate-800 shadow-2xs">
         <button
           type="button"
@@ -844,10 +751,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeSettingsTab === 'store'
               ? 'bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white shadow-xs border border-slate-200/80 dark:border-slate-700'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/50'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <Store className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+          <Store className="w-4 h-4" />
           <span>بيانات المحل والقوائم</span>
         </button>
 
@@ -857,7 +764,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeSettingsTab === 'quick-add'
               ? 'bg-amber-500 text-white shadow-xs'
-              : 'text-amber-800 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/40 hover:bg-amber-200/80 border border-amber-300/70 dark:border-amber-500/30'
+              : 'text-amber-800 dark:text-amber-400 bg-amber-100/70 dark:bg-amber-950/40 border border-amber-300/70 dark:border-amber-500/30'
           }`}
         >
           <Zap className="w-4 h-4 text-amber-500" />
@@ -870,7 +777,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeSettingsTab === 'pricing'
               ? 'bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white shadow-xs border border-slate-200/80 dark:border-slate-700'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/50'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
           <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -883,10 +790,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeSettingsTab === 'security'
               ? 'bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white shadow-xs border border-slate-200/80 dark:border-slate-700'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/50'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
-          <KeyRound className="w-4 h-4 text-slate-700 dark:text-slate-300" />
+          <KeyRound className="w-4 h-4" />
           <span>الأمان والنسخ الاحتياطي</span>
         </button>
 
@@ -896,7 +803,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeSettingsTab === 'sessions'
               ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/50'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
           }`}
         >
           <Users className="w-4 h-4 text-emerald-500" />
@@ -909,7 +816,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeSettingsTab === 'customer-qr'
               ? 'bg-emerald-600 text-white shadow-xs'
-              : 'text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100/80 border border-emerald-200 dark:border-emerald-500/30'
+              : 'text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30'
           }`}
         >
           <QrCodeIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -929,16 +836,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </button>
       </div>
 
-      {/* قسم قارئ أسعار الزبائن QR */}
+      {/* قسم قارئ أسعار الزبائن QR أونلاين وأوفلاين */}
       {(activeSettingsTab === 'customer-qr' || activeSettingsTab === 'all') && (
         <div className="bg-[#0b1728] border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5 mb-6" dir="rtl">
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <span className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-sm">📱</span>
-                <span>رابط ورمز QR قارئ الأسعار المشفر للزبائن (أونلاين وأوفلاين)</span>
-              </h3>
-            </div>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <span className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-sm">📱</span>
+              <span>رابط ورمز QR قارئ الأسعار المشفر للزبائن (أونلاين وأوفلاين)</span>
+            </h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
@@ -1028,7 +933,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </div>
       )}
 
-      {/* بيانات المحل والقوائم والترويسة */}
+      {/* بيانات المحل والقوائم والطباعة والترويسة */}
       {(activeSettingsTab === 'store' || activeSettingsTab === 'all') && (
       <div className="bg-white dark:bg-[#0b1728] rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
         <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -1163,7 +1068,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               <select
                 value={selectedPrinterName}
                 onChange={(e) => setSelectedPrinterName(e.target.value)}
-                className="w-full text-xs bg-white dark:bg-[#0b1728] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg px-3 py-2 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="w-full text-xs bg-white dark:bg-[#0b1728] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg px-3 py-2 font-bold focus:outline-none"
               >
                 <option value="">-- استخدام الطابعة الافتراضية للنظام (Default Printer) --</option>
                 {availablePrinters.map((p) => (
@@ -1175,7 +1080,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
-          {/* ترويسة القائمة الملونة والكلاسيكية مع نافذة المعاينة وشبكات التواصل */}
+          {/* ترويسة القائمة الملونة والكلاسيكية وشبكات التواصل والمعاينة */}
           <div className="bg-gradient-to-br from-indigo-50/60 dark:from-slate-900/60 via-white dark:via-[#070e1b] to-slate-50 dark:to-slate-900 border-2 border-indigo-200/80 dark:border-indigo-500/30 rounded-2xl p-5 space-y-5 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -1183,12 +1088,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                    <span>تصميم وشكل ترويسة القائمة المطبوعة</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    اختر بين التصميم العصري الملون أو التصميم الكلاسيكي المعتاد
-                  </p>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">تصميم وشكل ترويسة القائمة المطبوعة</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">اختر بين التصميم العصري الملون أو التصميم الكلاسيكي المعتاد</p>
                 </div>
               </div>
 
@@ -1199,7 +1100,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   className={`px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
                     invoiceTemplate === 'modern'
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs'
-                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900'
+                      : 'text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
@@ -1211,7 +1112,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   className={`px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
                     invoiceTemplate === 'classic'
                       ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900'
+                      : 'text-slate-700 dark:text-slate-300'
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
@@ -1221,6 +1122,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
 
             <div className="border-t border-indigo-100 dark:border-slate-800 pt-5 space-y-5">
+              {/* شارة المحل */}
               <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
                 <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
                   الكلمة في الدائرة البيضوية البيضاء فوق اسم المحل
@@ -1234,7 +1136,189 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 />
               </div>
 
-              {/* شبكات التواصل الأربعة كاملة */}
+              {/* اختيار الخط العربي لاسم المحل */}
+              <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                  الخط العربي المعتمد لكتابة اسم المحل في الفاتورة
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {[
+                    { id: 'Aref Ruqaa', name: 'خط الرقعة الأصيل' },
+                    { id: 'Amiri', name: 'الخط الأميري الملكي' },
+                    { id: 'Reem Kufi', name: 'خط ريم الكوفي' },
+                    { id: 'Cairo', name: 'خط القاهرة العصري' },
+                    { id: 'Tajawal', name: 'خط تجوال الحديث' },
+                    { id: 'Changa', name: 'خط الشانغا العريض' }
+                  ].map((font) => (
+                    <button
+                      key={font.id}
+                      type="button"
+                      onClick={() => setModernFontFamily(font.id)}
+                      className={`p-2.5 rounded-xl border text-right transition cursor-pointer flex flex-col justify-between ${
+                        modernFontFamily === font.id
+                          ? 'border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/40 ring-2 ring-indigo-500/20'
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">{font.name}</span>
+                      <span className="text-sm font-bold text-slate-900 dark:text-white mt-1 truncate" style={{ fontFamily: font.id }}>
+                        {storeName || 'المحل التجاري'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ألوان الشريط المزدوج */}
+              <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                  ألوان الشريط العلوي المزدوج (الجهة اليمنى والجهة اليسرى)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex items-center gap-3 p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <input
+                      type="color"
+                      value={modernRightColor}
+                      onChange={(e) => setModernRightColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg cursor-pointer border border-slate-300"
+                    />
+                    <div className="flex-1">
+                      <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200">لون جهة الاسم والرمز (الشريط الأيمن)</div>
+                      <input
+                        type="text"
+                        value={modernRightColor}
+                        onChange={(e) => setModernRightColor(e.target.value)}
+                        className="text-xs font-mono font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-[#0b1728] px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 mt-0.5 w-24"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-2.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <input
+                      type="color"
+                      value={modernLeftColor}
+                      onChange={(e) => setModernLeftColor(e.target.value)}
+                      className="w-10 h-10 rounded-lg cursor-pointer border border-slate-300"
+                    />
+                    <div className="flex-1">
+                      <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200">لون جهة الأنشطة والمواد (الشريط الأيسر)</div>
+                      <input
+                        type="text"
+                        value={modernLeftColor}
+                        onChange={(e) => setModernLeftColor(e.target.value)}
+                        className="text-xs font-mono font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-[#0b1728] px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 mt-0.5 w-24"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* صورة وأيقونة الوسط */}
+              <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">الصورة أو الأيقونة في وسط الترويسة</label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setModernCenterIconType('preset')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        modernCenterIconType === 'preset' ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      أيقونات جاهزة
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModernCenterIconType('custom')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        modernCenterIconType === 'custom' ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      رفع صورة خاصة
+                    </button>
+                  </div>
+                </div>
+
+                {modernCenterIconType === 'preset' ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                    {[
+                      { id: 'stationery', name: 'أدوات وقرطاسية' },
+                      { id: 'market', name: 'سوبرماركت ومواد' },
+                      { id: 'hardware', name: 'معدات وإنشائية' },
+                      { id: 'gifts', name: 'هدايا وتزيين' },
+                      { id: 'clothes', name: 'ملابس وأزياء' },
+                      { id: 'general', name: 'تجارة عامة' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setModernCenterIconPreset(preset.id)}
+                        className={`p-2.5 rounded-xl border text-center transition cursor-pointer ${
+                          modernCenterIconPreset === preset.id ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 font-bold' : 'border-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        <span className="text-xs text-slate-800 dark:text-slate-200">{preset.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-[#0b1728] rounded-xl border border-slate-200 dark:border-slate-700">
+                    <input ref={centerIconFileInputRef} type="file" accept="image/*" onChange={handleCenterIconFileUpload} className="hidden" />
+                    <button
+                      type="button"
+                      onClick={() => centerIconFileInputRef.current?.click()}
+                      className="px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>رفع صورة الوسط من الجهاز</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* صورة الباركود من الجهاز */}
+              <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <QrCodeIcon className="w-4 h-4 text-indigo-600" />
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-200">الباركود وصورته في وسط الفاتورة</label>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={modernShowBarcode}
+                      onChange={(e) => setModernShowBarcode(e.target.checked)}
+                      className="rounded text-indigo-600"
+                    />
+                    <span>إظهار الباركود</span>
+                  </label>
+                </div>
+
+                {modernShowBarcode && (
+                  <div className="flex items-center gap-4 p-3 bg-slate-50 dark:bg-[#0b1728] rounded-xl border border-slate-200 dark:border-slate-700">
+                    <input ref={barcodeFileInputRef} type="file" accept="image/*" onChange={handleBarcodeFileUpload} className="hidden" />
+                    <button
+                      type="button"
+                      onClick={() => barcodeFileInputRef.current?.click()}
+                      className="px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>رفع صورة الباركود من الجهاز</span>
+                    </button>
+                    {modernBarcodeImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setModernBarcodeImageUrl('')}
+                        className="px-3 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 text-xs font-bold cursor-pointer"
+                      >
+                        إلغاء الصورة (استخدام QR تلقائي)
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* شبكات التواصل الاجتماعي الأربعة كاملة */}
               <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
                 <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
                   معرفات وأرقام شبكات التواصل الاجتماعي في الفاتورة
@@ -1252,7 +1336,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                         <span>إظهار</span>
                       </label>
                     </div>
-                    <input type="text" disabled={!modernShowTelegram} value={modernTelegramHandle} onChange={(e) => setModernTelegramHandle(e.target.value)} placeholder="@username" className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-mono" />
+                    <input
+                      type="text"
+                      disabled={!modernShowTelegram}
+                      value={modernTelegramHandle}
+                      onChange={(e) => setModernTelegramHandle(e.target.value)}
+                      placeholder="@username"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-mono"
+                    />
                   </div>
 
                   {/* فيسبوك */}
@@ -1267,7 +1358,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                         <span>إظهار</span>
                       </label>
                     </div>
-                    <input type="text" disabled={!modernShowFacebook} value={modernFacebookName} onChange={(e) => setModernFacebookName(e.target.value)} placeholder="اسم الصفحة" className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-bold" />
+                    <input
+                      type="text"
+                      disabled={!modernShowFacebook}
+                      value={modernFacebookName}
+                      onChange={(e) => setModernFacebookName(e.target.value)}
+                      placeholder="اسم الصفحة"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-bold"
+                    />
                   </div>
 
                   {/* واتساب */}
@@ -1282,7 +1380,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                         <span>إظهار</span>
                       </label>
                     </div>
-                    <input type="text" disabled={!modernShowWhatsapp} value={modernWhatsappNumber} onChange={(e) => setModernWhatsappNumber(e.target.value)} placeholder="رقم الهاتف" className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-mono" />
+                    <input
+                      type="text"
+                      disabled={!modernShowWhatsapp}
+                      value={modernWhatsappNumber}
+                      onChange={(e) => setModernWhatsappNumber(e.target.value)}
+                      placeholder="رقم الهاتف"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-mono"
+                    />
                   </div>
 
                   {/* انستغرام */}
@@ -1297,7 +1402,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                         <span>إظهار</span>
                       </label>
                     </div>
-                    <input type="text" disabled={!modernShowInstagram} value={modernInstagramHandle} onChange={(e) => setModernInstagramHandle(e.target.value)} placeholder="@handle" className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-mono" />
+                    <input
+                      type="text"
+                      disabled={!modernShowInstagram}
+                      value={modernInstagramHandle}
+                      onChange={(e) => setModernInstagramHandle(e.target.value)}
+                      placeholder="@handle"
+                      className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-mono"
+                    />
                   </div>
                 </div>
               </div>
@@ -1371,13 +1483,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </form>
       </div>
       )}
-
       {/* Quick Add Items Section */}
       {(activeSettingsTab === 'quick-add' || activeSettingsTab === 'all') && (
         <QuickAddItemsSection />
       )}
 
-      {/* تصعيد وتخفيض الأسعار */}
+      {/* تصعيد وتخفيض أسعار المواد في المخزن (كاملة مع أزرار النسب السريعة 5% إلى 30%) */}
       {(activeSettingsTab === 'pricing' || activeSettingsTab === 'all') && (
       <div className="bg-white dark:bg-[#0b1728] rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
         <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -1387,8 +1498,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">تصعيد أو تخفيض أسعار المواد في المخزن</h2>
+              <p className="text-xs text-slate-400 dark:text-slate-500">رفع أو خفض الأسعار بنسبة مئوية عند تغير سعر السوق</p>
             </div>
           </div>
+          <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+            {products.length} مادة بالمخزن
+          </span>
         </div>
 
         <div className="p-6 space-y-5">
@@ -1406,7 +1521,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="button"
                 onClick={() => setPriceDirection('increase')}
                 className={`p-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
-                  priceDirection === 'increase' ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300' : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                  priceDirection === 'increase'
+                    ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-500 text-rose-700 dark:text-rose-300 ring-2 ring-rose-500/20'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                 }`}
               >
                 <TrendingUp className="w-4 h-4 text-rose-600" />
@@ -1417,7 +1534,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="button"
                 onClick={() => setPriceDirection('decrease')}
                 className={`p-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer ${
-                  priceDirection === 'decrease' ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-700 dark:text-blue-300' : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                  priceDirection === 'decrease'
+                    ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/20'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                 }`}
               >
                 <TrendingDown className="w-4 h-4 text-blue-600" />
@@ -1426,6 +1545,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
+          {/* أزرار النسب السريعة كاملة */}
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">النسبة المئوية المراد تطبيقها:</label>
             <div className="flex flex-wrap items-center gap-2">
@@ -1439,8 +1559,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   }}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
                     customPercentInput === String(pct)
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                      ? 'bg-slate-900 dark:bg-emerald-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
                   {pct}%
@@ -1449,181 +1569,353 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
 
               <div className="flex items-center gap-1.5 mr-2">
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">أو نسبة مخصصة:</span>
-                <input
-                  type="number"
-                  min="0.1"
-                  max="500"
-                  step="0.5"
-                  value={customPercentInput}
-                  onChange={(e) => {
-                    setCustomPercentInput(e.target.value);
-                    const parsed = parseFloat(e.target.value);
-                    if (!isNaN(parsed)) setBulkPercent(parsed);
-                  }}
-                  className="w-20 px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 rounded-lg text-center font-black bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white"
-                />
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="500"
+                    step="0.5"
+                    value={customPercentInput}
+                    onChange={(e) => {
+                      setCustomPercentInput(e.target.value);
+                      const parsed = parseFloat(e.target.value);
+                      if (!isNaN(parsed)) setBulkPercent(parsed);
+                    }}
+                    placeholder="20"
+                    className="w-20 pl-7 pr-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 rounded-lg text-center font-black bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                  <Percent className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                </div>
               </div>
             </div>
           </div>
 
+          <div className="bg-slate-50 dark:bg-[#070e1b] border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+            <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-2">الأسعار التي سيتم تعديلها:</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={targetRetail}
+                  onChange={(e) => setTargetRetail(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">سعر البيع المفرد (التجزئة)</span>
+              </label>
+
+              {settings.enableWholesale && (
+                <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={targetWholesale}
+                    onChange={(e) => setTargetWholesale(e.target.checked)}
+                    className="rounded text-amber-600 focus:ring-amber-500"
+                  />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">سعر بيع الجملة</span>
+                </label>
+              )}
+
+              <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={targetCost}
+                  onChange={(e) => setTargetCost(e.target.checked)}
+                  className="rounded text-slate-600 focus:ring-slate-500"
+                />
+                <div>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">سعر التكلفة والشراء</span>
+                  <span className="text-[10px] text-slate-400">في حال ارتفعت تكلفة الاستيراد</span>
+                </div>
+              </label>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-slate-200/80 dark:border-slate-700 flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={roundToHundreds}
+                  onChange={(e) => setRoundToHundreds(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-xs text-slate-700 dark:text-slate-300 font-semibold">
+                  تقريب الأسعار تجارياً لأقرب 250 دينار (تجنب الكسور المعقدة في الصرف)
+                </span>
+              </label>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between pt-2">
+            <div className="text-xs text-slate-500 dark:text-slate-400">
+              {priceDirection === 'increase' ? 'الزيادة المقررة:' : 'الخصم المقرر:'}
+              <strong className="text-slate-900 dark:text-white mx-1">
+                {priceDirection === 'increase' ? '+' : '-'}{customPercentInput || '0'}%
+              </strong>
+              على {targetRetail && 'المفرد '}{targetWholesale && 'الجملة '}{targetCost && 'التكلفة'}
+            </div>
+
             <button
               type="button"
               disabled={isApplyingBulkPrices || products.length === 0}
               onClick={handleApplyBulkPrices}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition cursor-pointer"
+              className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition flex items-center gap-2 shadow-xs cursor-pointer ${
+                isApplyingBulkPrices ? 'bg-slate-500 cursor-wait' : priceDirection === 'increase' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
-              تطبيق التعديل على الأسعار
+              <Sparkles className="w-4 h-4" />
+              <span>تطبيق {priceDirection === 'increase' ? 'تصعيد الأسعار' : 'تخفيض الأسعار'} الآن ({customPercentInput}%)</span>
             </button>
           </div>
         </div>
       </div>
       )}
 
-      {/* Security & Backup */}
+      {/* الأمان وتغيير كلمة المرور والنسخ الاحتياطي الستة كاملة */}
       {(activeSettingsTab === 'security' || activeSettingsTab === 'all') && (
-        <div className="bg-white dark:bg-[#0b1728] rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-6 space-y-5 transition-colors">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-            <div className="flex items-center gap-2.5">
-              <KeyRound className="w-5 h-5 text-amber-700 dark:text-amber-500" />
-              <h3 className="font-bold text-base text-slate-900 dark:text-white">تغيير كلمة المرور / رمز الحساب</h3>
+        <>
+          <div className="bg-white dark:bg-[#0b1728] rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-6 space-y-5 transition-colors">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 flex items-center justify-center">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white">تغيير كلمة المرور / رمز الحساب</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">أدخل كلمة المرور القديمة الحالية، ثم أدخل كلمة المرور الجديدة لحفظها فوراً</p>
+                </div>
+              </div>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono">
+                {currentUser?.displayName || currentUser?.email || 'حساب نشط'}
+              </span>
             </div>
+
+            {passwordFeedback && (
+              <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 border ${
+                passwordFeedback.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30'
+                  : 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-500/30'
+              }`}>
+                {passwordFeedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />}
+                <span>{passwordFeedback.message}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  كلمة المرور القديمة (الحالية) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showOldPassword ? 'text' : 'password'}
+                    required
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    placeholder="أدخل كلمة المرور القديمة..."
+                    className="w-full pl-10 pr-3 py-2.5 text-xs font-mono font-bold border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-[#070e1b] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    dir="ltr"
+                  />
+                  <button type="button" onClick={() => setShowOldPassword(!showOldPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer">
+                    {showOldPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    كلمة المرور الجديدة <span className="text-emerald-600">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="6 خانات أو أكثر..."
+                      className="w-full pl-10 pr-3 py-2.5 text-xs font-mono font-bold border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-[#070e1b] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      dir="ltr"
+                    />
+                    <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer">
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    تأكيد كلمة المرور الجديدة <span className="text-emerald-600">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="أعد كتابة الجديدة..."
+                      className="w-full pl-10 pr-3 py-2.5 text-xs font-mono font-bold border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-[#070e1b] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      dir="ltr"
+                    />
+                    <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer">
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="px-5 py-2.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-xs transition cursor-pointer"
+                >
+                  حفظ كلمة المرور الجديدة
+                </button>
+              </div>
+            </form>
           </div>
 
-          <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">كلمة المرور القديمة</label>
-              <input
-                type={showOldPassword ? 'text' : 'password'}
-                required
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-xl"
-                dir="ltr"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* بطاقات النسخ الاحتياطي الستة كاملة */}
+          <div className="bg-white dark:bg-[#0b1728] rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-6 space-y-5 transition-colors">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">كلمة المرور الجديدة</label>
-                <input
-                  type={showNewPassword ? 'text' : 'password'}
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-xl"
-                  dir="ltr"
-                />
+                <h3 className="font-bold text-base text-slate-900 dark:text-white">النسخ الاحتياطي وإدارة البيانات</h3>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                  احفظ نسخة مخصصة من المواد، أو إعدادات الحساب، أو نسخة شاملة، مع استعادة المواد وتصفية المخزن بأمان
+                </p>
               </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">تأكيد كلمة المرور</label>
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-xl"
-                  dir="ltr"
-                />
-              </div>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono">
+                {products.length} مادة بالمخزن
+              </span>
             </div>
 
-            <button
-              type="submit"
-              disabled={isChangingPassword}
-              className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition cursor-pointer"
-            >
-              حفظ كلمة المرور الجديدة
-            </button>
-          </form>
-
-          {/* أزرار النسخ الاحتياطي الستة */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={() => setIsExportModalOpen(true)}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer"
-            >
-              <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
-                  <Download className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">تخصيص حر ⚙️</span>
+            {importStatus && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-500/30 rounded-lg text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 shadow-2xs">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{importStatus}</span>
               </div>
-              <div className="font-extrabold text-sm text-slate-900 dark:text-white">تحميل نسخة احتياطية (تخصيص حسب الرغبة)</div>
-            </button>
+            )}
 
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer"
-            >
-              <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".json" className="hidden" />
-              <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center">
-                  <Upload className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">ملف شامل</span>
+            {importError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-500/30 rounded-lg text-xs font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5 shadow-2xs">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{importError}</span>
               </div>
-              <div className="font-extrabold text-sm text-slate-900 dark:text-white">استعادة نسخة شاملة من ملف</div>
-            </div>
+            )}
 
-            <div
-              onClick={() => !isImportingProductsOnly && productsOnlyFileInputRef.current?.click()}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer"
-            >
-              <input type="file" ref={productsOnlyFileInputRef} onChange={handleProductsOnlyFileSelect} accept=".json" className="hidden" />
-              <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center">
-                  <PackageCheck className="w-4 h-4" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* 1. تحميل نسخة مخصصة */}
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(true)}
+                className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
+                    تخصيص حر ⚙️
+                  </span>
                 </div>
-                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200">للمواد فقط</span>
-              </div>
-              <div className="font-extrabold text-sm text-slate-900 dark:text-white">استعادة نسخة المواد فقط</div>
-            </div>
+                <div>
+                  <div className="font-extrabold text-sm text-slate-900 dark:text-white">تحميل نسخة احتياطية (تخصيص حسب الرغبة)</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">حفظ المواد فقط بدون بيانات الزبائن، أو إعدادات الحساب، أو نسخة شاملة.</div>
+                </div>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setIsWipeModalOpen(true)}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-rose-400 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer"
-            >
-              <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 flex items-center justify-center">
-                  <Trash2 className="w-4 h-4" />
+              {/* 2. استعادة نسخة شاملة */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".json" className="hidden" />
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">ملف شامل</span>
                 </div>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200">محمي برمز 🔒</span>
+                <div>
+                  <div className="font-extrabold text-sm text-slate-900 dark:text-white">استعادة نسخة شاملة من ملف</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">رفع ملف نسخة سابقة واسترجاع كافة البيانات (المواد، العملاء، الفواتير، الإعدادات).</div>
+                </div>
               </div>
-              <div className="font-extrabold text-sm text-rose-950 dark:text-rose-200">مسح وتصفية كافة المواد من السيرفر</div>
-            </button>
 
-            <button
-              type="button"
-              onClick={() => setIsDuplicatesModalOpen(true)}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-amber-400 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer"
-            >
-              <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 flex items-center justify-center">
-                  <Copy className="w-4 h-4" />
+              {/* 3. استعادة نسخة المواد فقط */}
+              <div
+                onClick={() => !isImportingProductsOnly && productsOnlyFileInputRef.current?.click()}
+                className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <input type="file" ref={productsOnlyFileInputRef} onChange={handleProductsOnlyFileSelect} accept=".json" className="hidden" />
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition">
+                    <PackageCheck className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200">للمواد فقط</span>
                 </div>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">فحص التكرار</span>
+                <div>
+                  <div className="font-extrabold text-sm text-slate-900 dark:text-white">استعادة نسخة المواد فقط (إدخال تلقائي للمخزن)</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">رفع ملف المواد وإدخالها فوراً للمخزن كأنك أدخلتها يدوياً دون المساس ببيانات زبائنك.</div>
+                </div>
               </div>
-              <div className="font-extrabold text-sm text-amber-950 dark:text-amber-200">كشف ومراجعة المواد المكررة</div>
-            </button>
 
-            <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20 text-right flex flex-col justify-between">
-              <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
-                  <ShieldCheck className="w-4 h-4" />
+              {/* 4. مسح وتصفية المواد برمز الحساب */}
+              <button
+                type="button"
+                onClick={() => setIsWipeModalOpen(true)}
+                className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-rose-400 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 flex items-center justify-center group-hover:bg-rose-600 group-hover:text-white transition">
+                    <Trash2 className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200">محمي برمز الحساب 🔒</span>
                 </div>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-900 text-emerald-950 dark:text-emerald-200">أوفلاين 100%</span>
+                <div>
+                  <div className="font-extrabold text-sm text-rose-950 dark:text-rose-300">مسح وتصفية كافة المواد من السيرفر</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">تصفير وحذف جميع المواد نهائياً بعد إدخال رمز الحساب لتأكيد الأمان.</div>
+                </div>
+              </button>
+
+              {/* 5. كشف ومراجعة المواد المكررة */}
+              <button
+                type="button"
+                onClick={() => setIsDuplicatesModalOpen(true)}
+                className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-amber-400 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition">
+                    <Copy className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">
+                    {duplicateGroups.length > 0 ? `${duplicateGroups.reduce((a,c)=>a+c.duplicateItems.length,0)} مكرر` : 'المخزن نظيف'}
+                  </span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-amber-950 dark:text-amber-300">كشف ومراجعة المواد المكررة وإلغاؤها</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">فحص المواد المتطابقة في الباركود أو المتشابهة 100% بالاسم والأسعار.</div>
+                </div>
+              </button>
+
+              {/* 6. نظام أوفلاين مستقل */}
+              <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20 text-right flex flex-col justify-between shadow-2xs">
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-900 text-emerald-950 dark:text-emerald-200">أوفلاين 100%</span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-emerald-950 dark:text-emerald-300">نظام أوفلاين محلي مستقل 100%</div>
+                  <div className="text-[11px] text-emerald-900 dark:text-emerald-400 mt-1">يعمل البرنامج بدون إنترنت مدى الحياة، وجميع قواعد البيانات محفوظة مشفرة على قرص جهازك.</div>
+                </div>
               </div>
-              <div className="font-extrabold text-sm text-emerald-950 dark:text-emerald-300">نظام أوفلاين محلي مستقل</div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
-      {/* إدارة الجلسات والصلاحيات */}
+      {/* إدارة الجلسات والصلاحيات (المشرفين، الشفتات، الأجهزة، والصلاحيات مع canViewCostPrice) */}
       {(activeSettingsTab === 'sessions' || activeSettingsTab === 'all') && (
         <>
           {sessionsNotice && (
