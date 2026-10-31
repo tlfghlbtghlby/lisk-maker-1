@@ -102,7 +102,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     completeActiveDraft
   } = useApp();
 
-  // Active Draft Properties (محفوظة دائماً ولا تختفي عند التنقل بين أقسام التطبيق)
+  // فحص صلاحية إظهار سعر الشراء والتكلفة
+  const canViewCost = hasPermission('canViewCostPrice');
+
+  // Active Draft Properties
   const cartItems = activeDraft.cartItems || [];
   const saleType = activeDraft.saleType || 'direct';
   const globalPriceType = activeDraft.globalPriceType || 'retail';
@@ -118,7 +121,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     ? activeDraft.showRepOnInvoice
     : (settings.defaultShowRepOnInvoice ?? true);
 
-  // Setters linked directly to persistent draft in AppContext & localStorage
   const setCartItems = (action: InvoiceItem[] | ((prev: InvoiceItem[]) => InvoiceItem[])) => {
     let next: InvoiceItem[];
     if (typeof action === 'function') {
@@ -270,30 +272,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     setTempItemPrice('');
   };
 
-  const handleResetCartItemPrice = (productId: string) => {
-    const prod = products.find((p) => p.id === productId);
-    if (!prod) return;
-    setCartItems((prev) =>
-      prev.map((item) => {
-        if (item.productId === productId) {
-          const cartonCap = item.piecesPerCarton || prod.piecesPerCarton || 1;
-          const isCarton = item.unitType === 'carton';
-          const basePiece = item.priceType === 'wholesale' ? prod.wholesalePrice : prod.retailPrice;
-          const defaultUnitPrice = isCarton ? basePiece * cartonCap : basePiece;
-          return {
-            ...item,
-            unitPrice: defaultUnitPrice,
-            total: item.quantity * defaultUnitPrice,
-            isCustomPrice: false,
-          };
-        }
-        return item;
-      })
-    );
-    setEditingPriceProductId(null);
-    setTempItemPrice('');
-  };
-
   const categories = useMemo(() => {
     const set = new Set(products.map((p) => p.category));
     return ['all', ...Array.from(set)];
@@ -316,7 +294,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     });
   }, [products, selectedCategory, searchQuery]);
 
-  // تقييد العرض المبدئي لبطاقات المواد لتسريع الشاشة ومنع التهنيج
   const [displayLimit, setDisplayLimit] = useState(48);
 
   useEffect(() => {
@@ -579,30 +556,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     );
   };
 
-  const toggleItemPriceType = (productId: string, newPriceType: PriceType) => {
-    const prod = products.find((p) => p.id === productId);
-    if (!prod) return;
-
-    setCartItems((prev) =>
-      prev.map((item) => {
-        if (item.productId === productId) {
-          const cartonCap = item.piecesPerCarton || prod.piecesPerCarton || 1;
-          const isCarton = item.unitType === 'carton';
-          const basePiecePrice = newPriceType === 'wholesale' ? prod.wholesalePrice : prod.retailPrice;
-          const newUnitPrice = isCarton ? basePiecePrice * cartonCap : basePiecePrice;
-
-          return {
-            ...item,
-            priceType: newPriceType,
-            unitPrice: newUnitPrice,
-            total: item.quantity * newUnitPrice,
-          };
-        }
-        return item;
-      })
-    );
-  };
-
   const handleGlobalPriceTypeChange = (type: PriceType) => {
     setGlobalPriceType(type);
     setCartItems((prev) =>
@@ -731,7 +684,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   };
 
   const handleSaveInvoice = (andPrint: boolean) => {
-    // شرط الرقابة: منع البيع في جلسة الموظف بدون شفت نشط
     if (sessionRole === 'employee' && !activeShift) {
       setCartErrorNotice('⚠️ عذراً، لا يمكن إتمام البيع في جلسة الموظف إلا بعد بدء شفت عمل جارٍ ومعد مسبقاً.');
       setTimeout(() => setCartErrorNotice(null), 5000);
@@ -745,7 +697,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       return;
     }
 
-    // إذا كانت ميزة المندوبين مفعلة وهناك مندوبين مسجلين ولم يتم اختيار المندوب بعد، يتم فتح نافذة اختيار المندوب قبل الطباعة
     if (settings.enableSalesReps && (settings.salesReps && settings.salesReps.length > 0) && !selectedSalesRepId) {
       setPendingPrintAfterRepSelect(andPrint);
       setIsSelectRepModalOpen(true);
@@ -759,7 +710,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   return (
     <div className="flex flex-col gap-4">
-      {/* تنبيه قفل البيع في جلسة الموظف بدون شفت نشط */}
       {sessionRole === 'employee' && !activeShift && (
         <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-950 shadow-xs animate-in fade-in">
           <div className="flex items-center gap-3">
@@ -852,7 +802,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   )}
                 </div>
 
-                {/* Windows Explorer Style View Switcher: مربعات أو قائمة */}
                 <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
                   <button
                     type="button"
@@ -944,7 +893,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   <p className="text-xs text-slate-400 mt-1">تأكد من كتابة الاسم بدقة</p>
                 </div>
               ) : viewMode === 'grid' ? (
-                /* وضع المربعات المصغرة مثل مستعرض ويندوز: يظهر فقط السعر واسم المادة */
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
                   {visibleProducts.map((prod, pIdx) => {
                     const isOutOfStock = prod.stock <= 0;
@@ -998,7 +946,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   })}
                 </div>
               ) : (
-                /* وضع القائمة التفصيلية */
                 <div className="flex flex-col gap-2.5">
                   {visibleProducts.map((prod, pIdx) => {
                     const isLowStock = prod.stock <= prod.minStock;
@@ -1077,14 +1024,17 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         </div>
 
                         <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
-                          <div className="bg-slate-100 border border-slate-300/80 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
-                            <div className="text-[10px] text-slate-600 font-bold">
-                              سعر تكلفة الجملة:
+                          {/* إخفاء سعر تكلفة الجملة عند عدم وجود الصلاحية */}
+                          {canViewCost && (
+                            <div className="bg-slate-100 border border-slate-300/80 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
+                              <div className="text-[10px] text-slate-600 font-bold">
+                                سعر تكلفة الجملة:
+                              </div>
+                              <div className="text-xs sm:text-sm font-black text-slate-800 font-mono">
+                                {formatMoney(prod.costPrice)}
+                              </div>
                             </div>
-                            <div className="text-xs sm:text-sm font-black text-slate-800 font-mono">
-                              {formatMoney(prod.costPrice)}
-                            </div>
-                          </div>
+                          )}
 
                           {settings.enableWholesale && (
                             <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
@@ -1169,7 +1119,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 </div>
               )}
 
-              {/* زر عرض المزيد عند كثرة المواد لتسريع الواجهة ومنع التهنيج */}
               {filteredProducts.length > displayLimit && (
                 <div className="mt-4 text-center">
                   <button
@@ -1228,10 +1177,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
             <div className={`bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden ${
               !isMobileMode ? 'lg:h-[calc(100vh-80px)]' : 'h-full'
             }`}>
-              {/* رأس لوحة القائمة (ثابت في الأعلى) */}
               <div className="p-2 sm:p-2.5 border-b border-slate-200 bg-slate-50/70 flex flex-col gap-1.5 shrink-0">
                 <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                  {/* أزرار نوع القائمة */}
                   <div className="flex items-center bg-slate-200/90 p-0.5 rounded-lg text-xs font-bold">
                     <button
                       type="button"
@@ -1259,7 +1206,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     </button>
                   </div>
 
-                  {/* Multi-Draft & Suspended Orders Bar */}
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
@@ -1355,7 +1301,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 </div>
               )}
 
-              {/* قائمة المواد في السلة (قابلة للتمرير الداخلي فقط عند الكثرة) */}
               <div className="flex-1 overflow-y-auto p-2 space-y-1.5 min-h-[90px] scrollbar-thin">
                 {cartItems.length === 0 ? (
                   <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-center">
@@ -1379,7 +1324,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             : 'bg-slate-50 border-slate-200'
                         }`}
                       >
-                        {/* سطر اسم المادة والخيارات السريعة */}
                         <div className="flex items-start justify-between gap-1.5">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1 flex-wrap">
@@ -1414,8 +1358,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               ) : (
                                 <span>الوحدة: {isCarton ? `كرتون (${cartonCapacity} ق)` : (item.unit || 'قطعة')}</span>
                               )}
-                              <span>·</span>
-                              <span className="text-emerald-700">تكلفة: {formatMoney(item.costPrice)}</span>
+                              {canViewCost && (
+                                <>
+                                  <span>·</span>
+                                  <span className="text-emerald-700">تكلفة: {formatMoney(item.costPrice)}</span>
+                                </>
+                              )}
                             </div>
                           </div>
 
@@ -1474,12 +1422,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           </div>
                         </div>
 
-                        {/* محرر السعر الخاص */}
                         {editingPriceProductId === item.productId && (
                           <div className="bg-blue-50 border border-blue-300 rounded-lg p-2 my-0.5 flex flex-col gap-1.5 shadow-2xs">
                             <div className="flex items-center justify-between text-[10px] font-bold text-blue-950">
                               <span>تعديل السعر للقائمة:</span>
-                              <span className="text-slate-600 font-mono">تكلفة: {formatMoney(item.costPrice)}</span>
+                              {canViewCost && (
+                                <span className="text-slate-600 font-mono">تكلفة: {formatMoney(item.costPrice)}</span>
+                              )}
                             </div>
                             <div className="flex items-center gap-1">
                               <input
@@ -1517,13 +1466,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           </div>
                         )}
 
-                        {/* تحكم الوزن أو الكمية المباعة */}
                         {item.isWeighted ? (
-                          /* تحكم بيع بالوزن (ميزان) من جهة القائمة: بالكيلو، بالغرام، أو بالمبلغ المطلوب */
                           <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-200/70 bg-emerald-50/40 p-2 rounded-xl border border-emerald-200/60 shadow-2xs">
-                            {/* السطر 1: إدخال بالكيلو + إدخال بالغرام */}
                             <div className="grid grid-cols-2 gap-1.5 items-center">
-                              {/* إدخال بالكيلو */}
                               <div className="flex items-center gap-1 bg-white border border-emerald-400 rounded-lg px-1.5 py-1 shadow-2xs">
                                 <span className="text-[10px] font-bold text-emerald-950 shrink-0">كغم:</span>
                                 <button
@@ -1555,7 +1500,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                 </button>
                               </div>
 
-                              {/* إدخال بالغرام */}
                               <div className="flex items-center gap-1 bg-white border border-amber-400 rounded-lg px-2 py-1 shadow-2xs">
                                 <span className="text-[10px] font-bold text-amber-950 shrink-0">غرام:</span>
                                 <input
@@ -1574,9 +1518,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               </div>
                             </div>
 
-                            {/* السطر 2: البيع بالمبلغ المطلوب مباشرة (تحديد السعر من جهة القائمة) + أزرار أوزان سريعة */}
                             <div className="flex items-center justify-between gap-1 flex-wrap">
-                              {/* تحديد السعر بالمبلغ من جهة القائمة */}
                               <div className="flex items-center gap-1 bg-white border border-blue-400 rounded-lg px-2 py-0.5 shadow-2xs" title="حدد المبلغ المطلوب وسيحسب النظام الوزن بدقة">
                                 <span className="text-[10px] font-black text-blue-950 shrink-0">بيع بمبلغ:</span>
                                 <input
@@ -1593,7 +1535,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                 <span className="text-[9px] font-bold text-blue-700">{settings.currency || 'د.ع'}</span>
                               </div>
 
-                              {/* أزرار أوزان سريعة (250g, 350g, 500g, 750g, 1kg) */}
                               <div className="flex items-center gap-0.5 flex-wrap">
                                 {[
                                   { label: '250g', kg: 0.25 },
@@ -1618,7 +1559,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               </div>
                             </div>
 
-                            {/* السطر 3: معادلة السعر التلقائي والتفاصيل */}
                             <div className="flex items-center justify-between text-[10px] text-slate-600 pt-0.5 px-0.5">
                               <span className="flex items-center gap-1 font-mono text-[10px]">
                                 <span className="font-bold text-slate-800">{item.quantity} كغم</span>
@@ -1632,7 +1572,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           </div>
                         ) : (
-                          /* تحكم المواد المباعة بالقطعة / الكرتون */
                           <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-xs">
                             <div className="flex items-center gap-1">
                               <div className="flex items-center bg-white border border-slate-300 rounded overflow-hidden">
@@ -1683,22 +1622,22 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 )}
               </div>
 
-              {/* ذيل الفاتورة والمحاسبة (ثابت دائماً في الأسفل ومرئي بالكامل بدون تمرير الصفحة) */}
               <div className="p-2 sm:p-2.5 bg-slate-50 border-t border-slate-200 flex flex-col gap-1.5 shrink-0 text-right">
-                {/* الحسابات والمبالغ */}
                 <div className="space-y-1 text-[11px] text-slate-700">
                   <div className="flex justify-between items-center text-xs sm:text-sm font-black text-slate-900">
                     <span>المبلغ المطلوب:</span>
                     <span className="text-emerald-700 font-mono">{formatMoney(finalTotal)}</span>
                   </div>
 
-                  <div className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded flex justify-between font-medium">
-                    <span>صافي الربح التقديري:</span>
-                    <span className="font-bold font-mono">{formatMoney(estimatedProfit)}</span>
-                  </div>
+                  {/* إخفاء صافي الربح عند عدم وجود الصلاحية */}
+                  {canViewCost && (
+                    <div className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded flex justify-between font-medium">
+                      <span>صافي الربح التقديري:</span>
+                      <span className="font-bold font-mono">{formatMoney(estimatedProfit)}</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* اختيار الزبون بشكل رشيق ومضغوط */}
                 <div className={`p-1.5 rounded-lg border text-[11px] flex flex-col gap-1 transition ${
                   saleType === 'credit'
                     ? 'bg-amber-50/80 border-amber-300'
@@ -1774,7 +1713,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   )}
                 </div>
 
-                {/* ملاحظات الفاتورة */}
                 <input
                   type="text"
                   placeholder="ملاحظات تظهر بالوصل (اختياري)..."
@@ -1783,7 +1721,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   className="text-[11px] px-2 py-1 border border-slate-300 rounded-lg bg-white focus:outline-none"
                 />
 
-                {/* اختيار المندوب المنفذ للبيع عند تفعيل الميزة */}
                 {settings.enableSalesReps && (
                   <div className="p-2 rounded-lg border bg-indigo-50/70 border-indigo-200 text-[11px] flex flex-col gap-1.5 shadow-2xs">
                     <div className="flex items-center justify-between">
@@ -1818,7 +1755,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       ))}
                     </select>
 
-                    {selectedRepObj && (
+                    {selectedRepObj && canViewCost && (
                       <div className="text-[10px] bg-white/90 p-1.5 rounded border border-indigo-200 flex items-center justify-between font-bold text-indigo-950">
                         <span>ربح المندوب: <span className="font-mono text-indigo-700">{formatMoney(estimatedRepCommission)}</span></span>
                         <span>ربح المالك: <span className="font-mono text-emerald-700">{formatMoney(estimatedStoreProfit)}</span></span>
@@ -1834,7 +1771,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   </div>
                 )}
 
-                {/* الأزرار الرئيسية للحفظ والطباعة - تظهر دائماً في أسفل الشاشة دون الحاجة للتمرير */}
                 <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                   <button
                     type="button"
@@ -1976,9 +1912,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     {settings.currency || 'دينار'}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  إذا كان على الزبون دين متبقي من فترات سابقة قبل استخدام البرنامج.
-                </p>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
@@ -2128,24 +2061,26 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
-                  سعر الشراء / التكلفة ({settings.currency})
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={editCostPrice}
-                    onChange={(e) => setEditCostPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
-                    className="w-full pl-12 pr-3 py-2 text-sm font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 bg-white"
-                  />
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                    {settings.currency}
-                  </span>
+              {canViewCost && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">
+                    سعر الشراء / التكلفة ({settings.currency})
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={editCostPrice}
+                      onChange={(e) => setEditCostPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                      className="w-full pl-12 pr-3 py-2 text-sm font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-500 bg-white"
+                    />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                      {settings.currency}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -2161,14 +2096,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   />
                   <span className="text-xs text-slate-500 font-semibold">قطعة لكل كرتون</span>
                 </div>
-                {typeof editPiecesPerCarton === 'number' && editPiecesPerCarton > 1 && typeof editRetailPrice === 'number' && (
-                  <div className="text-[11px] text-slate-600 mt-2 font-medium">
-                    💡 سعر الكرتون المفرد = <span className="font-bold text-slate-900">{formatMoney(editRetailPrice * editPiecesPerCarton)}</span>
-                    {typeof editWholesalePrice === 'number' && (
-                      <> · جملة = <span className="font-bold text-slate-900">{formatMoney(editWholesalePrice * editPiecesPerCarton)}</span></>
-                    )}
-                  </div>
-                )}
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-slate-100">
@@ -2207,7 +2134,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         </div>
       )}
 
-      {/* Confirmation Modal for Clearing / Deleting Current Draft Order */}
       {showClearConfirmModal && (
         <div 
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
@@ -2255,7 +2181,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           </div>
         </div>
       )}
-      {/* نافذة حوار اختيار المندوب السريعة قبل إتمام وطباعة القائمة */}
+
       {isSelectRepModalOpen && (
         <div 
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
@@ -2286,7 +2212,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
             </div>
 
             <div className="space-y-2 max-h-72 overflow-y-auto pr-0.5">
-              {/* خيار بيع مباشر للمحل بدون مندوب */}
               <button
                 type="button"
                 onClick={() => {
@@ -2303,12 +2228,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     تحسب كامل الأرباح للمتجر بدون استقطاع عمولة
                   </div>
                 </div>
-                <div className="text-xs font-mono font-black text-emerald-700">
-                  ربح المالك: {formatMoney(estimatedProfit)}
-                </div>
+                {canViewCost && (
+                  <div className="text-xs font-mono font-black text-emerald-700">
+                    ربح المالك: {formatMoney(estimatedProfit)}
+                  </div>
+                )}
               </button>
 
-              {/* قائمة المندوبين المسجلين */}
               {(settings.salesReps || []).filter(r => r.isActive !== false).map((r) => {
                 const repType = r.commissionType || settings.repCommissionDefaultType || 'percentage_profit';
                 const repComm = repType === 'percentage_sales'
@@ -2338,14 +2264,16 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       </div>
                     </div>
 
-                    <div className="text-left font-mono text-[11px]">
-                      <div className="text-indigo-700 font-bold">
-                        عمولة: {formatMoney(repComm)}
+                    {canViewCost && (
+                      <div className="text-left font-mono text-[11px]">
+                        <div className="text-indigo-700 font-bold">
+                          عمولة: {formatMoney(repComm)}
+                        </div>
+                        <div className="text-emerald-700 text-[10px] font-semibold">
+                          للمالك: {formatMoney(storeProfit)}
+                        </div>
                       </div>
-                      <div className="text-emerald-700 text-[10px] font-semibold">
-                        للمالك: {formatMoney(storeProfit)}
-                      </div>
-                    </div>
+                    )}
                   </button>
                 );
               })}
