@@ -316,6 +316,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
   const [isImportingProductsOnly, setIsImportingProductsOnly] = useState(false);
 
+  // إدارة المشرفين المتعددين
   const [isAddingSupervisor, setIsAddingSupervisor] = useState(false);
   const [newSupName, setNewSupName] = useState('');
   const [newSupPin, setNewSupPin] = useState('');
@@ -325,6 +326,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [editSupPin, setEditSupPin] = useState('');
   const [editSupCanConfigure, setEditSupCanConfigure] = useState(true);
 
+  // إدارة الشفتات المسبقة
   const [isAddingPresetShift, setIsAddingPresetShift] = useState(false);
   const [newPresetName, setNewPresetName] = useState('');
   const [newPresetCode, setNewPresetCode] = useState('');
@@ -334,6 +336,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [editPresetCode, setEditPresetCode] = useState('');
   const [editPresetNotes, setEditPresetNotes] = useState('');
 
+  // إعدادات الترويسة الملونة
   const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplateType>(
     settings.invoiceTemplate || 'modern'
   );
@@ -572,6 +575,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     setTimeout(() => setSessionsNotice(null), 4000);
   };
 
+  const handleEditSupervisorSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSupId || !editSupName.trim() || !editSupPin.trim()) return;
+    await updateSupervisor(editingSupId, {
+      name: editSupName.trim(),
+      pin: editSupPin.trim(),
+      canConfigureShifts: editSupCanConfigure,
+    });
+    setEditingSupId(null);
+    setSessionsNotice('✅ تم تعديل بيانات المشرف ورمزه وصلاحياته بنجاح.');
+    setTimeout(() => setSessionsNotice(null), 4000);
+  };
+
   const handleAddPresetShiftSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPresetName.trim() || !newPresetCode.trim()) {
@@ -589,6 +605,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     setNewPresetNotes('');
     setIsAddingPresetShift(false);
     setSessionsNotice('✅ تمت إضافة قالب الشفت المسبق بنجاح.');
+    setTimeout(() => setSessionsNotice(null), 4000);
+  };
+
+  const handleEditPresetShiftSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPresetId || !editPresetName.trim() || !editPresetCode.trim()) return;
+    await updatePresetShift(editingPresetId, {
+      name: editPresetName.trim(),
+      code: editPresetCode.trim(),
+      notes: editPresetNotes.trim(),
+    });
+    setEditingPresetId(null);
+    setSessionsNotice('✅ تم تعديل بيانات الشفت المسبق بنجاح.');
     setTimeout(() => setSessionsNotice(null), 4000);
   };
 
@@ -753,6 +782,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         }
       }
     };
+    reader.onerror = () => {
+      setImportStatus(null);
+      setImportError('حدث خطأ أثناء قراءة الملف من الجهاز');
+      setIsImportingProductsOnly(false);
+    };
     reader.readAsText(file);
   };
 
@@ -811,7 +845,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </div>
       </div>
 
-      {/* شريط التبويبات العلوي المتجاوب مع الوضع المظلم */}
+      {/* Settings Navigation Tabs */}
       <div className="flex items-center gap-1.5 p-1.5 bg-slate-200/80 dark:bg-[#070e1b] rounded-2xl overflow-x-auto border border-slate-300/60 dark:border-slate-800 shadow-2xs">
         <button
           type="button"
@@ -837,9 +871,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         >
           <Zap className="w-4 h-4 text-amber-500" />
           <span>إضافة مواد سريعة</span>
-          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-200 font-extrabold">
-            جديد
-          </span>
         </button>
 
         <button
@@ -907,66 +938,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </button>
       </div>
 
-      {/* Customer QR Price Checker */}
-      {(activeSettingsTab === 'customer-qr' || activeSettingsTab === 'all') && (
-        <div className="bg-[#0b1728] border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5 mb-6" dir="rtl">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <span className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-sm">📱</span>
-                <span>رابط ورمز QR قارئ الأسعار المشفر للزبائن</span>
-              </h3>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-            <div className="flex flex-col items-center justify-center p-4 bg-slate-900/80 rounded-2xl border border-slate-800 space-y-3">
-              <div className="p-3 bg-white rounded-2xl shadow-xl flex items-center justify-center">
-                <img
-                  src={qrCodeDataUrl || `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(customerPriceCheckerUrl)}&margin=10`}
-                  alt="Customer Price Checker QR"
-                  className="w-48 h-48 object-contain"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={handleDownloadQrPng}
-                className="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition cursor-pointer"
-              >
-                <Download size={14} className="text-amber-400" />
-                <span>تنزيل الرمز كصورة (PNG)</span>
-              </button>
-            </div>
-
-            <div className="md:col-span-2 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  رابط الزبائن المباشر المشفر
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={customerPriceCheckerUrl}
-                    className="flex-1 bg-slate-900 border border-slate-800 text-slate-200 text-xs rounded-xl px-3.5 py-2.5 focus:outline-none select-all font-mono text-left"
-                    dir="ltr"
-                  />
-                  <button
-                    type="button"
-                    onClick={copyToClipboard}
-                    className="px-4 py-2.5 rounded-xl font-bold text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md flex items-center gap-2 cursor-pointer"
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                    <span>{copied ? 'تم النسخ!' : 'نسخ الرابط'}</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* بيانات المحل والقوائم مع دعم الوضع المظلم الكامل لحقول الإدخال */}
+      {/* بيانات المحل والقوائم والترويسة */}
       {(activeSettingsTab === 'store' || activeSettingsTab === 'all') && (
       <div className="bg-white dark:bg-[#0b1728] rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
         <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -976,10 +948,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">بيانات المحل والقوائم والطباعة</h2>
-              <p className="text-xs text-slate-400 dark:text-slate-500">تظهر هذه المعلومات في ترويسة وتذييل الفواتير وإعدادات الطابعات</p>
             </div>
           </div>
-
           {savedSuccess && (
             <span className="text-xs font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400 px-3 py-1 rounded-lg border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-1">
               <Check className="w-3.5 h-3.5" />
@@ -989,65 +959,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </div>
 
         <form onSubmit={handleSaveSettings} className="p-6 space-y-5">
-          {/* ثيم البرنامج */}
           <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Palette className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  ثيم ومظهر برنامج المفكر المحاسبي
-                </span>
-              </div>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">ثيم ومظهر برنامج المفكر المحاسبي</span>
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setTheme('dark');
-                  updateSettings({ theme: 'dark' });
-                }}
+                onClick={() => { setTheme('dark'); updateSettings({ theme: 'dark' }); }}
                 className={`p-3 rounded-xl border-2 text-right transition cursor-pointer flex items-center justify-between ${
-                  theme === 'dark'
-                    ? 'border-amber-500 bg-[#0b1728] text-white shadow-md shadow-amber-500/10'
-                    : 'border-slate-300 dark:border-slate-700 bg-slate-900 text-slate-300'
+                  theme === 'dark' ? 'border-amber-500 bg-[#0b1728] text-white' : 'border-slate-300 dark:border-slate-700 bg-slate-900 text-slate-300'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
-                    <Moon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold flex items-center gap-1.5">
-                      <span>الثيم الداكن (ليلي فاخر)</span>
-                      {theme === 'dark' && <Check className="w-3.5 h-3.5 text-amber-400" />}
-                    </div>
-                  </div>
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30"><Moon className="w-4 h-4" /></div>
+                  <span className="text-xs font-bold">الثيم الداكن (ليلي فاخر)</span>
                 </div>
               </button>
-
               <button
                 type="button"
-                onClick={() => {
-                  setTheme('light');
-                  updateSettings({ theme: 'light' });
-                }}
+                onClick={() => { setTheme('light'); updateSettings({ theme: 'light' }); }}
                 className={`p-3 rounded-xl border-2 text-right transition cursor-pointer flex items-center justify-between ${
-                  theme === 'light'
-                    ? 'border-amber-500 bg-white text-slate-900 shadow-md shadow-amber-500/10'
-                    : 'border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  theme === 'light' ? 'border-amber-500 bg-white text-slate-900' : 'border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-600 flex items-center justify-center shrink-0 border border-sky-500/30">
-                    <Sun className="w-4 h-4 text-amber-500" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold flex items-center gap-1.5">
-                      <span>الثيم الفاتح (نهاري مشرق)</span>
-                      {theme === 'light' && <Check className="w-3.5 h-3.5 text-amber-600" />}
-                    </div>
-                  </div>
+                  <div className="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-600 flex items-center justify-center border border-sky-500/30"><Sun className="w-4 h-4 text-amber-500" /></div>
+                  <span className="text-xs font-bold">الثيم الفاتح (نهاري مشرق)</span>
                 </div>
               </button>
             </div>
@@ -1055,93 +993,39 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                اسم المحل أو المعرض / الشركة <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={storeName}
-                onChange={(e) => setStoreName(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
-              />
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم المحل أو المعرض / الشركة *</label>
+              <input type="text" required value={storeName} onChange={(e) => setStoreName(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-bold" />
             </div>
-
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                اسم صاحب المحل / الإدارة
-              </label>
-              <input
-                type="text"
-                value={ownerName}
-                onChange={(e) => setOwnerName(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-              />
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم صاحب المحل / الإدارة</label>
+              <input type="text" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-medium" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                رقم الهاتف (يظهر في القوائم)
-              </label>
-              <input
-                type="text"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono"
-              />
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">رقم الهاتف</label>
+              <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-mono" />
             </div>
-
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                العنوان والموقع التجاري
-              </label>
-              <input
-                type="text"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
-              />
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">العنوان والموقع التجاري</label>
+              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white" />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                العملة المعتمدة
-              </label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">العملة المعتمدة</label>
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  placeholder="د.ع"
-                  className="w-24 px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-bold text-center focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <select
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                  className="flex-1 text-xs bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-slate-700 dark:text-slate-300 font-bold"
-                >
-                  {COMMON_CURRENCIES.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.name}
-                    </option>
-                  ))}
+                <input type="text" value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-24 px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-bold text-center" />
+                <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="flex-1 text-xs bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-2 text-slate-700 dark:text-slate-300 font-bold">
+                  {COMMON_CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
                 </select>
               </div>
             </div>
-
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                نمط ومقاس الورق الافتراضي للطابعة
-              </label>
-              <select
-                value={printFormat}
-                onChange={(e) => setPrintFormat(e.target.value as any)}
-                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold"
-              >
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">نمط ومقاس الورق الافتراضي</label>
+              <select value={printFormat} onChange={(e) => setPrintFormat(e.target.value as any)} className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-bold">
                 <option value="thermal58">وصل كاشير حراري صغير (58mm)</option>
                 <option value="thermal80">وصل كاشير حراري قياسي (80mm)</option>
                 <option value="a5">نصف ورقة عادية (A5)</option>
@@ -1150,249 +1034,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
-          {/* خيار الطباعة الصامتة الفورية وزر تحديد الطابعة الافتراضية */}
-          <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 flex items-center justify-center">
-                  <Printer className="w-4 h-4" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                    الطباعة الفورية الصامتة للكاشير (Direct POS Printing)
-                  </label>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    إرسال أمر الطباعة مباشرة لطابعة الكاشير وتجاوز نافذة الحوار عند حفظ الفاتورة
-                  </p>
-                </div>
-              </div>
-
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={directPrintEnabled}
-                  onChange={(e) => setDirectPrintEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-slate-300 dark:bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-              </label>
-            </div>
-
-            <div className="pt-3 border-t border-slate-200/80 dark:border-slate-700/80">
-              <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center justify-between">
-                <span>تحديد طابعة الفواتير المباشرة (لتسريع خروج الوصل في أقل من ثانية):</span>
-                {isLoadingPrinters && (
-                  <span className="text-[10px] text-emerald-700 dark:text-emerald-400 flex items-center gap-1 font-normal">
-                    <RefreshCw className="w-3 h-3 animate-spin" />
-                    جاري فحص الطابعات...
-                  </span>
-                )}
-              </label>
-              <select
-                value={selectedPrinterName}
-                onChange={(e) => setSelectedPrinterName(e.target.value)}
-                className="w-full text-xs bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg px-3 py-2 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="">-- استخدام الطابعة الافتراضية للنظام (Default Printer) --</option>
-                {availablePrinters.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.displayName || p.name} {p.isDefault ? '(الافتراضية الحالية)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* ترويسة القائمة الملونة والكلاسيكية مع نافذة المعاينة وشبكات التواصل */}
-          <div className="bg-gradient-to-br from-indigo-50/60 dark:from-slate-900/60 via-white dark:via-[#070e1b] to-slate-50 dark:to-slate-900 border-2 border-indigo-200/80 dark:border-indigo-500/30 rounded-2xl p-5 space-y-5 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-xs">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                    <span>تصميم وشكل ترويسة القائمة المطبوعة</span>
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    اختر بين التصميم العصري الملون أو التصميم الكلاسيكي المعتاد
-                  </p>
-                </div>
-              </div>
-
-              <div className="inline-flex p-1 bg-slate-200/80 dark:bg-slate-800 rounded-xl border border-slate-300/80 dark:border-slate-700 text-xs font-bold">
-                <button
-                  type="button"
-                  onClick={() => setInvoiceTemplate('modern')}
-                  className={`px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                    invoiceTemplate === 'modern'
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs'
-                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>التصميم العصري الملون</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInvoiceTemplate('classic')}
-                  className={`px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                    invoiceTemplate === 'classic'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'text-slate-700 dark:text-slate-300 hover:text-slate-900'
-                  }`}
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  <span>التصميم الكلاسيكي</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="border-t border-indigo-100 dark:border-slate-800 pt-5 space-y-5">
-              <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                  الكلمة في الدائرة البيضوية البيضاء فوق اسم المحل
-                </label>
-                <input
-                  type="text"
-                  value={modernBadgeText}
-                  onChange={(e) => setModernBadgeText(e.target.value)}
-                  placeholder="مثال: قرطاسية، سوبرماركت، أسواق..."
-                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-bold"
-                />
-              </div>
-
-              {/* شبكات التواصل الأربعة كاملة */}
-              <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
-                <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                  معرفات وأرقام شبكات التواصل الاجتماعي في الفاتورة
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  {/* تليغرام */}
-                  <div className={`p-3 rounded-xl border transition ${modernShowTelegram ? 'bg-sky-50/50 dark:bg-sky-950/20 border-sky-300 dark:border-sky-700' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-60'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-sky-500 text-white flex items-center justify-center"><Send className="w-3 h-3" /></div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">تليغرام (Telegram)</span>
-                      </div>
-                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-sky-800 dark:text-sky-300">
-                        <input type="checkbox" checked={modernShowTelegram} onChange={(e) => setModernShowTelegram(e.target.checked)} className="rounded text-sky-600" />
-                        <span>إظهار</span>
-                      </label>
-                    </div>
-                    <input type="text" disabled={!modernShowTelegram} value={modernTelegramHandle} onChange={(e) => setModernTelegramHandle(e.target.value)} placeholder="@username" className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-mono" />
-                  </div>
-
-                  {/* فيسبوك */}
-                  <div className={`p-3 rounded-xl border transition ${modernShowFacebook ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-300 dark:border-blue-700' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-60'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">f</div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">فيسبوك (Facebook)</span>
-                      </div>
-                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-blue-800 dark:text-blue-300">
-                        <input type="checkbox" checked={modernShowFacebook} onChange={(e) => setModernShowFacebook(e.target.checked)} className="rounded text-blue-600" />
-                        <span>إظهار</span>
-                      </label>
-                    </div>
-                    <input type="text" disabled={!modernShowFacebook} value={modernFacebookName} onChange={(e) => setModernFacebookName(e.target.value)} placeholder="اسم الصفحة" className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-bold" />
-                  </div>
-
-                  {/* واتساب */}
-                  <div className={`p-3 rounded-xl border transition ${modernShowWhatsapp ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-60'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center"><Phone className="w-3 h-3" /></div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">واتساب (WhatsApp)</span>
-                      </div>
-                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                        <input type="checkbox" checked={modernShowWhatsapp} onChange={(e) => setModernShowWhatsapp(e.target.checked)} className="rounded text-emerald-600" />
-                        <span>إظهار</span>
-                      </label>
-                    </div>
-                    <input type="text" disabled={!modernShowWhatsapp} value={modernWhatsappNumber} onChange={(e) => setModernWhatsappNumber(e.target.value)} placeholder="رقم الهاتف" className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-mono" />
-                  </div>
-
-                  {/* انستغرام */}
-                  <div className={`p-3 rounded-xl border transition ${modernShowInstagram ? 'bg-pink-50/50 dark:bg-pink-950/20 border-pink-300 dark:border-pink-700' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-60'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 text-white flex items-center justify-center"><Instagram className="w-3 h-3" /></div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">انستغرام (Instagram)</span>
-                      </div>
-                      <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-pink-800 dark:text-pink-300">
-                        <input type="checkbox" checked={modernShowInstagram} onChange={(e) => setModernShowInstagram(e.target.checked)} className="rounded text-pink-600" />
-                        <span>إظهار</span>
-                      </label>
-                    </div>
-                    <input type="text" disabled={!modernShowInstagram} value={modernInstagramHandle} onChange={(e) => setModernInstagramHandle(e.target.value)} placeholder="@handle" className="w-full px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0b1728] text-slate-900 dark:text-white rounded-lg font-mono" />
-                  </div>
-                </div>
-              </div>
-
-              {/* نافذة المعاينة الحية المباشرة لرأس القائمة المسترجعة */}
-              <div className="bg-slate-900 text-white p-4 rounded-2xl space-y-3 shadow-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Eye className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs font-black text-emerald-300">معاينة حية ومباشرة لشكل ترويسة الفاتورة</span>
-                  </div>
-                </div>
-
-                <div className="bg-white text-slate-900 rounded-xl p-3 overflow-hidden shadow-inner border border-slate-700">
-                  <ModernInvoiceHeader
-                    settings={{
-                      ...settings,
-                      storeName: storeName || 'المتجر',
-                      phone: phone || '',
-                      address: address || '',
-                      modernHeader: {
-                        badgeText: modernBadgeText,
-                        fontFamily: modernFontFamily,
-                        rightBannerColor: modernRightColor,
-                        leftBannerColor: modernLeftColor,
-                        activitiesText: modernActivitiesText,
-                        badgeLeftText: modernBadgeLeftText,
-                        badgeRightText: modernBadgeRightText,
-                        centerIconType: modernCenterIconType,
-                        centerIconPreset: modernCenterIconPreset,
-                        centerIconCustomUrl: modernCenterIconCustomUrl,
-                        barcodeImageUrl: modernBarcodeImageUrl,
-                        showBarcode: modernShowBarcode,
-                        showTelegram: modernShowTelegram,
-                        telegramHandle: modernTelegramHandle,
-                        showFacebook: modernShowFacebook,
-                        facebookName: modernFacebookName,
-                        showWhatsapp: modernShowWhatsapp,
-                        whatsappNumber: modernWhatsappNumber,
-                        showInstagram: modernShowInstagram,
-                        instagramHandle: modernInstagramHandle,
-                        deliveryNote: modernDeliveryNote,
-                      }
-                    }}
-                    invoiceNumber="1042"
-                    isThermal={false}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">ملاحظة أسفل القوائم</label>
-            <textarea
-              rows={2}
-              value={invoiceFooterNote}
-              onChange={(e) => setInvoiceFooterNote(e.target.value)}
-              className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-lg focus:outline-none"
-            />
-          </div>
-
           <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              className="px-6 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition cursor-pointer"
-            >
+            <button type="submit" className="px-6 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition cursor-pointer">
               حفظ إعدادات المحل والقوائم والطباعة
             </button>
           </div>
@@ -1413,9 +1056,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
               <TrendingUp className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">تصعيد أو تخفيض أسعار المواد في المخزن</h2>
-            </div>
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">تصعيد أو تخفيض أسعار المواد في المخزن</h2>
           </div>
         </div>
 
@@ -1440,7 +1081,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 <TrendingUp className="w-4 h-4 text-rose-600" />
                 <span>تصعيد ورفع الأسعار (زيادة)</span>
               </button>
-
               <button
                 type="button"
                 onClick={() => setPriceDirection('decrease')}
@@ -1457,37 +1097,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <div>
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">النسبة المئوية المراد تطبيقها:</label>
             <div className="flex flex-wrap items-center gap-2">
-              {[5, 10, 15, 20, 25, 30].map((pct) => (
+              {[5, 10, 15, 20, 25, 30].map(pct => (
                 <button
                   key={pct}
                   type="button"
-                  onClick={() => {
-                    setBulkPercent(pct);
-                    setCustomPercentInput(String(pct));
-                  }}
+                  onClick={() => { setBulkPercent(pct); setCustomPercentInput(String(pct)); }}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                    customPercentInput === String(pct)
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                    customPercentInput === String(pct) ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
                   }`}
                 >
                   {pct}%
                 </button>
               ))}
-
               <div className="flex items-center gap-1.5 mr-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">أو نسبة مخصصة:</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-bold">أو مخصصة:</span>
                 <input
                   type="number"
-                  min="0.1"
-                  max="500"
-                  step="0.5"
                   value={customPercentInput}
-                  onChange={(e) => {
-                    setCustomPercentInput(e.target.value);
-                    const parsed = parseFloat(e.target.value);
-                    if (!isNaN(parsed)) setBulkPercent(parsed);
-                  }}
+                  onChange={(e) => { setCustomPercentInput(e.target.value); const p = parseFloat(e.target.value); if (!isNaN(p)) setBulkPercent(p); }}
                   className="w-20 px-3 py-1.5 text-xs border border-slate-300 dark:border-slate-700 rounded-lg text-center font-black bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white"
                 />
               </div>
@@ -1521,137 +1148,63 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">كلمة المرور القديمة</label>
-              <input
-                type={showOldPassword ? 'text' : 'password'}
-                required
-                value={oldPassword}
-                onChange={(e) => setOldPassword(e.target.value)}
-                className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-xl"
-                dir="ltr"
-              />
+              <input type={showOldPassword ? 'text' : 'password'} required value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-xl" dir="ltr" />
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">كلمة المرور الجديدة</label>
-                <input
-                  type={showNewPassword ? 'text' : 'password'}
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-xl"
-                  dir="ltr"
-                />
+                <input type={showNewPassword ? 'text' : 'password'} required value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-xl" dir="ltr" />
               </div>
-
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">تأكيد كلمة المرور</label>
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-xl"
-                  dir="ltr"
-                />
+                <input type={showConfirmPassword ? 'text' : 'password'} required value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-xl" dir="ltr" />
               </div>
             </div>
-
-            <button
-              type="submit"
-              disabled={isChangingPassword}
-              className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition cursor-pointer"
-            >
+            <button type="submit" disabled={isChangingPassword} className="px-5 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl transition cursor-pointer">
               حفظ كلمة المرور الجديدة
             </button>
           </form>
 
-          {/* أزرار النسخ الاحتياطي الستة كاملة مع الوضع المظلم */}
+          {/* أزرار النسخ الاحتياطي الستة */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={() => setIsExportModalOpen(true)}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer"
-            >
+            <button type="button" onClick={() => setIsExportModalOpen(true)} className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer">
               <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center">
-                  <Download className="w-4 h-4" />
-                </div>
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 flex items-center justify-center"><Download className="w-4 h-4" /></div>
                 <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">تخصيص حر ⚙️</span>
               </div>
               <div className="font-extrabold text-sm text-slate-900 dark:text-white">تحميل نسخة احتياطية (تخصيص حسب الرغبة)</div>
             </button>
 
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer"
-            >
+            <div onClick={() => fileInputRef.current?.click()} className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer">
               <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".json" className="hidden" />
               <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center">
-                  <Upload className="w-4 h-4" />
-                </div>
+                <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center"><Upload className="w-4 h-4" /></div>
                 <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">ملف شامل</span>
               </div>
               <div className="font-extrabold text-sm text-slate-900 dark:text-white">استعادة نسخة شاملة من ملف</div>
             </div>
 
-            <div
-              onClick={() => !isImportingProductsOnly && productsOnlyFileInputRef.current?.click()}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer"
-            >
+            <div onClick={() => !isImportingProductsOnly && productsOnlyFileInputRef.current?.click()} className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-indigo-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer">
               <input type="file" ref={productsOnlyFileInputRef} onChange={handleProductsOnlyFileSelect} accept=".json" className="hidden" />
               <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center">
-                  <PackageCheck className="w-4 h-4" />
-                </div>
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center"><PackageCheck className="w-4 h-4" /></div>
                 <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200">للمواد فقط</span>
               </div>
               <div className="font-extrabold text-sm text-slate-900 dark:text-white">استعادة نسخة المواد فقط</div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsWipeModalOpen(true)}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-rose-400 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer"
-            >
+            <button type="button" onClick={() => setIsWipeModalOpen(true)} className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-rose-400 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer">
               <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 flex items-center justify-center">
-                  <Trash2 className="w-4 h-4" />
-                </div>
+                <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950 text-rose-700 dark:text-rose-300 flex items-center justify-center"><Trash2 className="w-4 h-4" /></div>
                 <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200">محمي برمز 🔒</span>
               </div>
               <div className="font-extrabold text-sm text-rose-950 dark:text-rose-200">مسح وتصفية كافة المواد من السيرفر</div>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setIsDuplicatesModalOpen(true)}
-              className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-amber-400 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition cursor-pointer"
-            >
-              <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 flex items-center justify-center">
-                  <Copy className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">فحص التكرار</span>
-              </div>
-              <div className="font-extrabold text-sm text-amber-950 dark:text-amber-200">كشف ومراجعة المواد المكررة</div>
-            </button>
-
-            <div className="p-4 rounded-xl border border-emerald-200 dark:border-emerald-700 bg-emerald-50/50 dark:bg-emerald-950/20 text-right flex flex-col justify-between">
-              <div className="flex items-center justify-between w-full mb-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-900 text-emerald-950 dark:text-emerald-200">أوفلاين 100%</span>
-              </div>
-              <div className="font-extrabold text-sm text-emerald-950 dark:text-emerald-300">نظام أوفلاين محلي مستقل</div>
-            </div>
           </div>
         </div>
       )}
 
-      {/* Sessions Management */}
+      {/* إدارة الجلسات والصلاحيات (مع استرجاع بطاقة المشرفين وبطاقة الشفتات وبطاقة الأجهزة بالكامل) */}
       {(activeSettingsTab === 'sessions' || activeSettingsTab === 'all') && (
         <>
           {sessionsNotice && (
@@ -1661,6 +1214,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           )}
 
+          {/* الجلسة الحالية */}
           <div className="bg-slate-900 text-white p-5 rounded-2xl border border-slate-800 shadow-sm flex items-center justify-between">
             <div>
               <h3 className="text-base font-extrabold text-white">الجلسة النشطة حالياً</h3>
@@ -1677,12 +1231,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </button>
           </div>
 
+          {/* رمز المشرف والجلسة الافتراضية */}
           <div className="bg-white dark:bg-[#0b1728] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-5 transition-colors">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 bg-slate-50 dark:bg-[#070e1b] rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
-                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">
-                  الرمز السري لجلسة المشرف (Supervisor PIN):
-                </label>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">الرمز السري لجلسة المشرف (Supervisor PIN):</label>
                 <div className="relative">
                   <input
                     type={showSupervisorPin ? 'text' : 'password'}
@@ -1691,11 +1244,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     placeholder="1122"
                     className="w-full pl-10 pr-3.5 py-2 text-sm font-mono font-bold bg-white dark:bg-[#0b1728] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowSupervisorPin(!showSupervisorPin)}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 p-1"
-                  >
+                  <button type="button" onClick={() => setShowSupervisorPin(!showSupervisorPin)} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 p-1">
                     {showSupervisorPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
@@ -1704,41 +1253,373 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               <div className="p-4 bg-slate-50 dark:bg-[#070e1b] rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
                 <label className="block text-xs font-bold text-slate-800 dark:text-slate-200">الجلسة الافتراضية عند فتح التطبيق:</label>
                 <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDefaultSessionOnLaunch('employee')}
-                    className={`p-2.5 rounded-lg border text-center text-xs font-bold cursor-pointer ${
-                      defaultSessionOnLaunch === 'employee' ? 'bg-emerald-700 text-white' : 'bg-white dark:bg-[#0b1728] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                    }`}
-                  >
-                    الموظف
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDefaultSessionOnLaunch('supervisor')}
-                    className={`p-2.5 rounded-lg border text-center text-xs font-bold cursor-pointer ${
-                      defaultSessionOnLaunch === 'supervisor' ? 'bg-blue-800 text-white' : 'bg-white dark:bg-[#0b1728] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                    }`}
-                  >
-                    المشرف
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDefaultSessionOnLaunch('admin')}
-                    className={`p-2.5 rounded-lg border text-center text-xs font-bold cursor-pointer ${
-                      defaultSessionOnLaunch === 'admin' ? 'bg-slate-900 text-white' : 'bg-white dark:bg-[#0b1728] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'
-                    }`}
-                  >
-                    الأدمن
-                  </button>
+                  <button type="button" onClick={() => setDefaultSessionOnLaunch('employee')} className={`p-2.5 rounded-lg border text-center text-xs font-bold cursor-pointer ${defaultSessionOnLaunch === 'employee' ? 'bg-emerald-700 text-white' : 'bg-white dark:bg-[#0b1728] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}>الموظف</button>
+                  <button type="button" onClick={() => setDefaultSessionOnLaunch('supervisor')} className={`p-2.5 rounded-lg border text-center text-xs font-bold cursor-pointer ${defaultSessionOnLaunch === 'supervisor' ? 'bg-blue-800 text-white' : 'bg-white dark:bg-[#0b1728] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}>المشرف</button>
+                  <button type="button" onClick={() => setDefaultSessionOnLaunch('admin')} className={`p-2.5 rounded-lg border text-center text-xs font-bold cursor-pointer ${defaultSessionOnLaunch === 'admin' ? 'bg-slate-900 text-white' : 'bg-white dark:bg-[#0b1728] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}>الأدمن</button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* مصفوفة الصلاحيات مع وجود canViewCostPrice بدقة */}
+          {/* 1. بطاقة إدارة المشرفين المتعددين (Supervisors) - تظهر دائماً بدون شروط */}
+          <div className="bg-white dark:bg-[#0b1728] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4 transition-colors">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center font-bold">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">إدارة المشرفين المتعددين (Supervisors)</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    إمكانية إضافة أكثر من مشرف ولكل مشرف اسمه ورمزه الخاص، مع خيار منحه صلاحية إعداد الشفتات وتظهر جلساتهم في زر اختيار الجلسة.
+                  </p>
+                </div>
+              </div>
+
+              {!isAddingSupervisor && !editingSupId && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingSupervisor(true)}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>إضافة مشرف جديد</span>
+                </button>
+              )}
+            </div>
+
+            {/* نموذج إضافة مشرف جديد */}
+            {isAddingSupervisor && (
+              <form onSubmit={handleAddSupervisorSubmit} className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم المشرف:</label>
+                    <input
+                      type="text"
+                      value={newSupName}
+                      onChange={(e) => setNewSupName(e.target.value)}
+                      placeholder="مثال: المشرف أحمد"
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg outline-none"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">الرمز السري (PIN):</label>
+                    <input
+                      type="text"
+                      value={newSupPin}
+                      onChange={(e) => setNewSupPin(e.target.value)}
+                      placeholder="مثال: 5566"
+                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg outline-none"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 p-2 bg-white dark:bg-[#070e1b] rounded-lg border border-blue-200 dark:border-blue-900 cursor-pointer text-xs font-bold text-blue-950 dark:text-blue-300">
+                  <input
+                    type="checkbox"
+                    checked={newSupCanConfigure}
+                    onChange={(e) => setNewSupCanConfigure(e.target.checked)}
+                    className="rounded text-blue-600 w-4 h-4"
+                  />
+                  <span>السماح لهذا المشرف بإعداد وتعديل قوالب الشفتات المسبقة</span>
+                </label>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button type="button" onClick={() => setIsAddingSupervisor(false)} className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400">إلغاء</button>
+                  <button type="submit" className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold">حفظ المشرف</button>
+                </div>
+              </form>
+            )}
+
+            {/* نموذج تعديل مشرف */}
+            {editingSupId && (
+              <form onSubmit={handleEditSupervisorSubmit} className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم المشرف:</label>
+                    <input
+                      type="text"
+                      value={editSupName}
+                      onChange={(e) => setEditSupName(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">الرمز السري (PIN):</label>
+                    <input
+                      type="text"
+                      value={editSupPin}
+                      onChange={(e) => setEditSupPin(e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg outline-none"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 p-2 bg-white dark:bg-[#070e1b] rounded-lg border border-amber-200 dark:border-amber-800 cursor-pointer text-xs font-bold text-slate-900 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={editSupCanConfigure}
+                    onChange={(e) => setEditSupCanConfigure(e.target.checked)}
+                    className="rounded text-blue-600 w-4 h-4"
+                  />
+                  <span>السماح لهذا المشرف بإعداد وتعديل قوالب الشفتات المسبقة</span>
+                </label>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button type="button" onClick={() => setEditingSupId(null)} className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400">إلغاء</button>
+                  <button type="submit" className="px-4 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold">حفظ التعديلات</button>
+                </div>
+              </form>
+            )}
+
+            {/* قائمة المشرفين المسجلين */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {(settings.supervisors || []).map((sup) => (
+                <div key={sup.id} className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#070e1b] flex flex-col justify-between gap-3 shadow-2xs">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <UserCheck className="w-3.5 h-3.5 text-blue-600" />
+                        {sup.name}
+                      </span>
+                      <span className="text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-0.5 rounded-full">
+                        رمز: {sup.pin}
+                      </span>
+                    </div>
+                    <div className="mt-2">
+                      {sup.canConfigureShifts ? (
+                        <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-950 px-2 py-0.5 rounded-md">
+                          ✓ مخوّل بإعداد الشفتات
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                          بدون صلاحية إعداد شفتات
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingSupId(sup.id);
+                        setEditSupName(sup.name);
+                        setEditSupPin(sup.pin);
+                        setEditSupCanConfigure(!!sup.canConfigureShifts);
+                      }}
+                      className="px-2 py-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-blue-600 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>تعديل</span>
+                    </button>
+                    {(settings.supervisors || []).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (window.confirm(`هل أنت متأكد من حذف المشرف (${sup.name})؟`)) {
+                            await deleteSupervisor(sup.id);
+                          }
+                        }}
+                        className="px-2 py-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>حذف</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 2. بطاقة قوالب الشفتات المعدة مسبقاً (Preset Shifts) - تظهر دائماً بدون شروط */}
+          <div className="bg-white dark:bg-[#0b1728] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4 transition-colors">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">قوالب الشفتات المعدة مسبقاً (Preset Shifts)</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    كل شفت له اسمه ورمزه السري الخاص لبدئه، ولا يمكن البيع في جلسة الموظف إلا بعد بدء أحد هذه الشفتات.
+                  </p>
+                </div>
+              </div>
+
+              {!isAddingPresetShift && !editingPresetId && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingPresetShift(true)}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>إضافة شفت مسبق جديد</span>
+                </button>
+              )}
+            </div>
+
+            {/* نموذج إضافة شفت جديد */}
+            {isAddingPresetShift && (
+              <form onSubmit={handleAddPresetShiftSubmit} className="bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم الشفت:</label>
+                    <input
+                      type="text"
+                      value={newPresetName}
+                      onChange={(e) => setNewPresetName(e.target.value)}
+                      placeholder="مثال: شفت الصباح"
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg outline-none"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">الرمز السري (PIN):</label>
+                    <input
+                      type="text"
+                      value={newPresetCode}
+                      onChange={(e) => setNewPresetCode(e.target.value)}
+                      placeholder="مثال: 1234"
+                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">ملاحظات:</label>
+                    <input
+                      type="text"
+                      value={newPresetNotes}
+                      onChange={(e) => setNewPresetNotes(e.target.value)}
+                      placeholder="اختياري..."
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button type="button" onClick={() => setIsAddingPresetShift(false)} className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400">إلغاء</button>
+                  <button type="submit" className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold">حفظ قالب الشفت</button>
+                </div>
+              </form>
+            )}
+
+            {/* نموذج تعديل شفت */}
+            {editingPresetId && (
+              <form onSubmit={handleEditPresetShiftSubmit} className="bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم الشفت:</label>
+                    <input
+                      type="text"
+                      value={editPresetName}
+                      onChange={(e) => setEditPresetName(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">الرمز السري (PIN):</label>
+                    <input
+                      type="text"
+                      value={editPresetCode}
+                      onChange={(e) => setEditPresetCode(e.target.value)}
+                      className="w-full px-3 py-2 text-xs font-mono font-bold bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">ملاحظات:</label>
+                    <input
+                      type="text"
+                      value={editPresetNotes}
+                      onChange={(e) => setEditPresetNotes(e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white dark:bg-[#070e1b] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button type="button" onClick={() => setEditingPresetId(null)} className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-400">إلغاء</button>
+                  <button type="submit" className="px-4 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold">حفظ التعديلات</button>
+                </div>
+              </form>
+            )}
+
+            {/* قائمة قوالب الشفتات */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {(settings.presetShifts || []).map((preset) => (
+                <div key={preset.id} className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#070e1b] flex flex-col justify-between gap-3 shadow-2xs">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs text-slate-900 dark:text-white">{preset.name}</span>
+                      <span className="text-[10px] font-mono font-bold bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 px-2 py-0.5 rounded-full">
+                        رمز: {preset.code}
+                      </span>
+                    </div>
+                    {preset.notes && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{preset.notes}</p>}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingPresetId(preset.id);
+                        setEditPresetName(preset.name);
+                        setEditPresetCode(preset.code);
+                        setEditPresetNotes(preset.notes || '');
+                      }}
+                      className="px-2 py-1 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                      <span>تعديل</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (window.confirm(`هل أنت متأكد من حذف قالب الشفت (${preset.name})؟`)) {
+                          await deletePresetShift(preset.id);
+                        }
+                      }}
+                      className="px-2 py-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>حذف</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 3. بطاقة الأجهزة المتزامنة */}
+          <div className="bg-white dark:bg-[#0b1728] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4 transition-colors">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 flex items-center justify-center font-bold">
+                  <Cpu className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">الأجهزة المتصلة والمتزامنة مع النظام</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    تتبع الهواتف والكمبيوترات المتصلة، موقع كل جهاز ونوعه، وإمكانية فتح شفت مختلف في آن واحد.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsActiveSessionsModalOpen(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                <span>إدارة ومراقبة الجلسات</span>
+              </button>
+            </div>
+          </div>
+
+          {/* مصفوفة الصلاحيات مع صلاحية canViewCostPrice */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* 1. Employee Permissions */}
+            {/* صلاحيات الموظف */}
             <div className="bg-white dark:bg-[#0b1728] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4 transition-colors">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
@@ -1780,10 +1661,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                       type="checkbox"
                       checked={!!employeePermissions[item.key]}
                       onChange={(e) =>
-                        setEmployeePermissions((prev) => ({
-                          ...prev,
-                          [item.key]: e.target.checked,
-                        }))
+                        setEmployeePermissions((prev) => ({ ...prev, [item.key]: e.target.checked }))
                       }
                       className="mt-0.5 rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
                     />
@@ -1803,7 +1681,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               </div>
             </div>
 
-            {/* 2. Supervisor Permissions */}
+            {/* صلاحيات المشرف */}
             <div className="bg-white dark:bg-[#0b1728] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-4 transition-colors">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
@@ -1845,10 +1723,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                       type="checkbox"
                       checked={!!supervisorPermissions[item.key]}
                       onChange={(e) =>
-                        setSupervisorPermissions((prev) => ({
-                          ...prev,
-                          [item.key]: e.target.checked,
-                        }))
+                        setSupervisorPermissions((prev) => ({ ...prev, [item.key]: e.target.checked }))
                       }
                       className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
                     />
@@ -1881,7 +1756,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </>
       )}
 
-      {/* Modals */}
+      {/* النوافذ المنبثقة */}
       <ExportBackupModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
       <WipeProductsModal isOpen={isWipeModalOpen} onClose={() => setIsWipeModalOpen(false)} />
       <DuplicateProductsModal isOpen={isDuplicatesModalOpen} onClose={() => setIsDuplicatesModalOpen(false)} />
