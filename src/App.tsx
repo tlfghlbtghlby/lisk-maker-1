@@ -456,11 +456,13 @@ export default function App() {
   const [enteredPass, setEnteredPass] = useState('');
   const [errorMsg, setErrorMsg] = useState(false);
 
+  // التعرف التلقائي: بيئة أندرويد (Capacitor) وبيئة ويندوز (Electron) تدخلان فوراً للإدارة والمبيعات
   const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const isElectron = !!((window as any).electronAPI || (window as any).electron);
+    const isCapacitor = Boolean((window as any).Capacitor?.isNativePlatform?.());
     const params = new URLSearchParams(window.location.search);
-    return isElectron || params.get('admin') === 'true' || localStorage.getItem('is_admin_mode') === 'true';
+    return isElectron || isCapacitor || params.get('admin') === 'true' || localStorage.getItem('is_admin_mode') === 'true';
   });
 
   if (typeof window === 'undefined') return null;
