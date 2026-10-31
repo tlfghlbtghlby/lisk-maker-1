@@ -511,9 +511,9 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
           {/* القائمة المنسدلة عند البحث بالاسم */}
           {!scannedProduct && filteredProducts.length > 0 && (
             <div className="divide-y divide-slate-800/80 max-h-72 overflow-y-auto rounded-xl border border-slate-800/60 bg-[#070d18]">
-              {filteredProducts.map((item) => (
+              {filteredProducts.map((item, idx) => (
                 <div 
-                  key={item.id + item.barcode} 
+                  key={`${item.id}_${item.barcode}_${idx}`} 
                   onClick={() => {
                     setScannedProduct(item);
                     playBeep();

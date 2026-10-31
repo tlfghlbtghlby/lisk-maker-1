@@ -511,7 +511,7 @@ export const DuplicateProductsModal: React.FC<DuplicateProductsModalProps> = ({
 
                           return (
                             <div
-                              key={dup.id}
+                              key={`${dup.id}_${dupIdx}`}
                               className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
                                 isSelected ? 'bg-rose-50/80 border-r-4 border-r-rose-600' : 'bg-white hover:bg-slate-50/70'
                               }`}

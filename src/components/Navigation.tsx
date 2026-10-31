@@ -1,18 +1,8 @@
 import React from 'react';
-import { 
-  ShoppingCart, 
-  Boxes, 
-  FileText, 
-  Users, 
-  BarChart3, 
-  Settings,
-  Briefcase,
-  Clock,
-  Tag
-} from 'lucide-react';
+import { ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
-export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'shifts' | 'offers' | 'settings';
+export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'shifts' | 'settings';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -25,7 +15,6 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
   // فحص صارم: الميزة يجب أن تكون مفعلة في ترخيص المتجر أولاً، ثم مطابقة لصلاحية الجلسة
   const isShiftsPermitted = storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts');
   const isSalesRepsPermitted = storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps');
-  const isOffersPermitted = storeFeatures?.enableOffers !== false;
 
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
   const activeDebtCustomers = customers.filter((c) => c.totalDebt > 0).length;
@@ -68,12 +57,6 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
       badge: activeShift ? '🟢 شفت جارٍ' : (shifts.length > 0 ? shifts.length : undefined),
       badgeColor: activeShift ? 'text-emerald-700 bg-emerald-100 animate-pulse font-bold' : 'text-slate-600 bg-slate-100',
       permitted: isShiftsPermitted,
-    },
-    {
-      id: 'offers',
-      label: 'العروض والخصومات',
-      icon: <Tag className="w-4 h-4" />,
-      permitted: isOffersPermitted,
     },
     {
       id: 'customers',
@@ -121,9 +104,11 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
                 {item.badge !== undefined && (
                   <span
                     className={`text-[11px] px-2 py-0.5 rounded-md font-bold transition ${
-                      isActive 
-                        ? 'bg-white/20 dark:bg-slate-950/20 text-white dark:text-slate-950' 
-                        : item.badgeColor ? `${item.badgeColor} dark:bg-slate-800 dark:text-amber-300 dark:border dark:border-slate-700` : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                      isActive
+                        ? 'bg-white/20 dark:bg-slate-950/20 text-white dark:text-slate-950'
+                        : item.badgeColor
+                        ? `${item.badgeColor} dark:bg-slate-800 dark:text-amber-300 dark:border dark:border-slate-700`
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
                     {item.badge}

@@ -20,18 +20,14 @@ import {
   ReturnedItemRecord, 
   POSDraftOrder, 
   PresetShift, 
-  StoreSupervisor,
-  DeviceSession,
-  DuplicateProductGroup,
-  SalesRep,
-  StoreFeatures,
-  DEFAULT_STORE_FEATURES
+  StoreSupervisor, 
+  DeviceSession, 
+  DuplicateProductGroup, 
+  SalesRep, 
+  StoreFeatures, 
+  DEFAULT_STORE_FEATURES 
 } from '../types';
-import { 
-  getOrCreateDeviceId, 
-  getOrCreateSessionId, 
-  detectSystemInfo 
-} from '../utils/deviceSession';
+import { getOrCreateDeviceId, getOrCreateSessionId, detectSystemInfo } from '../utils/deviceSession';
 import { findDuplicateGroups } from '../utils/duplicateCleaner';
 import { mergeProducts, mergeInvoices, mergeShifts } from '../utils/syncEngine';
 import pkg from '../../package.json';
@@ -43,7 +39,6 @@ export const isVersionOutdated = (current: string, minRequired: string): boolean
     const curParts = current.split('.').map(p => parseInt(p, 10) || 0);
     const minParts = minRequired.split('.').map(p => parseInt(p, 10) || 0);
     const maxLen = Math.max(curParts.length, minParts.length);
-
     for (let i = 0; i < maxLen; i++) {
       const c = curParts[i] || 0;
       const m = minParts[i] || 0;
@@ -268,8 +263,6 @@ export const sanitizePayload = <T = any>(obj: T): T => {
   return obj;
 };
 
-export const sanitizeForFirestore = sanitizePayload;
-
 export const createDefaultDraftOrder = (orderNumber: number = 1): POSDraftOrder => {
   const d = new Date();
   d.setDate(d.getDate() + 15);
@@ -309,14 +302,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  const [products, setProducts] = useState<Product[]>(() => {
+  const deduplicateProducts = (prods: Product[]): Product[] => {
+    if (!Array.isArray(prods)) return [];
+    const map = new Map<string, Product>();
+    for (const p of prods) {
+      if (p && p.id) {
+        map.set(String(p.id), p);
+      }
+    }
+    return Array.from(map.values());
+  };
+
+  const [products, setProductsState] = useState<Product[]>(() => {
     try {
       const cached = localStorage.getItem('cached_pos_products');
-      return cached ? JSON.parse(cached) : [];
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const clean = deduplicateProducts(parsed);
+        if (Array.isArray(parsed) && clean.length !== parsed.length) {
+          try {
+            localStorage.setItem('cached_pos_products', JSON.stringify(clean));
+          } catch {}
+        }
+        return clean;
+      }
+      return [];
     } catch {
       return [];
     }
   });
+
+  const setProducts = (action: Product[] | ((prev: Product[]) => Product[])) => {
+    setProductsState(prev => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      return deduplicateProducts(next);
+    });
+  };
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     try {
@@ -337,6 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
+
   const [shifts, setShifts] = useState<Shift[]>(() => {
     try {
       const cached = localStorage.getItem('cached_pos_shifts');
@@ -345,6 +367,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [];
     }
   });
+
+  useEffect(() => {
+    try {
+      localStorage.removeItem('cached_pos_offers');
+    } catch {}
+  }, []);
 
   const [currentDeviceId] = useState<string>(() => getOrCreateDeviceId());
   const currentSessionId = useMemo(() => {
@@ -590,7 +618,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch {}
         } else if (storeFeatures.allowedRoles.admin !== false) {
           setSessionRole('admin');
-          try { localStorage.setItem('active_session_role', 'admin'); } catch {}
+          try {
+            localStorage.setItem('active_session_role', 'admin');
+          } catch {}
         }
       }
     }
@@ -639,8 +669,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (targetRole === 'employee') {
       setSessionRole('employee');
       setActiveSupervisorId(null);
-      try { 
-        localStorage.setItem('active_session_role', 'employee'); 
+      try {
+        localStorage.setItem('active_session_role', 'employee');
         localStorage.removeItem('active_supervisor_id');
       } catch {}
       return { success: true };
@@ -658,8 +688,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (cleanPin && (cleanPin === sup.pin.trim() || cleanPin === adminPass)) {
             setSessionRole('supervisor');
             setActiveSupervisorId(sup.id);
-            try { 
-              localStorage.setItem('active_session_role', 'supervisor'); 
+            try {
+              localStorage.setItem('active_session_role', 'supervisor');
               localStorage.setItem('active_supervisor_id', sup.id);
             } catch {}
             return { success: true };
@@ -672,8 +702,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (matchedSup) {
         setSessionRole('supervisor');
         setActiveSupervisorId(matchedSup.id);
-        try { 
-          localStorage.setItem('active_session_role', 'supervisor'); 
+        try {
+          localStorage.setItem('active_session_role', 'supervisor');
           localStorage.setItem('active_supervisor_id', matchedSup.id);
         } catch {}
         return { success: true };
@@ -684,8 +714,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSessionRole('supervisor');
         const fallbackId = supervisorsList[0]?.id || null;
         setActiveSupervisorId(fallbackId);
-        try { 
-          localStorage.setItem('active_session_role', 'supervisor'); 
+        try {
+          localStorage.setItem('active_session_role', 'supervisor');
           if (fallbackId) localStorage.setItem('active_supervisor_id', fallbackId);
         } catch {}
         return { success: true };
@@ -714,13 +744,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         (localPass && cleanPass === localPass) ||
         (lastKnownPass && cleanPass === lastKnownPass) ||
         (cachedSessionPass && cleanPass === cachedSessionPass) ||
-        cleanPass === '123456' || cleanPass === 'admin123' || cleanPass === 'admin'
+        cleanPass === '123456' ||
+        cleanPass === 'admin123' ||
+        cleanPass === 'admin'
       ) {
         setSessionRole('admin');
         setActiveSupervisorId(null);
         if (currentUser && !currentUser.password) currentUser.password = cleanPass;
-        try { 
-          localStorage.setItem('active_session_role', 'admin'); 
+        try {
+          localStorage.setItem('active_session_role', 'admin');
           localStorage.setItem('last_known_account_password', cleanPass);
           localStorage.removeItem('active_supervisor_id');
         } catch {}
@@ -735,8 +767,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setSessionRole('admin');
             setActiveSupervisorId(null);
             if (currentUser) currentUser.password = cleanPass;
-            try { 
-              localStorage.setItem('active_session_role', 'admin'); 
+            try {
+              localStorage.setItem('active_session_role', 'admin');
               localStorage.setItem('last_known_account_password', cleanPass);
               localStorage.removeItem('active_supervisor_id');
             } catch {}
@@ -785,8 +817,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setAuthLoading(false);
       return;
     }
-
     setAuthLoading(false);
+
     const currentUid = currentUser.uid;
     const storeDocId = `store_${currentUid}`;
 
@@ -797,7 +829,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (Array.isArray(storeData.products)) {
             setProducts(prevProducts => {
               const merged = mergeProducts(prevProducts, storeData.products || []);
-              try { localStorage.setItem('cached_pos_products', JSON.stringify(merged)); } catch {}
+              try {
+                localStorage.setItem('cached_pos_products', JSON.stringify(merged));
+              } catch {}
               return merged;
             });
           }
@@ -808,14 +842,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (Array.isArray(storeData.invoices)) {
             setInvoices(prevInvoices => {
               const merged = mergeInvoices(prevInvoices, storeData.invoices || []);
-              try { localStorage.setItem('cached_pos_invoices', JSON.stringify(merged)); } catch {}
+              try {
+                localStorage.setItem('cached_pos_invoices', JSON.stringify(merged));
+              } catch {}
               return merged;
             });
           }
           if (Array.isArray(storeData.shifts)) {
             setShifts(prevShifts => {
               const merged = mergeShifts(prevShifts, storeData.shifts || []);
-              try { localStorage.setItem('cached_pos_shifts', JSON.stringify(merged)); } catch {}
+              try {
+                localStorage.setItem('cached_pos_shifts', JSON.stringify(merged));
+              } catch {}
               return merged;
             });
           }
@@ -828,13 +866,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const mergedFeats: StoreFeatures = {
               ...DEFAULT_STORE_FEATURES,
               ...rawFeats,
-              allowedRoles: {
-                ...DEFAULT_STORE_FEATURES.allowedRoles,
-                ...(rawFeats.allowedRoles || {})
-              }
+              allowedRoles: { ...DEFAULT_STORE_FEATURES.allowedRoles, ...(rawFeats.allowedRoles || {}) }
             };
             setStoreFeatures(mergedFeats);
-            try { localStorage.setItem('cached_pos_features', JSON.stringify(mergedFeats)); } catch {}
+            try {
+              localStorage.setItem('cached_pos_features', JSON.stringify(mergedFeats));
+            } catch {}
           }
         }
         setIsCloudConnected(true);
@@ -848,53 +885,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const storeSub = subscribeToDocument('stores', storeDocId, (newData) => {
       if (!newData) return;
+
       if (newData.lastSavedByClient && newData.lastSavedByClient === currentSessionId) {
         setIsCloudConnected(true);
         setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
         return;
       }
+
       if (Array.isArray(newData.products)) {
         setProducts(prevProducts => {
           const merged = mergeProducts(prevProducts, newData.products || []);
-          try { localStorage.setItem('cached_pos_products', JSON.stringify(merged)); } catch {}
+          try {
+            localStorage.setItem('cached_pos_products', JSON.stringify(merged));
+          } catch {}
           return merged;
         });
       }
       if (Array.isArray(newData.customers)) {
         setCustomers(newData.customers);
-        try { localStorage.setItem('cached_pos_customers', JSON.stringify(newData.customers)); } catch {}
+        try {
+          localStorage.setItem('cached_pos_customers', JSON.stringify(newData.customers));
+        } catch {}
       }
       if (Array.isArray(newData.invoices)) {
         setInvoices(prevInvoices => {
           const merged = mergeInvoices(prevInvoices, newData.invoices || []);
-          try { localStorage.setItem('cached_pos_invoices', JSON.stringify(merged)); } catch {}
+          try {
+            localStorage.setItem('cached_pos_invoices', JSON.stringify(merged));
+          } catch {}
           return merged;
         });
       }
       if (Array.isArray(newData.shifts)) {
         setShifts(prevShifts => {
           const merged = mergeShifts(prevShifts, newData.shifts || []);
-          try { localStorage.setItem('cached_pos_shifts', JSON.stringify(merged)); } catch {}
+          try {
+            localStorage.setItem('cached_pos_shifts', JSON.stringify(merged));
+          } catch {}
           return merged;
         });
       }
       if (newData.settings) {
         setSettings(prev => ({ ...prev, ...newData.settings }));
-        try { localStorage.setItem('cached_pos_settings', JSON.stringify(newData.settings)); } catch {}
+        try {
+          localStorage.setItem('cached_pos_settings', JSON.stringify(newData.settings));
+        } catch {}
       }
       if (newData.features || newData.settings?.features) {
         const rawFeats = newData.features || newData.settings?.features;
         const mergedFeats: StoreFeatures = {
           ...DEFAULT_STORE_FEATURES,
           ...rawFeats,
-          allowedRoles: {
-            ...DEFAULT_STORE_FEATURES.allowedRoles,
-            ...(rawFeats.allowedRoles || {})
-          }
+          allowedRoles: { ...DEFAULT_STORE_FEATURES.allowedRoles, ...(rawFeats.allowedRoles || {}) }
         };
         setStoreFeatures(mergedFeats);
-        try { localStorage.setItem('cached_pos_features', JSON.stringify(mergedFeats)); } catch {}
+        try {
+          localStorage.setItem('cached_pos_features', JSON.stringify(mergedFeats));
+        } catch {}
       }
+
       setIsCloudConnected(true);
       setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
     });
@@ -944,6 +993,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           invoices: merged.invoices ?? invoices,
           shifts: merged.shifts ?? shifts,
           settings: merged.settings ?? settings,
+          offers: [], // تم تثبيتها كمصفوفة فارغة دائمة لمنع أي خطأ ReferenceError
           features: storeFeatures,
           lastSavedByClient: currentSessionId,
           updatedAt: new Date().toISOString()
@@ -981,7 +1031,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const storeDocId = `store_${currentUser.uid}`;
       const cloudData = await getDocument('stores', storeDocId);
-
       if (cloudData) {
         const mergedProds = mergeProducts(products, cloudData.products || []);
         const mergedInvs = mergeInvoices(invoices, cloudData.invoices || []);
@@ -998,13 +1047,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const mergedFeats: StoreFeatures = {
             ...DEFAULT_STORE_FEATURES,
             ...rawFeats,
-            allowedRoles: {
-              ...DEFAULT_STORE_FEATURES.allowedRoles,
-              ...(rawFeats.allowedRoles || {})
-            }
+            allowedRoles: { ...DEFAULT_STORE_FEATURES.allowedRoles, ...(rawFeats.allowedRoles || {}) }
           };
           setStoreFeatures(mergedFeats);
-          try { localStorage.setItem('cached_pos_features', JSON.stringify(mergedFeats)); } catch {}
+          try {
+            localStorage.setItem('cached_pos_features', JSON.stringify(mergedFeats));
+          } catch {}
         }
 
         try {
@@ -1023,7 +1071,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         await saveStoreToCloud(undefined, true);
       }
-
       setIsCloudConnected(true);
       setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
       setSyncNotice('✅ اكتملت المزامنة بنجاح.');
@@ -1053,8 +1100,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updated = [newProduct, ...products];
     setProducts(updated);
-    try { localStorage.setItem('cached_pos_products', JSON.stringify(updated)); } catch {}
-
+    try {
+      localStorage.setItem('cached_pos_products', JSON.stringify(updated));
+    } catch {}
     saveStoreToCloud({ products: updated });
     return newProduct;
   };
@@ -1079,9 +1127,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updated = [...created, ...products];
     setProducts(updated);
-    try { localStorage.setItem('cached_pos_products', JSON.stringify(updated)); } catch {}
+    try {
+      localStorage.setItem('cached_pos_products', JSON.stringify(updated));
+    } catch {}
     await saveStoreToCloud({ products: updated });
-
     return { success: true, count: created.length, products: created };
   };
 
@@ -1089,14 +1138,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const finalUpdates = { ...updates, updatedAt: new Date().toISOString() };
     const updated = products.map(p => p.id === id ? { ...p, ...finalUpdates } : p);
     setProducts(updated);
-    try { localStorage.setItem('cached_pos_products', JSON.stringify(updated)); } catch {}
+    try {
+      localStorage.setItem('cached_pos_products', JSON.stringify(updated));
+    } catch {}
     saveStoreToCloud({ products: updated });
   };
 
   const deleteProduct = (id: string) => {
     const updated = products.filter(p => p.id !== id);
     setProducts(updated);
-    try { localStorage.setItem('cached_pos_products', JSON.stringify(updated)); } catch {}
+    try {
+      localStorage.setItem('cached_pos_products', JSON.stringify(updated));
+    } catch {}
     saveStoreToCloud({ products: updated });
   };
 
@@ -1127,8 +1180,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
 
       const deletedCount = products.length - updatedProducts.length;
+
       setProducts(updatedProducts);
-      try { localStorage.setItem('cached_pos_products', JSON.stringify(updatedProducts)); } catch {}
+      try {
+        localStorage.setItem('cached_pos_products', JSON.stringify(updatedProducts));
+      } catch {}
+
       await saveStoreToCloud({ products: updatedProducts });
       return { success: true, deletedCount };
     } catch (err: any) {
@@ -1142,7 +1199,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!t) return prev;
       const newStock = Math.max(0, Math.round((t.stock + delta) * 1000) / 1000);
       const updated = prev.map(p => p.id === id ? { ...p, stock: newStock, updatedAt: new Date().toISOString() } : p);
-      try { localStorage.setItem('cached_pos_products', JSON.stringify(updated)); } catch {}
+      try {
+        localStorage.setItem('cached_pos_products', JSON.stringify(updated));
+      } catch {}
       saveStoreToCloud({ products: updated });
       return updated;
     });
@@ -1162,7 +1221,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     const updated = [newCust, ...customers];
     setCustomers(updated);
-    try { localStorage.setItem('cached_pos_customers', JSON.stringify(updated)); } catch {}
+    try {
+      localStorage.setItem('cached_pos_customers', JSON.stringify(updated));
+    } catch {}
     saveStoreToCloud({ customers: updated });
     return newCust;
   };
@@ -1170,33 +1231,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateCustomer = (id: string, updates: Partial<Customer>) => {
     const updated = customers.map(c => c.id === id ? { ...c, ...updates } : c);
     setCustomers(updated);
-    try { localStorage.setItem('cached_pos_customers', JSON.stringify(updated)); } catch {}
+    try {
+      localStorage.setItem('cached_pos_customers', JSON.stringify(updated));
+    } catch {}
     saveStoreToCloud({ customers: updated });
   };
 
   const deleteCustomer = (id: string) => {
     const updated = customers.filter(c => c.id !== id);
     setCustomers(updated);
-    try { localStorage.setItem('cached_pos_customers', JSON.stringify(updated)); } catch {}
+    try {
+      localStorage.setItem('cached_pos_customers', JSON.stringify(updated));
+    } catch {}
     saveStoreToCloud({ customers: updated });
   };
 
   const createInvoice = (data: CreateInvoiceInput) => {
     const now = new Date().toISOString();
     const newId = 'inv_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+
     let subtotal = 0;
     let totalCost = 0;
+
     const items = data.items.map((i: InvoiceItem) => {
       subtotal += i.unitPrice * i.quantity;
       totalCost += i.costPrice * i.quantity;
       return { ...i, subtotal: i.unitPrice * i.quantity };
     });
+
     const total = Math.max(0, subtotal - (data.discount || 0));
     const paidAmount = data.type === 'direct' ? total : (data.paidAmount || 0);
     const remainingAmount = Math.max(0, total - paidAmount);
     const status: InvoiceStatus = remainingAmount === 0 ? 'paid' : paidAmount > 0 ? 'partial' : 'unpaid';
 
     const rawNetProfit = total - totalCost;
+
     let salesRepId: string | undefined = data.salesRepId;
     let salesRepName: string | undefined = data.salesRepName;
     let salesRepCommission = 0;
@@ -1275,11 +1344,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return p;
     });
     setProducts(updatedProducts);
-    try { localStorage.setItem('cached_pos_products', JSON.stringify(updatedProducts)); } catch {}
+    try {
+      localStorage.setItem('cached_pos_products', JSON.stringify(updatedProducts));
+    } catch {}
 
     const updatedInvoices = [newInv, ...invoices];
     setInvoices(updatedInvoices);
-    try { localStorage.setItem('cached_pos_invoices', JSON.stringify(updatedInvoices)); } catch {}
+    try {
+      localStorage.setItem('cached_pos_invoices', JSON.stringify(updatedInvoices));
+    } catch {}
 
     let updatedShiftsList = shifts;
     if (activeShift) {
@@ -1302,11 +1375,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
     }
 
-    saveStoreToCloud({ 
-      products: updatedProducts, 
-      invoices: updatedInvoices, 
-      shifts: updatedShiftsList 
-    });
+    saveStoreToCloud({ products: updatedProducts, invoices: updatedInvoices, shifts: updatedShiftsList });
     return newInv;
   };
 
@@ -1321,7 +1390,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     inv.items.forEach(i => adjustStock(i.productId, i.deductedPieces ?? i.quantity));
     const updated = invoices.filter(i => i.id !== id);
     setInvoices(updated);
-    try { localStorage.setItem('cached_pos_invoices', JSON.stringify(updated)); } catch {}
+    try {
+      localStorage.setItem('cached_pos_invoices', JSON.stringify(updated));
+    } catch {}
     saveStoreToCloud({ invoices: updated });
   };
 
@@ -1347,7 +1418,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (inv.customerId && inv.remainingAmount > 0) {
       updatedCustomers = customers.map(c => c.id === inv.customerId ? { ...c, totalDebt: Math.max(0, c.totalDebt - inv.remainingAmount) } : c);
       setCustomers(updatedCustomers);
-      try { localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers)); } catch {}
+      try {
+        localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers));
+      } catch {}
     }
 
     const updatedInv: Invoice = {
@@ -1366,8 +1439,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updatedInvoices = invoices.map(i => i.id === id ? updatedInv : i);
     setInvoices(updatedInvoices);
-    try { localStorage.setItem('cached_pos_invoices', JSON.stringify(updatedInvoices)); } catch {}
-
+    try {
+      localStorage.setItem('cached_pos_invoices', JSON.stringify(updatedInvoices));
+    } catch {}
     saveStoreToCloud({ invoices: updatedInvoices, customers: updatedCustomers });
     return true;
   };
@@ -1381,7 +1455,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!hasPermission('canReturnInvoice')) {
       return { success: false, error: '⚠️ لا تملك صلاحية استرجاع المواد.' };
     }
-
     const inv = invoices.find(i => i.id === invoiceId);
     if (!inv || inv.status === 'returned') return { success: false, error: 'القائمة غير صالحة للإرجاع.' };
 
@@ -1394,6 +1467,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let totalCostReduction = 0;
     const now = new Date().toISOString();
     const operatorName = currentUser?.displayName || currentUser?.storeName || 'المستخدم';
+
     const newReturnedRecords: ReturnedItemRecord[] = [];
 
     const updatedInvoiceItems = inv.items.map(item => {
@@ -1403,10 +1477,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentReturned = item.returnedQuantity || 0;
       const maxReturnable = Math.max(0, item.quantity - currentReturned);
       const qtyToReturn = Math.min(returnTarget.quantity, maxReturnable);
+
       if (qtyToReturn <= 0) return item;
 
       const lineRefund = qtyToReturn * item.unitPrice;
       const lineCost = qtyToReturn * (item.costPrice || 0);
+
       totalRefundAmount += lineRefund;
       totalCostReduction += lineCost;
 
@@ -1429,10 +1505,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         returnedBy: operatorName,
       });
 
-      return { ...item, returnedQuantity: currentReturned + qtyToReturn };
+      return {
+        ...item,
+        returnedQuantity: currentReturned + qtyToReturn
+      };
     });
 
     const allItemsFullyReturned = updatedInvoiceItems.every(i => (i.returnedQuantity || 0) >= i.quantity);
+
     let debtReduction = 0;
     let cashRefund = 0;
 
@@ -1447,7 +1527,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (debtReduction > 0 && inv.customerId) {
       updatedCustomers = customers.map(c => c.id === inv.customerId ? { ...c, totalDebt: Math.max(0, c.totalDebt - debtReduction) } : c);
       setCustomers(updatedCustomers);
-      try { localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers)); } catch {}
+      try {
+        localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers));
+      } catch {}
     }
 
     const updatedInvoice: Invoice = {
@@ -1468,9 +1550,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updatedInvoices = invoices.map(i => i.id === invoiceId ? updatedInvoice : i);
     setInvoices(updatedInvoices);
-    try { localStorage.setItem('cached_pos_invoices', JSON.stringify(updatedInvoices)); } catch {}
-
+    try {
+      localStorage.setItem('cached_pos_invoices', JSON.stringify(updatedInvoices));
+    } catch {}
     saveStoreToCloud({ invoices: updatedInvoices, customers: updatedCustomers });
+
     return { success: true };
   };
 
@@ -1495,13 +1579,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateSettings = (newSettings: Partial<StoreSettings>) => {
     setSettings(prev => {
       const u = { ...prev, ...newSettings };
-      try { localStorage.setItem('cached_pos_settings', JSON.stringify(u)); } catch {}
+      try {
+        localStorage.setItem('cached_pos_settings', JSON.stringify(u));
+      } catch {}
       saveStoreToCloud({ settings: u });
       return u;
     });
   };
 
   const resetToDemo = () => {};
+
   const resetToZero = () => {
     setProducts([]);
     setCustomers([]);
@@ -1580,15 +1667,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSettings(updatedSet);
         localStorage.setItem('cached_pos_settings', JSON.stringify(updatedSet));
       }
-
-      saveStoreToCloud({
-        products: updatedP,
-        customers: updatedC,
-        invoices: updatedI,
-        shifts: updatedS,
-        settings: updatedSet
-      });
-
+      saveStoreToCloud({ products: updatedP, customers: updatedC, invoices: updatedI, shifts: updatedS, settings: updatedSet });
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
@@ -1632,11 +1711,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cleanList.forEach(p => map.set(p.code, p));
         updatedList = Array.from(map.values());
       }
-
       setProducts(updatedList);
-      try { localStorage.setItem('cached_pos_products', JSON.stringify(updatedList)); } catch {}
+      try {
+        localStorage.setItem('cached_pos_products', JSON.stringify(updatedList));
+      } catch {}
       await saveStoreToCloud({ products: updatedList });
-
       return { success: true, count: cleanList.length };
     } catch (err: any) {
       return { success: false, count: 0, error: err.message };
@@ -1654,16 +1733,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const supervisorPin = settings.supervisorPin || '1122';
     const isOwnerOrAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
 
-    const isMatch =
-      (userPass && cleanCode === userPass) ||
-      (storedKnownPassword && cleanCode === storedKnownPassword) ||
-      cleanCode === supervisorPin ||
-      (isOwnerOrAdmin && (cleanCode === '1122' || cleanCode === userPass));
-
+    const isMatch = (userPass && cleanCode === userPass) || (storedKnownPassword && cleanCode === storedKnownPassword) || cleanCode === supervisorPin || (isOwnerOrAdmin && (cleanCode === '1122' || cleanCode === userPass));
     if (!isMatch) return { success: false, error: 'رمز الحساب غير مطابق!' };
 
     setProducts([]);
-    try { localStorage.removeItem('cached_pos_products'); } catch {}
+    try {
+      localStorage.removeItem('cached_pos_products');
+    } catch {}
     await saveStoreToCloud({ products: [] });
     return { success: true };
   };
@@ -1687,6 +1763,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let totalRemaining = 0;
     let totalCost = 0;
     let totalProfit = 0;
+
     const itemsMap = new Map<string, ShiftItemSold>();
 
     shiftInvoices.forEach(inv => {
@@ -1700,6 +1777,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (inv.items || []).forEach(item => {
         const netQty = Math.max(0, item.quantity - (item.returnedQuantity || 0));
         if (netQty <= 0) return;
+
         const key = item.productId || item.code || item.productName || 'unknown';
         const itemSales = item.unitPrice * netQty;
         const itemCost = (item.costPrice || 0) * netQty;
@@ -1785,7 +1863,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     updateSettings({ supervisors: updated });
     if (activeSupervisorId === id) {
       setActiveSupervisorId(null);
-      try { localStorage.removeItem('active_supervisor_id'); } catch {}
+      try {
+        localStorage.removeItem('active_supervisor_id');
+      } catch {}
     }
   };
 
@@ -1826,6 +1906,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
 
     const detected = detectSystemInfo();
+
     const newShift: Shift = {
       id: newId,
       shiftNumber: nextNum,
@@ -1854,6 +1935,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveShift(newShift);
     const updatedShifts = [newShift, ...shifts.filter(s => s.id !== newId)];
     setShifts(updatedShifts);
+
     try {
       localStorage.setItem(`cached_pos_active_shift_${currentDeviceId}`, JSON.stringify(newShift));
       localStorage.setItem('cached_pos_active_shift', JSON.stringify(newShift));
@@ -1866,6 +1948,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const endShift = async (notes?: string): Promise<Shift | null> => {
     if (!activeShift) return null;
+
     const now = new Date().toISOString();
     const stats = getShiftStats(activeShift);
 
@@ -1892,6 +1975,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveShift(null);
     const updatedShifts = [closedShift, ...shifts.filter(s => s.id !== closedShift.id)];
     setShifts(updatedShifts);
+
     try {
       localStorage.removeItem(`cached_pos_active_shift_${currentDeviceId}`);
       localStorage.removeItem('cached_pos_active_shift');
@@ -1905,18 +1989,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteShift = async (shiftId: string) => {
     const updated = shifts.filter(s => s.id !== shiftId);
     setShifts(updated);
-    try { localStorage.setItem('cached_pos_shifts', JSON.stringify(updated)); } catch {}
+    try {
+      localStorage.setItem('cached_pos_shifts', JSON.stringify(updated));
+    } catch {}
+
     if (activeShift?.id === shiftId) {
       setActiveShift(null);
-      try { 
+      try {
         localStorage.removeItem(`cached_pos_active_shift_${currentDeviceId}`);
-        localStorage.removeItem('cached_pos_active_shift'); 
+        localStorage.removeItem('cached_pos_active_shift');
       } catch {}
     }
+
     saveStoreToCloud({ shifts: updated });
   };
 
   const refreshSessions = async () => {};
+
   const terminateSession = async (sessionIdToTerminate: string): Promise<{ success: boolean }> => {
     if (sessionIdToTerminate === currentSessionId) {
       await logout();
@@ -1967,31 +2056,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider
       value={{
-        products, customers, invoices, payments, settings, storeFeatures,
-        draftOrders, activeDraftId, activeDraft, updateActiveDraft, addNewDraft, switchToDraft, clearCurrentDraft, deleteCurrentDraft, completeActiveDraft,
-        shifts, activeShift, startShift, endShift, getShiftStats, deleteShift,
-        isStartShiftModalOpen, setIsStartShiftModalOpen,
-        isEndShiftModalOpen, setIsEndShiftModalOpen,
-        selectedShiftForDetails, setSelectedShiftForDetails,
-        addPresetShift, updatePresetShift, deletePresetShift,
-        addSupervisor, updateSupervisor, deleteSupervisor,
-        activeSupervisorId, activeSupervisorName,
-        addProduct, addBulkProducts, updateProduct, deleteProduct, batchDeleteProducts, adjustStock,
-        addCustomer, updateCustomer, deleteCustomer,
-        createInvoice, deleteInvoice, returnInvoice, returnPartialInvoice, applyBulkPriceAdjustment,
-        recordPayment, updateSettings, resetToDemo, resetToZero,
-        exportDataJSON, exportCustomBackup, importDataJSON, importProductsOnly, wipeAllProductsFromServer, formatMoney,
-        currentUser, authLoading, isCloudConnected, isSyncing,
-        lastSyncTime, syncNotice, setSyncNotice, syncNow,
-        loginUser, logout,
-        sessionRole, permissions, switchSession, hasPermission,
-        isSessionModalOpen, setIsSessionModalOpen,
-        targetSessionForModal, setTargetSessionForModal,
-        targetSupervisorIdForModal, setTargetSupervisorIdForModal,
+        products,
+        customers,
+        invoices,
+        payments,
+        settings,
+        storeFeatures,
+        draftOrders,
+        activeDraftId,
+        activeDraft,
+        updateActiveDraft,
+        addNewDraft,
+        switchToDraft,
+        clearCurrentDraft,
+        deleteCurrentDraft,
+        completeActiveDraft,
+        shifts,
+        activeShift,
+        startShift,
+        endShift,
+        getShiftStats,
+        deleteShift,
+        isStartShiftModalOpen,
+        setIsStartShiftModalOpen,
+        isEndShiftModalOpen,
+        setIsEndShiftModalOpen,
+        selectedShiftForDetails,
+        setSelectedShiftForDetails,
+        addPresetShift,
+        updatePresetShift,
+        deletePresetShift,
+        addSupervisor,
+        updateSupervisor,
+        deleteSupervisor,
+        activeSupervisorId,
+        activeSupervisorName,
+        addProduct,
+        addBulkProducts,
+        updateProduct,
+        deleteProduct,
+        batchDeleteProducts,
+        adjustStock,
+        addCustomer,
+        updateCustomer,
+        deleteCustomer,
+        createInvoice,
+        deleteInvoice,
+        returnInvoice,
+        returnPartialInvoice,
+        applyBulkPriceAdjustment,
+        recordPayment,
+        updateSettings,
+        resetToDemo,
+        resetToZero,
+        exportDataJSON,
+        exportCustomBackup,
+        importDataJSON,
+        importProductsOnly,
+        wipeAllProductsFromServer,
+        formatMoney,
+        currentUser,
+        authLoading,
+        isCloudConnected,
+        isSyncing,
+        lastSyncTime,
+        syncNotice,
+        setSyncNotice,
+        syncNow,
+        loginUser,
+        logout,
+        sessionRole,
+        permissions,
+        switchSession,
+        hasPermission,
+        isSessionModalOpen,
+        setIsSessionModalOpen,
+        targetSessionForModal,
+        setTargetSessionForModal,
+        targetSupervisorIdForModal,
+        setTargetSupervisorIdForModal,
         openSessionModal,
-        currentDeviceId, currentSessionId, deviceSessions, refreshSessions, terminateSession,
-        isDuplicatesModalOpen, setIsDuplicatesModalOpen,
-        isActiveSessionsModalOpen, setIsActiveSessionsModalOpen,
+        currentDeviceId,
+        currentSessionId,
+        deviceSessions,
+        refreshSessions,
+        terminateSession,
+        isDuplicatesModalOpen,
+        setIsDuplicatesModalOpen,
+        isActiveSessionsModalOpen,
+        setIsActiveSessionsModalOpen,
         duplicateGroups: duplicateGroupsCache,
         refreshDuplicates,
         addSalesRep,

@@ -1,0 +1,6 @@
+{
+  "appId": "com.listmaker.pos",
+  "appName": "برنامج المفكر المحاسبي",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

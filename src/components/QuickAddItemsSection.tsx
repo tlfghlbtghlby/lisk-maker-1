@@ -551,7 +551,7 @@ export const QuickAddItemsSection: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {parsedItems.map((item, idx) => (
                   <tr
-                    key={item.id}
+                    key={`${item.id}_${idx}`}
                     className={`hover:bg-slate-50/80 transition ${
                       !item.isValid ? 'bg-rose-50/50' : ''
                     }`}
