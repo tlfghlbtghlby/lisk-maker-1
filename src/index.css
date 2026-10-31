@@ -26,12 +26,39 @@
     color-scheme: dark;
   }
 
+  /* منع ارتداد صفحة الويب وسلوكيات المتصفح */
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+    touch-action: pan-y;
+  }
+
+  /* جعل التطبيق أصلياً بمنع تحديد النصوص كصفحات الويب وإزالة الوميض الرمادي عند النقر */
+  *, *::before, *::after {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  /* السماح بتحديد النصوص داخل حقول الإدخال حصراً */
+  input, textarea {
+    -webkit-user-select: auto !important;
+    user-select: auto !important;
+  }
+
   body {
     font-family: 'Tajawal', 'Almarai', 'Cairo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     background-color: var(--bg-main);
     color: var(--text-main);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 }
 
@@ -60,13 +87,11 @@
 
 /* Print Styles */
 @media print {
-  /* 1. Global Page definition - minimal top margin so invoice begins directly at the top of the sheet on Page 1 */
   @page {
     size: auto;
     margin: 2mm 5mm 5mm 5mm !important;
   }
 
-  /* 2. Eliminate all application screens, headers, navs, and background modals from layout (0px height) */
   .no-print,
   .no-print *,
   header,
@@ -84,7 +109,6 @@
     box-shadow: none !important;
   }
 
-  /* 3. Reset html, body, and root containers so document flow starts at top 0 of Page 1 */
   html, body {
     background: #ffffff !important;
     color: #000000 !important;
@@ -113,7 +137,6 @@
     background: transparent !important;
   }
 
-  /* 4. Strip all modal overlay bounds and scroll offsets */
   .print-modal-overlay {
     position: static !important;
     inset: auto !important;
@@ -147,7 +170,6 @@
     width: 100% !important;
   }
 
-  /* The inner scroll container around #printable-invoice */
   .print-modal-card > div:not(.no-print),
   .print-invoice-scroll-area {
     padding: 0 !important;
@@ -161,7 +183,6 @@
     width: 100% !important;
   }
 
-  /* 5. Target #printable-invoice directly to begin right at the top of the paper on Page 1 */
   #printable-invoice {
     position: static !important;
     width: 100% !important;
@@ -187,7 +208,6 @@
     font-feature-settings: "liga" 1, "calt" 1 !important;
   }
 
-  /* Allow table to start naturally on Page 1 and flow rows across pages without jumping */
   table {
     page-break-inside: auto !important;
     break-inside: auto !important;
@@ -212,7 +232,6 @@
     break-inside: avoid !important;
   }
 
-  /* 6. دعم حاوية الطباعة الصامتة الفورية في Electron */
   #direct-print-offscreen-container,
   .direct-print-offscreen {
     display: block !important;
