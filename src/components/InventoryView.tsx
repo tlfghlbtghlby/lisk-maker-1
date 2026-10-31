@@ -41,6 +41,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     formatMoney, 
     settings, 
     sessionRole,
+    hasPermission,
     duplicateGroups,
     isDuplicatesModalOpen,
     setIsDuplicatesModalOpen
@@ -52,6 +53,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'stock' | 'profit' | 'price'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // التحقق من صلاحية رؤية سعر التكلفة/الشراء
+  const canViewCost = hasPermission('canViewCostPrice');
 
   // Categories list
   const categories = useMemo(() => {
@@ -90,20 +94,19 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         if (sortBy === 'name') diff = a.name.localeCompare(b.name, 'ar');
         else if (sortBy === 'stock') diff = a.stock - b.stock;
         else if (sortBy === 'price') diff = a.retailPrice - b.retailPrice;
-        else if (sortBy === 'profit') {
+        else if (sortBy === 'profit' && canViewCost) {
           const profitA = a.retailPrice - a.costPrice;
           const profitB = b.retailPrice - b.costPrice;
           diff = profitA - profitB;
         }
         return sortOrder === 'asc' ? diff : -diff;
       });
-  }, [products, selectedCategory, searchQuery, stockFilter, sortBy, sortOrder]);
+  }, [products, selectedCategory, searchQuery, stockFilter, sortBy, sortOrder, canViewCost]);
 
-  // Pagination State (تسريع عرض الجدول ومنع تجميد الشاشة)
+  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(50);
 
-  // إعادة الترقيم للصفحة الأولى عند تغير خيارات البحث أو التصفية
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, selectedCategory, stockFilter, sortBy, sortOrder]);
@@ -133,18 +136,36 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   };
 
   const handleExportCSV = () => {
-    const headers = ['الكود', 'اسم المادة', 'الفئة', 'الوحدة', 'سعر الجملة', 'سعر التجزئة', 'سعر بيع الجملة', 'الكمية بالمخزن', 'الحد الأدنى'];
-    const rows = products.map((p) => [
-      `"${p.code}"`,
-      `"${p.name}"`,
-      `"${p.category}"`,
-      `"${p.unit}"`,
-      p.costPrice,
-      p.retailPrice,
-      p.wholesalePrice,
-      p.stock,
-      p.minStock,
-    ]);
+    const headers = canViewCost 
+      ? ['الكود', 'اسم المادة', 'الفئة', 'الوحدة', 'سعر الجملة (التكلفة)', 'سعر التجزئة', 'سعر بيع الجملة', 'الكمية بالمخزن', 'الحد الأدنى']
+      : ['الكود', 'اسم المادة', 'الفئة', 'الوحدة', 'سعر التجزئة', 'سعر بيع الجملة', 'الكمية بالمخزن', 'الحد الأدنى'];
+
+    const rows = products.map((p) => {
+      if (canViewCost) {
+        return [
+          `"${p.code}"`,
+          `"${p.name}"`,
+          `"${p.category}"`,
+          `"${p.unit}"`,
+          p.costPrice,
+          p.retailPrice,
+          p.wholesalePrice,
+          p.stock,
+          p.minStock,
+        ];
+      } else {
+        return [
+          `"${p.code}"`,
+          `"${p.name}"`,
+          `"${p.category}"`,
+          `"${p.unit}"`,
+          p.retailPrice,
+          p.wholesalePrice,
+          p.stock,
+          p.minStock,
+        ];
+      }
+    });
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -161,9 +182,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     <div className="space-y-6">
       
       {/* Top Valuation Summary Cards */}
-      {sessionRole === 'admin' ? (
+      {canViewCost ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
             <div className="text-xs text-slate-500 mb-1">إجمالي أنواع المواد بالمخزن</div>
             <div className="text-2xl font-black text-slate-900 flex items-center justify-between">
@@ -195,7 +215,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               <span>{formatMoney(expectedProfitValuation)}</span>
             </div>
           </div>
-
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -234,7 +253,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
       {/* Control Bar: Search, Filters, Add Button */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-3">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-          
           {/* Search */}
           <div className="relative flex-1 flex items-center gap-2">
             <div className="relative flex-1">
@@ -270,7 +288,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* زر كشف وإلغاء المواد المكررة */}
             <button
               type="button"
               onClick={() => setIsDuplicatesModalOpen(true)}
@@ -279,7 +296,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300 ring-2 ring-amber-400/30 shadow-2xs'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
               }`}
-              title="كشف المواد المكررة بالباركود، أو المتطابقة 100% بالبيانات وإلغاؤها وحذفها"
             >
               <Copy className="w-3.5 h-3.5 text-amber-600" />
               <span>فحص المواد المكررة</span>
@@ -293,7 +309,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <button
               onClick={handleExportCSV}
               className="px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-200 flex items-center gap-1.5 transition"
-              title="تصدير جدول المواد إلى Excel/CSV"
             >
               <Download className="w-3.5 h-3.5" />
               <span>تصدير Excel</span>
@@ -311,20 +326,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               <button
                 onClick={onOpenQuickAdd}
                 className="px-3.5 py-2 text-xs font-bold text-amber-800 bg-amber-100/90 hover:bg-amber-200 border border-amber-300/80 rounded-lg shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
-                title="إضافة مواد سريعة متعددة بأسطر وفواصل"
               >
                 <Zap className="w-3.5 h-3.5 text-amber-600" />
                 <span>إضافة مواد سريعة</span>
               </button>
             )}
           </div>
-
         </div>
 
         {/* Filter Bar */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
-          
-          {/* Categories */}
           <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
             <span className="text-slate-500 font-medium ml-1">التصنيف:</span>
             {categories.map((cat) => (
@@ -342,7 +353,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             ))}
           </div>
 
-          {/* Stock state filter */}
           <div className="flex items-center gap-1">
             <span className="text-slate-500 font-medium ml-1">حالة المخزن:</span>
             <button
@@ -370,7 +380,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               نافد ({products.filter((p) => p.stock <= 0).length})
             </button>
           </div>
-
         </div>
       </div>
 
@@ -384,12 +393,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 <th className="py-3 px-4">اسم المادة / الصنف</th>
                 <th className="py-3 px-4">التصنيف</th>
                 <th className="py-3 px-4">الوحدة</th>
-                <th className="py-3 px-4 text-emerald-800">سعر تكلفة الجملة (الشراء)</th>
+                {canViewCost && (
+                  <th className="py-3 px-4 text-emerald-800">سعر تكلفة الجملة (الشراء)</th>
+                )}
                 <th className="py-3 px-4 text-slate-900">سعر بيع المفرد</th>
                 {settings.enableWholesale && (
                   <th className="py-3 px-4 text-blue-900">سعر بيع الجملة</th>
                 )}
-                <th className="py-3 px-4 text-slate-700">هامش الربح (مفرق)</th>
+                {canViewCost && (
+                  <th className="py-3 px-4 text-slate-700">هامش الربح (مفرق)</th>
+                )}
                 <th className="py-3 px-4 text-center">الكمية المتوفرة</th>
                 <th className="py-3 px-4 text-center">الإجراءات</th>
               </tr>
@@ -397,7 +410,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <tbody className="divide-y divide-slate-100">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={settings.enableWholesale ? 10 : 9} className="py-12 text-center text-slate-400">
+                  <td colSpan={10} className="py-12 text-center text-slate-400">
                     <Boxes className="w-10 h-10 mx-auto mb-2 text-slate-300" />
                     <p className="font-semibold text-slate-600">لا توجد مواد مطابقة لخيارات البحث</p>
                   </td>
@@ -414,12 +427,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       key={`${prod.id}_${pIdx}`}
                       className="hover:bg-slate-50/70 transition group"
                     >
-                      {/* Code */}
                       <td className="py-3 px-4 font-mono text-xs text-slate-500">
                         #{prod.code}
                       </td>
 
-                      {/* Name */}
                       <td className="py-3 px-4 font-bold text-slate-900">
                         <div>{prod.name}</div>
                         {prod.notes && (
@@ -427,27 +438,27 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                         )}
                       </td>
 
-                      {/* Category */}
                       <td className="py-3 px-4 text-xs text-slate-600">
                         {prod.category}
                       </td>
 
-                      {/* Unit */}
                       <td className="py-3 px-4 text-xs text-slate-500">
                         {prod.unit}
                       </td>
 
                       {/* Cost Price */}
-                      <td className="py-3 px-4 font-bold text-emerald-700">
-                        {formatMoney(prod.costPrice)}
-                      </td>
+                      {canViewCost && (
+                        <td className="py-3 px-4 font-bold text-emerald-700">
+                          {formatMoney(prod.costPrice)}
+                        </td>
+                      )}
 
                       {/* Retail Price */}
                       <td className="py-3 px-4 font-bold text-slate-900">
                         {formatMoney(prod.retailPrice)}
                       </td>
 
-                      {/* Wholesale Selling Price - only if wholesale enabled */}
+                      {/* Wholesale Selling Price */}
                       {settings.enableWholesale && (
                         <td className="py-3 px-4 font-bold text-blue-700">
                           {formatMoney(prod.wholesalePrice)}
@@ -455,14 +466,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       )}
 
                       {/* Margin */}
-                      <td className="py-3 px-4 text-xs">
-                        <div className="font-bold text-emerald-600">
-                          +{formatMoney(retailProfit)}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-medium">
-                          ربح {retailMarginPercent}%
-                        </div>
-                      </td>
+                      {canViewCost && (
+                        <td className="py-3 px-4 text-xs">
+                          <div className="font-bold text-emerald-600">
+                            +{formatMoney(retailProfit)}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-medium">
+                            ربح {retailMarginPercent}%
+                          </div>
+                        </td>
+                      )}
 
                       {/* Stock with quick +/- */}
                       <td className="py-3 px-4">
@@ -482,18 +495,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                       ? 'bg-amber-100 text-amber-900 border border-amber-200'
                                       : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                   }`}
-                                  title={`الرصيد بالوزن: ${prod.stock} كغم`}
                                 >
                                   {prod.stock} كغم {typeof prod.itemCount === 'number' && prod.itemCount > 0 ? `(${prod.itemCount} عدد/كيس)` : ''}
                                 </span>
 
-                                {/* Quick Adjustment Controls for Weight */}
                                 <div className="flex items-center gap-1 text-[11px] whitespace-nowrap">
                                   <button
                                     type="button"
                                     onClick={() => adjustStock(prod.id, -1)}
                                     className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition"
-                                    title="خصم 1 كغم"
                                   >
                                     -1 كغم
                                   </button>
@@ -501,7 +511,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                     type="button"
                                     onClick={() => adjustStock(prod.id, 1)}
                                     className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition"
-                                    title="إضافة 1 كغم"
                                   >
                                     +1 كغم
                                   </button>
@@ -510,7 +519,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                     type="button"
                                     onClick={() => adjustStock(prod.id, 5)}
                                     className="px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold border border-emerald-200 transition"
-                                    title="إضافة 5 كغم"
                                   >
                                     +5 كغم
                                   </button>
@@ -529,18 +537,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                     ? 'bg-amber-100 text-amber-900 border border-amber-200'
                                     : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                 }`}
-                                title={`إجمالي القطع بالمخزن: ${prod.stock} قطعة`}
                               >
                                 {breakdown.formatted}
                               </span>
 
-                              {/* Quick Adjustment Controls */}
                               <div className="flex items-center gap-1 text-[11px] whitespace-nowrap">
                                 <button
                                   type="button"
                                   onClick={() => adjustStock(prod.id, -1)}
                                   className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition"
-                                  title="خصم قطعة واحدة"
                                 >
                                   -1 ق
                                 </button>
@@ -548,7 +553,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                   type="button"
                                   onClick={() => adjustStock(prod.id, 1)}
                                   className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition"
-                                  title="إضافة قطعة واحدة"
                                 >
                                   +1 ق
                                 </button>
@@ -559,7 +563,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                       type="button"
                                       onClick={() => adjustStock(prod.id, -ppc)}
                                       className="px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold border border-amber-200 transition"
-                                      title={`خصم كارتون كامل (${ppc} قطعة)`}
                                     >
                                       -1 كارتون
                                     </button>
@@ -567,7 +570,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                       type="button"
                                       onClick={() => adjustStock(prod.id, ppc)}
                                       className="px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold border border-emerald-200 transition"
-                                      title={`إضافة كارتون كامل (${ppc} قطعة)`}
                                     >
                                       +1 كارتون
                                     </button>
@@ -600,7 +602,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           )}
                         </div>
                       </td>
-
                     </tr>
                   );
                 })
@@ -694,7 +695,6 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         isOpen={isDuplicatesModalOpen}
         onClose={() => setIsDuplicatesModalOpen(false)}
       />
-
     </div>
   );
 };
