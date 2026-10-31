@@ -1119,4 +1119,4 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">العملة المعتمدة</label>
               <div className="flex gap-2">
-                <input type="text" value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-24 px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text
+                <input type="text" value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-24 px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white".
