@@ -374,8 +374,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [shifts, setShifts] = useState<Shift[]>(() => {
     try {
-      const cached = localStorage.getItem('cached_pos_shifts');
-      return cached ? JSON.parse(cached) : [];
+      const activeUser = localStorage.getItem('active_client_session');
+      const uid = activeUser ? JSON.parse(activeUser)?.uid : null;
+      if (uid) {
+        const scopedCached = localStorage.getItem(`cached_pos_shifts_${uid}`);
+        if (scopedCached) {
+          const parsed = JSON.parse(scopedCached);
+          if (Array.isArray(parsed)) {
+            return parsed.filter(s => !s.storeUid || s.storeUid === uid);
+          }
+        }
+      }
+      const genericCached = localStorage.getItem('cached_pos_shifts');
+      if (genericCached) {
+        const parsed = JSON.parse(genericCached);
+        if (Array.isArray(parsed)) {
+          return uid ? parsed.filter(s => !s.storeUid || s.storeUid === uid) : parsed;
+        }
+      }
+      return [];
     } catch {
       return [];
     }
@@ -421,14 +438,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return `${currentUser.uid}_${sessionRole}`;
   }, [currentUser, sessionRole, activeSupervisorId]);
 
-  // استخراج الشفت النشط الحالي الخاص بهذا الحساب فقط دون التداخل مع غيره
+  // استخراج الشفت النشط الحالي الخاص بهذا الحساب والمتجر فقط دون التداخل مع غيره
   const [activeShift, setActiveShift] = useState<Shift | null>(() => {
     try {
+      const activeUser = localStorage.getItem('active_client_session');
+      const uid = activeUser ? JSON.parse(activeUser)?.uid : null;
       const devId = getOrCreateDeviceId();
-      const cachedDev = localStorage.getItem(`cached_pos_active_shift_${devId}`);
+      const scopedCached = uid ? localStorage.getItem(`cached_pos_active_shift_${uid}_${devId}`) : null;
+      const cachedDev = scopedCached || localStorage.getItem(`cached_pos_active_shift_${devId}`);
       if (cachedDev) {
         const parsed = JSON.parse(cachedDev);
-        if (parsed?.status === 'active') return parsed;
+        if (parsed?.status === 'active') {
+          if (!uid || !parsed.storeUid || parsed.storeUid === uid) {
+            return parsed;
+          }
+        }
       }
       return null;
     } catch {
@@ -436,15 +460,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  // مزامنة activeShift عند تبديل المستخدم أو الجلسة لضمان عزله التام
+  // مزامنة activeShift عند تبديل المستخدم أو الجلسة لضمان عزله التام لكل متجر ولكل حساب
   useEffect(() => {
     if (!currentUser) {
       setActiveShift(null);
       return;
     }
 
+    const currentUid = currentUser.uid;
     const myActive = shifts.find(s => {
       if (s.status !== 'active') return false;
+      // لا يُعرض شفت لمتجر آخر إطلاقاً
+      if (s.storeUid && s.storeUid !== currentUid) return false;
+      if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUid) return false;
+
       const shiftOpUid = (s as any).operatorId || s.openedBy?.uid;
       const shiftSupId = (s as any).supervisorId;
 
@@ -453,7 +482,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return (
         shiftOpUid === currentAccountIdentifier ||
-        shiftOpUid === currentUser.uid ||
+        shiftOpUid === currentUid ||
         (s.openedBy?.role === sessionRole && s.deviceId === currentDeviceId)
       );
     });
@@ -847,11 +876,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
   const logout = async () => {
+    const prevUid = currentUser?.uid;
     setCurrentUser(null);
     setProducts([]);
     setCustomers([]);
     setInvoices([]);
     setPayments([]);
+    setShifts([]);
+    setActiveShift(null);
     try {
       localStorage.removeItem('active_client_session');
       localStorage.removeItem('last_active_user_uid');
@@ -863,6 +895,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem('cached_pos_features');
       localStorage.removeItem(`cached_pos_active_shift_${currentDeviceId}`);
       localStorage.removeItem('cached_pos_active_shift');
+      if (prevUid) {
+        localStorage.removeItem(`cached_pos_shifts_${prevUid}`);
+        localStorage.removeItem(`cached_pos_active_shift_${prevUid}_${currentDeviceId}`);
+      }
     } catch (e) {}
     try {
       await supabase.auth.signOut();
@@ -872,12 +908,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!currentUser) {
       setAuthLoading(false);
+      setShifts([]);
+      setActiveShift(null);
       return;
     }
     setAuthLoading(false);
 
     const currentUid = currentUser.uid;
     const storeDocId = `store_${currentUid}`;
+
+    // تهيئة شفتات هذا المتجر تحديداً من التخزين المحلي المعزول فور تبديل الحساب
+    try {
+      const scopedShiftsKey = `cached_pos_shifts_${currentUid}`;
+      const localScoped = localStorage.getItem(scopedShiftsKey);
+      if (localScoped) {
+        const parsed = JSON.parse(localScoped);
+        if (Array.isArray(parsed)) {
+          const cleanLocal = parsed.filter(s => !s.storeUid || s.storeUid === currentUid);
+          setShifts(cleanLocal);
+        } else {
+          setShifts([]);
+        }
+      } else {
+        setShifts([]);
+      }
+    } catch {
+      setShifts([]);
+    }
 
     const loadInitialData = async () => {
       try {
@@ -906,13 +963,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
           }
           if (Array.isArray(storeData.shifts)) {
-            setShifts(prevShifts => {
-              const merged = mergeShifts(prevShifts, storeData.shifts || []);
-              try {
-                localStorage.setItem('cached_pos_shifts', JSON.stringify(merged));
-              } catch {}
-              return merged;
-            });
+            // عزل صارم: تصفية أي شفتات تابعة لمتجر آخر وتخصيصها لمتجر المستخدم الحالي فقط
+            const cleanCloudShifts = (storeData.shifts as Shift[]).filter(s => {
+              if (s.storeUid && s.storeUid !== currentUid) return false;
+              if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUid) {
+                return false;
+              }
+              return true;
+            }).map(s => ({
+              ...s,
+              storeUid: currentUid,
+              storeId: currentUid
+            }));
+
+            setShifts(cleanCloudShifts);
+            try {
+              localStorage.setItem(`cached_pos_shifts_${currentUid}`, JSON.stringify(cleanCloudShifts));
+              localStorage.setItem('cached_pos_shifts', JSON.stringify(cleanCloudShifts));
+            } catch {}
           }
           if (storeData.settings) {
             setSettings(prev => ({ ...prev, ...storeData.settings }));
@@ -974,9 +1042,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       }
       if (Array.isArray(newData.shifts)) {
+        const cleanIncoming = (newData.shifts as Shift[]).filter(s => {
+          if (s.storeUid && s.storeUid !== currentUid) return false;
+          if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUid) return false;
+          return true;
+        }).map(s => ({ ...s, storeUid: currentUid, storeId: currentUid }));
+
         setShifts(prevShifts => {
-          const merged = mergeShifts(prevShifts, newData.shifts || []);
+          const currentStoreShifts = prevShifts.filter(s => !s.storeUid || s.storeUid === currentUid);
+          const merged = mergeShifts(currentStoreShifts, cleanIncoming);
           try {
+            localStorage.setItem(`cached_pos_shifts_${currentUid}`, JSON.stringify(merged));
             localStorage.setItem('cached_pos_shifts', JSON.stringify(merged));
           } catch {}
           return merged;
@@ -1044,11 +1120,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       pendingCloudSyncRef.current.override = {};
 
       try {
+        const rawShifts = (merged.shifts ?? shifts);
+        const storeShifts = rawShifts
+          .filter(s => !s.storeUid || s.storeUid === currentUser.uid)
+          .map(s => ({ ...s, storeUid: currentUser.uid, storeId: currentUser.uid }));
+
         const payload = sanitizePayload({
           products: merged.products ?? products,
           customers: merged.customers ?? customers,
           invoices: merged.invoices ?? invoices,
-          shifts: merged.shifts ?? shifts,
+          shifts: storeShifts,
           settings: merged.settings ?? settings,
           offers: [],
           features: storeFeatures,
@@ -1091,7 +1172,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (cloudData) {
         const mergedProds = mergeProducts(products, cloudData.products || []);
         const mergedInvs = mergeInvoices(invoices, cloudData.invoices || []);
-        const mergedShs = mergeShifts(shifts, cloudData.shifts || []);
+        
+        const cleanCloudShifts = (cloudData.shifts || []).filter((s: Shift) => {
+          if (s.storeUid && s.storeUid !== currentUser.uid) return false;
+          if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUser.uid) return false;
+          return true;
+        }).map((s: Shift) => ({ ...s, storeUid: currentUser.uid, storeId: currentUser.uid }));
+        const currentStoreShifts = shifts.filter(s => !s.storeUid || s.storeUid === currentUser.uid);
+        const mergedShs = mergeShifts(currentStoreShifts, cleanCloudShifts);
+
         const mergedCusts = cloudData.customers || customers;
 
         setProducts(mergedProds);
@@ -1115,6 +1204,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           localStorage.setItem('cached_pos_products', JSON.stringify(mergedProds));
           localStorage.setItem('cached_pos_invoices', JSON.stringify(mergedInvs));
+          localStorage.setItem(`cached_pos_shifts_${currentUser.uid}`, JSON.stringify(mergedShs));
           localStorage.setItem('cached_pos_shifts', JSON.stringify(mergedShs));
           localStorage.setItem('cached_pos_customers', JSON.stringify(mergedCusts));
         } catch (e) {}
@@ -1413,8 +1503,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let updatedShiftsList = shifts;
     if (activeShift) {
+      const currentUid = currentUser?.uid;
       const updatedShift: Shift = {
         ...activeShift,
+        storeUid: currentUid || activeShift.storeUid,
+        storeId: currentUid || activeShift.storeId,
         invoicesCount: (activeShift.invoicesCount || 0) + 1,
         invoicesIds: [...(activeShift.invoicesIds || []), newId],
         totalSales: (activeShift.totalSales || 0) + total,
@@ -1427,6 +1520,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedShiftsList = shifts.map(s => s.id === updatedShift.id ? updatedShift : s);
       setShifts(updatedShiftsList);
       try {
+        if (currentUid) {
+          localStorage.setItem(`cached_pos_active_shift_${currentUid}_${currentDeviceId}`, JSON.stringify(updatedShift));
+          localStorage.setItem(`cached_pos_shifts_${currentUid}`, JSON.stringify(updatedShiftsList));
+        }
         localStorage.setItem(`cached_pos_active_shift_${currentDeviceId}`, JSON.stringify(updatedShift));
         localStorage.setItem('cached_pos_shifts', JSON.stringify(updatedShiftsList));
       } catch {}
@@ -1911,7 +2008,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateSupervisor = async (id: string, updates: Partial<StoreSupervisor>): Promise<void> => {
-    const updated = (settings.supervisors || []).map(s => s.id === id ? { ...s, ...updates } : p);
+    const updated = (settings.supervisors || []).map(s => s.id === id ? { ...s, ...updates } : s);
     updateSettings({ supervisors: updated });
   };
 
@@ -1926,7 +2023,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  // بدء الشفت مع ربطه بهوية الحساب والمشرف المنفذ
+  // بدء الشفت مع ربطه بهوية الحساب والمتجر والمشرف المنفذ
   const startShift = async (
     startingCash: number = 0,
     notes: string = '',
@@ -1964,14 +2061,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
 
     const detected = detectSystemInfo();
+    const currentUid = currentUser?.uid;
 
     const newShift: Shift = {
       id: newId,
       shiftNumber: nextNum,
       startTime: now,
       status: 'active',
+      storeUid: currentUid,
+      storeId: currentUid,
       openedBy: { 
-        uid: currentUser?.uid || 'local', 
+        uid: currentUid || 'local', 
         name: cashierName, 
         role: sessionRole 
       },
@@ -1994,13 +2094,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deviceType: detected.deviceType,
       notes: notes.trim(),
       createdAt: now,
-    } as any;
+    };
 
     setActiveShift(newShift);
     const updatedShifts = [newShift, ...shifts.filter(s => s.id !== newId)];
     setShifts(updatedShifts);
 
     try {
+      if (currentUid) {
+        localStorage.setItem(`cached_pos_active_shift_${currentUid}_${currentDeviceId}`, JSON.stringify(newShift));
+        localStorage.setItem(`cached_pos_shifts_${currentUid}`, JSON.stringify(updatedShifts));
+      }
       localStorage.setItem(`cached_pos_active_shift_${currentDeviceId}`, JSON.stringify(newShift));
       localStorage.setItem('cached_pos_shifts', JSON.stringify(updatedShifts));
     } catch {}
@@ -2014,6 +2118,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const now = new Date().toISOString();
     const stats = getShiftStats(activeShift);
+    const currentUid = currentUser?.uid;
 
     const cashierName = currentUser?.displayName || currentUser?.storeName || (
       sessionRole === 'admin' ? 'المدير' : sessionRole === 'supervisor' ? 'المشرف' : 'الكاشير'
@@ -2021,9 +2126,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const closedShift: Shift = {
       ...activeShift,
+      storeUid: currentUid || activeShift.storeUid,
+      storeId: currentUid || activeShift.storeId,
       endTime: now,
       status: 'closed',
-      closedBy: { uid: currentUser?.uid || 'local', name: cashierName, role: sessionRole },
+      closedBy: { uid: currentUid || 'local', name: cashierName, role: sessionRole },
       invoicesCount: stats.invoicesCount,
       invoicesIds: stats.invoices.map(i => i.id),
       totalSales: stats.totalSales,
@@ -2040,6 +2147,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setShifts(updatedShifts);
 
     try {
+      if (currentUid) {
+        localStorage.removeItem(`cached_pos_active_shift_${currentUid}_${currentDeviceId}`);
+        localStorage.setItem(`cached_pos_shifts_${currentUid}`, JSON.stringify(updatedShifts));
+      }
       localStorage.removeItem(`cached_pos_active_shift_${currentDeviceId}`);
       localStorage.removeItem('cached_pos_active_shift');
       localStorage.setItem('cached_pos_shifts', JSON.stringify(updatedShifts));
@@ -2050,15 +2161,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteShift = async (shiftId: string) => {
+    const currentUid = currentUser?.uid;
     const updated = shifts.filter(s => s.id !== shiftId);
     setShifts(updated);
     try {
+      if (currentUid) {
+        localStorage.setItem(`cached_pos_shifts_${currentUid}`, JSON.stringify(updated));
+      }
       localStorage.setItem('cached_pos_shifts', JSON.stringify(updated));
     } catch {}
 
     if (activeShift?.id === shiftId) {
       setActiveShift(null);
       try {
+        if (currentUid) {
+          localStorage.removeItem(`cached_pos_active_shift_${currentUid}_${currentDeviceId}`);
+        }
         localStorage.removeItem(`cached_pos_active_shift_${currentDeviceId}`);
         localStorage.removeItem('cached_pos_active_shift');
       } catch {}
@@ -2112,6 +2230,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginUser = async (user: any): Promise<{ success: boolean; error?: string } | void> => {
     setCurrentUser(user);
+    setShifts([]);
+    setActiveShift(null);
     setAuthLoading(false);
     return { success: true };
   };

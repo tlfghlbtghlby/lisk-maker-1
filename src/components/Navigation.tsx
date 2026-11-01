@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -10,7 +10,20 @@ interface NavigationProps {
 }
 
 export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }) => {
-  const { products, invoices, customers, shifts, activeShift, hasPermission, settings, storeFeatures } = useApp();
+  const { 
+    products, 
+    invoices, 
+    customers, 
+    shifts, 
+    activeShift, 
+    hasPermission, 
+    settings, 
+    storeFeatures,
+    currentUser,
+    sessionRole,
+    activeSupervisorId,
+    currentDeviceId 
+  } = useApp();
 
   // فحص صارم: الميزة يجب أن تكون مفعلة في ترخيص المتجر أولاً، ثم مطابقة لصلاحية الجلسة
   const isShiftsPermitted = storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts');
@@ -18,6 +31,32 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
 
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
   const activeDebtCustomers = customers.filter((c) => c.totalDebt > 0).length;
+
+  // إحصاء شفتات هذا المتجر وهذا الحساب تحديداً لعزلها عن أي حساب أو متجر آخر
+  const accountShiftsCount = useMemo(() => {
+    let list = shifts;
+    if (currentUser?.uid) {
+      list = list.filter(s => {
+        if (s.storeUid && s.storeUid !== currentUser.uid) return false;
+        if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUser.uid) return false;
+        return true;
+      });
+    }
+    if (sessionRole !== 'admin') {
+      list = list.filter(s => {
+        const opId = (s as any).operatorId;
+        const supId = (s as any).supervisorId;
+        if (sessionRole === 'supervisor' && activeSupervisorId) {
+          return supId === activeSupervisorId || opId?.includes(activeSupervisorId);
+        }
+        return (
+          opId === `${currentUser?.uid}_${sessionRole}` ||
+          (s.openedBy?.role === sessionRole && s.deviceId === currentDeviceId)
+        );
+      });
+    }
+    return list.length;
+  }, [shifts, currentUser?.uid, sessionRole, activeSupervisorId, currentDeviceId]);
 
   const allNavItems: { id: TabType; label: string; icon: React.ReactNode; badge?: number | string; badgeColor?: string; permitted: boolean }[] = [
     {
@@ -54,7 +93,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
       id: 'shifts',
       label: 'الشفتات والورديات',
       icon: <Clock className="w-4 h-4" />,
-      badge: activeShift ? '🟢 شفت جارٍ' : (shifts.length > 0 ? shifts.length : undefined),
+      badge: activeShift ? '🟢 شفت جارٍ' : (accountShiftsCount > 0 ? accountShiftsCount : undefined),
       badgeColor: activeShift ? 'text-emerald-700 bg-emerald-100 animate-pulse font-bold' : 'text-slate-600 bg-slate-100',
       permitted: isShiftsPermitted,
     },

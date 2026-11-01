@@ -62,13 +62,19 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
   } = useApp();
 
   const otherActiveShifts = useMemo(() => {
-    // تظهر الشفتات المتوازية فقط للمدير العام للرقابة
+    // تظهر الشفتات المتوازية فقط للمدير العام للرقابة ولنفس المتجر
     if (sessionRole !== 'admin') return [];
-    return shifts.filter(s => s.status === 'active' && s.id !== activeShift?.id);
-  }, [shifts, activeShift, sessionRole]);
+    return shifts.filter(s => {
+      if (s.status !== 'active' || s.id === activeShift?.id) return false;
+      if (currentUser?.uid && s.storeUid && s.storeUid !== currentUser.uid) return false;
+      if (currentUser?.uid && s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUser.uid) return false;
+      return true;
+    });
+  }, [shifts, activeShift, sessionRole, currentUser?.uid]);
 
   const [mainTab, setMainTab] = useState<'records' | 'presets'>('records');
   const [dateFilter, setDateFilter] = useState<'today' | 'yesterday' | 'week' | 'month' | 'all'>('all');
+  const [accountFilter, setAccountFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeElapsed, setActiveElapsed] = useState('00:00:00');
 
@@ -79,6 +85,23 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
   const [presetCode, setPresetCode] = useState('');
   const [presetNotes, setPresetNotes] = useState('');
   const [presetFeedback, setPresetFeedback] = useState<string | null>(null);
+
+  // قائمة الحسابات والكواشير المتاحة داخل المتجر للتصفية
+  const availableAccounts = useMemo(() => {
+    const list: { id: string; label: string }[] = [{ id: 'all', label: 'كافة الحسابات' }];
+    const seen = new Set<string>();
+    shifts.forEach(s => {
+      if (currentUser?.uid && s.storeUid && s.storeUid !== currentUser.uid) return;
+      if (currentUser?.uid && s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUser.uid) return false;
+      const key = (s as any).operatorId || s.openedBy?.name || s.openedBy?.role;
+      const label = s.openedBy?.name || (s.openedBy?.role === 'admin' ? 'المدير' : s.openedBy?.role === 'supervisor' ? 'المشرف' : 'الكاشير');
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        list.push({ id: key, label });
+      }
+    });
+    return list;
+  }, [shifts, currentUser?.uid]);
 
   // عداد الوقت المباشر للشفت النشط
   useEffect(() => {
@@ -102,10 +125,21 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
     return () => clearInterval(interval);
   }, [activeShift]);
 
-  // عزل وتصفية الشفتات: المدير يرى كل شيء، بينما المشرف والكاشير يرى شفتاته فقط
+  // عزل وتصفية الشفتات: عزل المتجر أولاً، ثم عزل الحساب والجلسة
   const filteredShifts = useMemo(() => {
     let list = [...shifts];
 
+    // 1. عزل المتجر: استبعاد أي شفت يعود لمتجر آخر أو حساب آخر
+    if (currentUser?.uid) {
+      const currentUid = currentUser.uid;
+      list = list.filter(s => {
+        if (s.storeUid && s.storeUid !== currentUid) return false;
+        if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUid) return false;
+        return true;
+      });
+    }
+
+    // 2. عزل الحساب والجلسة: إذا لم يكن المدير العام، إظهار شفتات هذا المشرف أو الكاشير فقط
     if (sessionRole !== 'admin') {
       list = list.filter(s => {
         const opId = (s as any).operatorId;
@@ -116,9 +150,12 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
         }
         return (
           opId === `${currentUser?.uid}_${sessionRole}` ||
-          s.openedBy?.role === sessionRole && s.deviceId === currentDeviceId
+          (s.openedBy?.role === sessionRole && s.deviceId === currentDeviceId)
         );
       });
+    } else if (accountFilter !== 'all') {
+      // فلتر الحساب للمدير العام إذا رغب في رؤية شفتات حساب محدد
+      list = list.filter(s => (s as any).operatorId === accountFilter || s.openedBy?.name === accountFilter);
     }
 
     // فلتر التاريخ
@@ -153,7 +190,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
     }
 
     return list;
-  }, [shifts, sessionRole, activeSupervisorId, currentUser?.uid, currentDeviceId, dateFilter, searchQuery]);
+  }, [shifts, sessionRole, activeSupervisorId, currentUser?.uid, currentDeviceId, accountFilter, dateFilter, searchQuery]);
 
   // إحصائيات الفترة المحددة
   const periodTotals = useMemo(() => {
@@ -810,15 +847,32 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
               ))}
             </div>
 
-            <div className="relative w-full md:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="بحث برقم الشفت أو اسم الكاشير..."
-                className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
-              />
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              {sessionRole === 'admin' && availableAccounts.length > 2 && (
+                <div className="relative shrink-0">
+                  <select
+                    value={accountFilter}
+                    onChange={(e) => setAccountFilter(e.target.value)}
+                    className="pl-3 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                    title="تصفية حسب حساب الكاشير أو المشرف"
+                  >
+                    {availableAccounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>{acc.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="relative w-full md:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="بحث برقم الشفت أو اسم الكاشير..."
+                  className="w-full pl-3 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition"
+                />
+              </div>
             </div>
           </div>
 

@@ -182,6 +182,10 @@ export interface Shift {
   startTime: string;
   endTime?: string;
   status: 'active' | 'closed';
+  storeUid?: string;
+  storeId?: string;
+  operatorId?: string;
+  supervisorId?: string;
   openedBy: {
     uid: string;
     name: string;
