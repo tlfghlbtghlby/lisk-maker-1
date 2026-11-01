@@ -396,21 +396,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isDuplicatesModalOpen, setIsDuplicatesModalOpen] = useState(false);
   const [isActiveSessionsModalOpen, setIsActiveSessionsModalOpen] = useState(false);
 
+  const [sessionRole, setSessionRole] = useState<SessionRole>(() => {
+    try {
+      const saved = localStorage.getItem('active_session_role') as SessionRole;
+      if (saved === 'admin' || saved === 'supervisor' || saved === 'employee') return saved;
+    } catch {}
+    return 'employee';
+  });
+
+  const [activeSupervisorId, setActiveSupervisorId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('active_supervisor_id') || null;
+    } catch {
+      return null;
+    }
+  });
+
+  // معرف فريد ومستقل لكل مستخدم لعزل شفته النشطة
+  const currentAccountIdentifier = useMemo(() => {
+    if (!currentUser) return 'guest';
+    if (sessionRole === 'supervisor' && activeSupervisorId) {
+      return `${currentUser.uid}_sup_${activeSupervisorId}`;
+    }
+    return `${currentUser.uid}_${sessionRole}`;
+  }, [currentUser, sessionRole, activeSupervisorId]);
+
+  // استخراج الشفت النشط الحالي الخاص بهذا الحساب فقط دون التداخل مع غيره
   const [activeShift, setActiveShift] = useState<Shift | null>(() => {
     try {
       const devId = getOrCreateDeviceId();
       const cachedDev = localStorage.getItem(`cached_pos_active_shift_${devId}`);
-      if (cachedDev) return JSON.parse(cachedDev);
-      const cached = localStorage.getItem('cached_pos_active_shift');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (!parsed.deviceId || parsed.deviceId === devId) return parsed;
+      if (cachedDev) {
+        const parsed = JSON.parse(cachedDev);
+        if (parsed?.status === 'active') return parsed;
       }
       return null;
     } catch {
       return null;
     }
   });
+
+  // مزامنة activeShift عند تبديل المستخدم أو الجلسة لضمان عزله التام
+  useEffect(() => {
+    if (!currentUser) {
+      setActiveShift(null);
+      return;
+    }
+
+    const myActive = shifts.find(s => {
+      if (s.status !== 'active') return false;
+      const shiftOpUid = (s as any).operatorId || s.openedBy?.uid;
+      const shiftSupId = (s as any).supervisorId;
+
+      if (sessionRole === 'supervisor' && activeSupervisorId) {
+        return shiftSupId === activeSupervisorId || shiftOpUid === currentAccountIdentifier;
+      }
+      return (
+        shiftOpUid === currentAccountIdentifier ||
+        shiftOpUid === currentUser.uid ||
+        (s.openedBy?.role === sessionRole && s.deviceId === currentDeviceId)
+      );
+    });
+
+    setActiveShift(myActive || null);
+  }, [shifts, currentUser, sessionRole, activeSupervisorId, currentAccountIdentifier, currentDeviceId]);
 
   const [isStartShiftModalOpen, setIsStartShiftModalOpen] = useState(false);
   const [isEndShiftModalOpen, setIsEndShiftModalOpen] = useState(false);
@@ -584,22 +633,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const completeActiveDraft = () => deleteCurrentDraft();
 
-  const [sessionRole, setSessionRole] = useState<SessionRole>(() => {
-    try {
-      const saved = localStorage.getItem('active_session_role') as SessionRole;
-      if (saved === 'admin' || saved === 'supervisor' || saved === 'employee') return saved;
-    } catch {}
-    return 'employee';
-  });
-
-  const [activeSupervisorId, setActiveSupervisorId] = useState<string | null>(() => {
-    try {
-      return localStorage.getItem('active_supervisor_id') || null;
-    } catch {
-      return null;
-    }
-  });
-
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
   const [targetSessionForModal, setTargetSessionForModal] = useState<SessionRole | null>(null);
   const [targetSupervisorIdForModal, setTargetSupervisorIdForModal] = useState<string | null>(null);
@@ -670,7 +703,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    // إذا كانت الصلاحية المطلوبة تخص رؤية التكلفة أو التقارير/الأرباح، وتكلفة الشراء معطلة -> احجبها فوراً
+    // إذا كانت صلاحية سعر التكلفة غير مفعلة، تحجب الأرباح والتقارير المالية تلقائياً
     const canSeeCost = !!permissions.canViewCostPrice;
     if (!canSeeCost && (action === 'canViewCostPrice' || action === 'canViewReports')) {
       return false;
@@ -828,6 +861,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem('cached_pos_settings');
       localStorage.removeItem('cached_pos_shifts');
       localStorage.removeItem('cached_pos_features');
+      localStorage.removeItem(`cached_pos_active_shift_${currentDeviceId}`);
       localStorage.removeItem('cached_pos_active_shift');
     } catch (e) {}
     try {
@@ -1016,7 +1050,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           invoices: merged.invoices ?? invoices,
           shifts: merged.shifts ?? shifts,
           settings: merged.settings ?? settings,
-          offers: [], // تم تثبيتها كمصفوفة فارغة دائمة لمنع أي خطأ ReferenceError
+          offers: [],
           features: storeFeatures,
           lastSavedByClient: currentSessionId,
           updatedAt: new Date().toISOString()
@@ -1393,7 +1427,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedShiftsList = shifts.map(s => s.id === updatedShift.id ? updatedShift : s);
       setShifts(updatedShiftsList);
       try {
-        localStorage.setItem('cached_pos_active_shift', JSON.stringify(updatedShift));
+        localStorage.setItem(`cached_pos_active_shift_${currentDeviceId}`, JSON.stringify(updatedShift));
         localStorage.setItem('cached_pos_shifts', JSON.stringify(updatedShiftsList));
       } catch {}
     }
@@ -1877,7 +1911,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateSupervisor = async (id: string, updates: Partial<StoreSupervisor>): Promise<void> => {
-    const updated = (settings.supervisors || []).map(s => s.id === id ? { ...s, ...updates } : s);
+    const updated = (settings.supervisors || []).map(s => s.id === id ? { ...s, ...updates } : p);
     updateSettings({ supervisors: updated });
   };
 
@@ -1892,6 +1926,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // بدء الشفت مع ربطه بهوية الحساب والمشرف المنفذ
   const startShift = async (
     startingCash: number = 0,
     notes: string = '',
@@ -1935,7 +1970,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       shiftNumber: nextNum,
       startTime: now,
       status: 'active',
-      openedBy: { uid: currentUser?.uid || 'local', name: cashierName, role: sessionRole },
+      openedBy: { 
+        uid: currentUser?.uid || 'local', 
+        name: cashierName, 
+        role: sessionRole 
+      },
+      operatorId: currentAccountIdentifier,
+      supervisorId: activeSupervisorId || undefined,
       startingCash,
       invoicesCount: 0,
       invoicesIds: [],
@@ -1953,7 +1994,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deviceType: detected.deviceType,
       notes: notes.trim(),
       createdAt: now,
-    };
+    } as any;
 
     setActiveShift(newShift);
     const updatedShifts = [newShift, ...shifts.filter(s => s.id !== newId)];
@@ -1961,7 +2002,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       localStorage.setItem(`cached_pos_active_shift_${currentDeviceId}`, JSON.stringify(newShift));
-      localStorage.setItem('cached_pos_active_shift', JSON.stringify(newShift));
       localStorage.setItem('cached_pos_shifts', JSON.stringify(updatedShifts));
     } catch {}
 
