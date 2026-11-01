@@ -51,6 +51,19 @@ export const isVersionOutdated = (current: string, minRequired: string): boolean
   }
 };
 
+export const sanitizeForFirestore = (obj: any): any => {
+  if (obj === undefined) return null;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeForFirestore);
+  const clean: Record<string, any> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined) {
+      clean[key] = sanitizeForFirestore(val);
+    }
+  }
+  return clean;
+};
+
 export interface CustomBackupOptions {
   scope: 'all' | 'products_only' | 'settings_only' | 'custom';
   includeProducts?: boolean;
@@ -647,12 +660,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [sessionRole, activeSupervisorId, settings.supervisors, settings.supervisorPermissions, settings.employeePermissions]);
 
   const hasPermission = (action: keyof RolePermissions): boolean => {
+    if (sessionRole === 'admin' || currentUser?.role === 'admin') {
+      return true;
+    }
     if ((action === 'canAccessShifts' || action === 'canManageShifts' || action === 'canConfigureShifts') && storeFeatures?.enableShifts === false) {
       return false;
     }
     if (action === 'canManageSalesReps' && storeFeatures?.enableSalesReps === false) {
       return false;
     }
+
+    // إذا كانت الصلاحية المطلوبة تخص رؤية التكلفة أو التقارير/الأرباح، وتكلفة الشراء معطلة -> احجبها فوراً
+    const canSeeCost = !!permissions.canViewCostPrice;
+    if (!canSeeCost && (action === 'canViewCostPrice' || action === 'canViewReports')) {
+      return false;
+    }
+
     return !!permissions[action];
   };
 

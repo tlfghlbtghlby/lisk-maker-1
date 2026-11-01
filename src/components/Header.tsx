@@ -322,7 +322,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
           </div>
 
           {/* Today Profit (للأدمن والمصرح لهم فقط) */}
-          {hasPermission('canViewReports') && (
+          {hasPermission('canViewCostPrice') && hasPermission('canViewReports') && (
             <div className="bg-slate-800/90 border border-slate-700/70 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shrink-0 whitespace-nowrap">
               <div className="w-6 h-6 rounded-md bg-blue-500/20 text-blue-400 flex items-center justify-center">
                 <TrendingUp className="w-3.5 h-3.5" />

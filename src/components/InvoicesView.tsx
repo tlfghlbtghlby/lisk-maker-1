@@ -135,7 +135,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
           </div>
         )}
 
-        {hasPermission('canViewReports') && (
+        {hasPermission('canViewCostPrice') && hasPermission('canViewReports') && (
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
             <div className="text-xs text-slate-500 mb-1">إجمالي الأرباح المحققة</div>
             <div className="text-2xl font-black text-blue-700">
@@ -251,7 +251,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
                 <th className="py-3 px-4 text-slate-900">المبلغ الإجمالي</th>
                 <th className="py-3 px-4 text-emerald-800">المسدد نقداً</th>
                 <th className="py-3 px-4 text-amber-800">المتبقي (آجل)</th>
-                {hasPermission('canViewReports') && (
+                {hasPermission('canViewCostPrice') && hasPermission('canViewReports') && (
                   <th className="py-3 px-4 text-blue-900">ربح القائمة</th>
                 )}
                 <th className="py-3 px-4 text-center">الإجراءات</th>
@@ -260,7 +260,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
             <tbody className="divide-y divide-slate-100">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={hasPermission('canViewReports') ? 10 : 9} className="py-12 text-center text-slate-400">
+                  <td colSpan={(hasPermission('canViewCostPrice') && hasPermission('canViewReports')) ? 10 : 9} className="py-12 text-center text-slate-400">
                     <FileText className="w-10 h-10 mx-auto mb-2 text-slate-300" />
                     <p className="font-semibold text-slate-600">لا توجد قوائم مطابقة</p>
                     <p className="text-xs text-slate-400 mt-1">ابدأ بإنشاء قائمة جديدة من شاشة نقطة البيع</p>
@@ -362,7 +362,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
                       </td>
 
                       {/* Net Profit */}
-                      {hasPermission('canViewReports') && (
+                      {hasPermission('canViewCostPrice') && hasPermission('canViewReports') && (
                         <td className="py-3 px-4 text-xs font-bold text-blue-700">
                           +{formatMoney(inv.netProfit)}
                         </td>
