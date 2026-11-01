@@ -13,7 +13,9 @@ export const ShiftHeaderButton: React.FC<ShiftHeaderButtonProps> = ({ onOpenShif
     setIsStartShiftModalOpen, 
     setIsEndShiftModalOpen,
     setSelectedShiftForDetails,
-    getShiftStats
+    getShiftStats,
+    sessionRole,
+    activeSupervisorId
   } = useApp();
 
   const [elapsed, setElapsed] = useState<string>('00:00:00');
@@ -48,7 +50,7 @@ export const ShiftHeaderButton: React.FC<ShiftHeaderButtonProps> = ({ onOpenShif
     return null;
   }
 
-  // إذا لم يكن هناك شفت نشط -> إظهار زر "بدء الشفت"
+  // إذا لم يكن هناك شفت نشط خاص بهذا المستخدم -> إظهار زر "بدء الشفت"
   if (!activeShift) {
     return (
       <button
@@ -63,7 +65,7 @@ export const ShiftHeaderButton: React.FC<ShiftHeaderButtonProps> = ({ onOpenShif
     );
   }
 
-  // إذا كان هناك شفت نشط -> إظهار المؤقت الحي مع خيار إنهاء الشفت أو معاينته
+  // إذا كان هناك شفت نشط خاص بهذا المستخدم -> إظهار المؤقت الحي والزر الخاص به
   const handleShiftClick = () => {
     if (hasPermission('canManageShifts')) {
       setIsEndShiftModalOpen(true);
