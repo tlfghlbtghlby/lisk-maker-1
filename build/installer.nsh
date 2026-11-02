@@ -1,8 +1,5 @@
 !macro customInstall
-  ; ضبط ترميز النصوص في سكريبت التثبيت
-  Unicode true
-
-  ; إنشاء اختصارات سطح المكتب الرسمية لكل قسم مع أيقونتها ومعامل التشغيل
+  ; إنشاء اختصارات سطح المكتب لأقسام البرنامج
   CreateShortcut "$DESKTOP\المفكر المحاسبي - نقطة البيع.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--open-route=pos" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0 "" "" "تشغيل شاشة نقطة البيع والمبيعات مباشرة"
   CreateShortcut "$DESKTOP\المفكر المحاسبي - المواد والمخزون.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--open-route=inventory" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0 "" "" "تشغيل شاشة المواد والمخزون مباشرة"
   CreateShortcut "$DESKTOP\المفكر المحاسبي - سجل الفواتير.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--open-route=invoices" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0 "" "" "تشغيل شاشة سجل القوائم والفواتير مباشرة"
@@ -13,7 +10,7 @@
 !macroend
 
 !macro customUnInstall
-  ; حذف كافة الاختصارات تلقائياً عند إلغاء تثبيت البرنامج
+  ; حذف الاختصارات تلقائياً عند إلغاء التثبيت
   Delete "$DESKTOP\المفكر المحاسبي - نقطة البيع.lnk"
   Delete "$DESKTOP\المفكر المحاسبي - المواد والمخزون.lnk"
   Delete "$DESKTOP\المفكر المحاسبي - سجل الفواتير.lnk"
