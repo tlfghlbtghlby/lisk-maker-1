@@ -66,10 +66,24 @@ function parseOpenRoute(argvList = process.argv) {
   return '';
 }
 
-// 1. فتح نافذة مستقلة لأي تبويب يُطلب
+// 1. إنشاء نافذة منفصلة مستقلة (تعمل عند الكليك أيمن أو فتح اختصار مخصص)
 function createSectionWindow(route = 'pos', title = '') {
   const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
-  const windowTitle = title || TAB_TITLES_MAP[cleanRoute] || 'قسم فرعي';
+
+  const titlesMap = {
+    pos: 'نقطة البيع',
+    inventory: 'المواد والمخزون',
+    invoices: 'سجل القوائم والفواتير',
+    shifts: 'الشفتات والورديات',
+    customers: 'حسابات الزبائن',
+    debts: 'البيع الآجل والديون',
+    reports: 'التقارير المالية',
+    settings: 'الإعدادات العامة',
+    'sales-reps': 'المندوبين',
+    quick_add: 'إضافة مواد سريعة'
+  };
+
+  const windowTitle = title || titlesMap[cleanRoute] || 'نافذة مخصصة';
 
   const win = new BrowserWindow({
     width: 1280,
@@ -109,7 +123,7 @@ function createSectionWindow(route = 'pos', title = '') {
   return win;
 }
 
-// 2. النافذة الرئيسية العامة
+// 2. إنشاء النافذة الرئيسية بكامل الأشرطة والهيدر
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 1366,
@@ -135,6 +149,7 @@ function createMainWindow() {
   });
 
   const indexPath = path.join(__dirname, 'dist/index.html');
+
   if (app.isPackaged) {
     mainWindow.loadFile(indexPath);
   } else {
@@ -148,123 +163,43 @@ function createMainWindow() {
   return mainWindow;
 }
 
-// دالة إنشاء الاختصار المعتمدة والمتوافقة 100% مع الأسماء العربية ونظام Windows
-function createWindowsShortcut({ route, name, title }) {
-  return new Promise((resolve) => {
-    try {
-      const desktopPath = app.getPath('desktop');
-      const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
-
-      const titlesMap = {
-        pos: 'نقطة البيع وقائمة جديدة',
-        inventory: 'المواد والمخزون',
-        invoices: 'سجل القوائم والفواتير',
-        shifts: 'الشفتات والورديات',
-        customers: 'البيع الآجل وحسابات الديون',
-        debts: 'حسابات الديون',
-        reports: 'الأرباح والتقارير المالية',
-        settings: 'الإعدادات والنسخ الاحتياطي',
-        'sales-reps': 'مندوبو المبيعات',
-        quick_add: 'الإضافة السريعة',
-        offers: 'العروض الترويجية'
-      };
-
-      const rawName = name || title || titlesMap[cleanRoute] || 'قسم فرعي';
-      const safeName = rawName.replace(/[/\\?%*:|"<>]/g, '').trim();
-      const fileName = `المفكر - ${safeName}.lnk`;
-      const lnkPath = path.join(desktopPath, fileName);
-
-      let targetExe = process.execPath;
-      let args = `--open-route=${cleanRoute}`;
-
-      if (!app.isPackaged) {
-        targetExe = process.execPath;
-        args = `"${path.resolve(__dirname)}" --open-route=${cleanRoute}`;
-      }
-
-      if (process.platform === 'win32') {
-        // 1. المحاولة الأولى عبر واجهة Electron الرسمية
-        try {
-          const success = shell.writeShortcutLink(lnkPath, 'replace', {
-            target: targetExe,
-            args: args,
-            cwd: path.dirname(targetExe),
-            icon: targetExe,
-            iconIndex: 0,
-            description: `برنامج المفكر المحاسبي - ${safeName}`
-          });
-
-          if (success && fs.existsSync(lnkPath)) {
-            console.log(`[Shortcut Created via Shell]: ${lnkPath}`);
-            return resolve({ success: true, path: lnkPath, fileName });
-          }
-        } catch (e) {
-          console.warn('writeShortcutLink failed, trying UTF-16 VBScript fallback:', e);
-        }
-
-        // 2. المحاولة الثانية: كتابة ملف VBScript مؤقت بترميز UTF-16 LE (يحفظ الحروف العربية بدقة تامة ويمنع تشويه المسار)
-        const vbsPath = path.join(app.getPath('temp'), `shortcut_${Date.now()}.vbs`);
-        const vbsContent = [
-          'Set ws = CreateObject("WScript.Shell")',
-          `Set sc = ws.CreateShortcut("${lnkPath.replace(/\\/g, '\\\\')}")`,
-          `sc.TargetPath = "${targetExe.replace(/\\/g, '\\\\')}"`,
-          `sc.Arguments = "${args.replace(/"/g, '""')}"`,
-          `sc.WorkingDirectory = "${path.dirname(targetExe).replace(/\\/g, '\\\\')}"`,
-          `sc.IconLocation = "${targetExe.replace(/\\/g, '\\\\')},0"`,
-          `sc.Description = "المفكر - ${safeName}"`,
-          'sc.Save'
-        ].join('\r\n');
-
-        // إضافة علامة Byte Order Mark (BOM) لفرض قراءة الملف بنظام UTF-16LE من قبل الويندوز
-        const bom = Buffer.from([0xFF, 0xFE]);
-        const textBuffer = Buffer.from(vbsContent, 'utf16le');
-        fs.writeFileSync(vbsPath, Buffer.concat([bom, textBuffer]));
-
-        exec(`cscript //nologo "${vbsPath}"`, (err) => {
-          try { fs.unlinkSync(vbsPath); } catch (_) {}
-
-          if (err || !fs.existsSync(lnkPath)) {
-            console.error('VBScript failed, attempting simple PowerShell command:', err);
-
-            // 3. محاولة أخيرة عبر سطر PowerShell مباشر بملف سكربت مؤقت
-            const psPath = path.join(app.getPath('temp'), `shortcut_${Date.now()}.ps1`);
-            const psContent = `
-$ws = New-Object -ComObject WScript.Shell
-$s = $ws.CreateShortcut('${lnkPath}')
-$s.TargetPath = '${targetExe}'
-$s.Arguments = '${args}'
-$s.WorkingDirectory = '${path.dirname(targetExe)}'
-$s.Save()
-`;
-            fs.writeFileSync(psPath, psContent, 'utf8');
-            exec(`powershell -ExecutionPolicy Bypass -File "${psPath}"`, (psErr) => {
-              try { fs.unlinkSync(psPath); } catch (_) {}
-              if (psErr || !fs.existsSync(lnkPath)) {
-                return resolve({ success: false, error: psErr ? psErr.message : 'تعذر حفظ الاختصار' });
-              }
-              resolve({ success: true, path: lnkPath, fileName });
-            });
-            return;
-          }
-
-          resolve({ success: true, path: lnkPath, fileName });
-        });
-      } else {
-        resolve({ success: false, error: 'هذه الميزة مخصصة لنظام Windows فقط' });
-      }
-    } catch (err) {
-      console.error('Shortcut critical error:', err);
-      resolve({ success: false, error: err.message });
-    }
-  });
-}
-
+// 3. دالة بدء التطبيق للتمييز بين الاختصار المباشر والتشغيل العادي
 function startApp() {
   const openRoute = parseOpenRoute();
   if (openRoute) {
     createSectionWindow(openRoute, '');
   } else {
     createMainWindow();
+  }
+}
+
+// 4. إنشاء اختصار سطح المكتب اليدوي (عند طلب الكليك أيمن) عبر Electron Shell الأصلي بنسبة 100%
+function createWindowsShortcut({ route, name, title }) {
+  try {
+    const desktopPath = app.getPath('desktop');
+    const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
+    const rawName = name || title || 'القسم';
+    const safeName = rawName.replace(/[/\\?%*:|"<>]/g, '').trim();
+    const fileName = `المفكر المحاسبي - ${safeName}.lnk`;
+    const lnkPath = path.join(desktopPath, fileName);
+    const exePath = process.execPath;
+    const args = `--open-route=${cleanRoute}`;
+
+    if (process.platform === 'win32') {
+      const success = shell.writeShortcutLink(lnkPath, 'replace', {
+        target: exePath,
+        args: args,
+        cwd: path.dirname(exePath),
+        icon: exePath,
+        iconIndex: 0,
+        description: `المفكر المحاسبي - ${safeName}`
+      });
+      return { success, path: lnkPath, fileName };
+    }
+    return { success: true, path: lnkPath, fileName };
+  } catch (e) {
+    console.error('Shortcut creation error:', e);
+    return { success: false, error: e.message };
   }
 }
 
@@ -275,13 +210,15 @@ ipcMain.handle('get-printers', async (event) => {
   return await win.webContents.getPrintersAsync();
 });
 
+ipcMain.handle('create-desktop-shortcut', async (event, payload) => {
+  const route = payload?.route || 'pos';
+  const name = payload?.name || payload?.title || 'القسم';
+  return createWindowsShortcut({ route, name });
+});
+
 ipcMain.handle('open-section-window', (event, { route, title }) => {
   createSectionWindow(route || 'pos', title || '');
   return { success: true };
-});
-
-ipcMain.handle('create-desktop-shortcut', async (event, payload) => {
-  return await createWindowsShortcut(payload || {});
 });
 
 ipcMain.handle('get-initial-route', (event) => {
