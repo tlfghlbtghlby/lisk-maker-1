@@ -154,58 +154,70 @@ function createWindowsShortcut({ route, name, title }) {
     try {
       const desktopPath = app.getPath('desktop');
       const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
-      const rawName = name || title || TAB_TITLES_MAP[cleanRoute] || 'قسم';
-      const safeName = rawName.replace(/[/\\?%*:|"<>]/g, '').trim();
+      
+      const titlesMap = {
+        pos: 'نقطة البيع وقائمة جديدة',
+        inventory: 'المواد والمخزون',
+        invoices: 'سجل القوائم والفواتير',
+        shifts: 'الشفتات والورديات',
+        customers: 'البيع الآجل وحسابات الديون',
+        debts: 'حسابات الديون',
+        reports: 'الأرباح والتقارير المالية',
+        settings: 'الإعدادات والنسخ الاحتياطي',
+        'sales-reps': 'مندوبو المبيعات',
+        quick_add: 'الإضافة السريعة',
+        offers: 'العروض الترويجية'
+      };
 
+      const rawName = name || title || titlesMap[cleanRoute] || 'قسم فرعي';
+      const safeName = rawName.replace(/[/\\?%*:|"<>]/g, '').trim();
       const fileName = `المفكر - ${safeName}.lnk`;
       const lnkPath = path.join(desktopPath, fileName);
 
-      let targetPath = process.execPath;
+      let targetExe = process.execPath;
       let args = `--open-route=${cleanRoute}`;
 
       if (!app.isPackaged) {
-        targetPath = process.execPath;
+        targetExe = process.execPath;
         args = `"${path.resolve(__dirname)}" --open-route=${cleanRoute}`;
       }
 
       if (process.platform === 'win32') {
-        // المحاولة 1: الطريقة المباشرة
+        // المحاولة الأولى: shell.writeShortcutLink الخاصة بـ Electron
         try {
           const success = shell.writeShortcutLink(lnkPath, 'replace', {
-            target: targetPath,
+            target: targetExe,
             args: args,
-            cwd: path.dirname(targetPath),
-            icon: targetPath,
+            cwd: path.dirname(targetExe),
+            icon: targetExe,
             iconIndex: 0,
-            description: `برنامج المفكر المحاسبي - ${safeName}`
+            description: `المفكر المحاسبي - ${safeName}`
           });
 
           if (success && fs.existsSync(lnkPath)) {
             return resolve({ success: true, path: lnkPath, fileName });
           }
         } catch (e) {
-          console.warn('Shell link failed, using VBS fallback:', e);
+          console.warn('Electron writeShortcutLink failed, trying PowerShell...');
         }
 
-        // المحاولة 2: السكربت البديل المضمون للويندوز والعربية
-        const vbsPath = path.join(app.getPath('temp'), `create_lnk_${Date.now()}.vbs`);
-        const vbsScript = [
-          'Set oWS = WScript.CreateObject("WScript.Shell")',
-          `sLink = "${lnkPath.replace(/\\/g, '\\\\')}"`,
-          'Set oLink = oWS.CreateShortcut(sLink)',
-          `oLink.TargetPath = "${targetPath.replace(/\\/g, '\\\\')}"`,
-          `oLink.Arguments = "${args.replace(/"/g, '""')}"`,
-          `oLink.WorkingDirectory = "${path.dirname(targetPath).replace(/\\/g, '\\\\')}"`,
-          `oLink.Description = "المفكر المحاسبي - ${safeName}"`,
-          'oLink.Save'
-        ].join('\r\n');
+        // المحاولة الثانية: إنشاء الاختصار عبر PowerShell المشفر بـ Base64 (يحل مشكلة الحروف العربية والرموز 100%)
+        const psCommand = `
+$WshShell = New-Object -ComObject WScript.Shell;
+$Shortcut = $WshShell.CreateShortcut([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${Buffer.from(lnkPath, 'utf8').toString('base64')}')));
+$Shortcut.TargetPath = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${Buffer.from(targetExe, 'utf8').toString('base64')}'));
+$Shortcut.Arguments = '${args}';
+$Shortcut.WorkingDirectory = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${Buffer.from(path.dirname(targetExe), 'utf8').toString('base64')}'));
+$Shortcut.Description = 'برنامج المفكر المحاسبي';
+$Shortcut.Save();
+`;
 
-        fs.writeFileSync(vbsPath, vbsScript, 'utf-8');
+        const encodedCommand = Buffer.from(psCommand, 'utf16le').toString('base64');
 
-        exec(`cscript //nologo "${vbsPath}"`, (error) => {
-          try { fs.unlinkSync(vbsPath); } catch (_) {}
-          if (error) {
-            return resolve({ success: false, error: error.message });
+        exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${encodedCommand}`, (err) => {
+          if (err) {
+            console.error('PowerShell shortcut creation failed:', err);
+            return resolve({ success: false, error: err.message });
           }
           resolve({ success: true, path: lnkPath, fileName });
         });
