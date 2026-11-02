@@ -148,13 +148,13 @@ function createMainWindow() {
   return mainWindow;
 }
 
-// 3. الدالة الشاملة لإنشاء اختصارات الويندوز لأي تبويب بدون أي أخطاء أو رموز عشوائية
+// دالة إنشاء الاختصار المعتمدة والمتوافقة 100% مع الأسماء العربية ونظام Windows
 function createWindowsShortcut({ route, name, title }) {
   return new Promise((resolve) => {
     try {
       const desktopPath = app.getPath('desktop');
       const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
-      
+
       const titlesMap = {
         pos: 'نقطة البيع وقائمة جديدة',
         inventory: 'المواد والمخزون',
@@ -183,7 +183,7 @@ function createWindowsShortcut({ route, name, title }) {
       }
 
       if (process.platform === 'win32') {
-        // المحاولة الأولى: shell.writeShortcutLink الخاصة بـ Electron
+        // 1. المحاولة الأولى عبر واجهة Electron الرسمية
         try {
           const success = shell.writeShortcutLink(lnkPath, 'replace', {
             target: targetExe,
@@ -191,40 +191,69 @@ function createWindowsShortcut({ route, name, title }) {
             cwd: path.dirname(targetExe),
             icon: targetExe,
             iconIndex: 0,
-            description: `المفكر المحاسبي - ${safeName}`
+            description: `برنامج المفكر المحاسبي - ${safeName}`
           });
 
           if (success && fs.existsSync(lnkPath)) {
+            console.log(`[Shortcut Created via Shell]: ${lnkPath}`);
             return resolve({ success: true, path: lnkPath, fileName });
           }
         } catch (e) {
-          console.warn('Electron writeShortcutLink failed, trying PowerShell...');
+          console.warn('writeShortcutLink failed, trying UTF-16 VBScript fallback:', e);
         }
 
-        // المحاولة الثانية: إنشاء الاختصار عبر PowerShell المشفر بـ Base64 (يحل مشكلة الحروف العربية والرموز 100%)
-        const psCommand = `
-$WshShell = New-Object -ComObject WScript.Shell;
-$Shortcut = $WshShell.CreateShortcut([System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${Buffer.from(lnkPath, 'utf8').toString('base64')}')));
-$Shortcut.TargetPath = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${Buffer.from(targetExe, 'utf8').toString('base64')}'));
-$Shortcut.Arguments = '${args}';
-$Shortcut.WorkingDirectory = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${Buffer.from(path.dirname(targetExe), 'utf8').toString('base64')}'));
-$Shortcut.Description = 'برنامج المفكر المحاسبي';
-$Shortcut.Save();
+        // 2. المحاولة الثانية: كتابة ملف VBScript مؤقت بترميز UTF-16 LE (يحفظ الحروف العربية بدقة تامة ويمنع تشويه المسار)
+        const vbsPath = path.join(app.getPath('temp'), `shortcut_${Date.now()}.vbs`);
+        const vbsContent = [
+          'Set ws = CreateObject("WScript.Shell")',
+          `Set sc = ws.CreateShortcut("${lnkPath.replace(/\\/g, '\\\\')}")`,
+          `sc.TargetPath = "${targetExe.replace(/\\/g, '\\\\')}"`,
+          `sc.Arguments = "${args.replace(/"/g, '""')}"`,
+          `sc.WorkingDirectory = "${path.dirname(targetExe).replace(/\\/g, '\\\\')}"`,
+          `sc.IconLocation = "${targetExe.replace(/\\/g, '\\\\')},0"`,
+          `sc.Description = "المفكر - ${safeName}"`,
+          'sc.Save'
+        ].join('\r\n');
+
+        // إضافة علامة Byte Order Mark (BOM) لفرض قراءة الملف بنظام UTF-16LE من قبل الويندوز
+        const bom = Buffer.from([0xFF, 0xFE]);
+        const textBuffer = Buffer.from(vbsContent, 'utf16le');
+        fs.writeFileSync(vbsPath, Buffer.concat([bom, textBuffer]));
+
+        exec(`cscript //nologo "${vbsPath}"`, (err) => {
+          try { fs.unlinkSync(vbsPath); } catch (_) {}
+
+          if (err || !fs.existsSync(lnkPath)) {
+            console.error('VBScript failed, attempting simple PowerShell command:', err);
+
+            // 3. محاولة أخيرة عبر سطر PowerShell مباشر بملف سكربت مؤقت
+            const psPath = path.join(app.getPath('temp'), `shortcut_${Date.now()}.ps1`);
+            const psContent = `
+$ws = New-Object -ComObject WScript.Shell
+$s = $ws.CreateShortcut('${lnkPath}')
+$s.TargetPath = '${targetExe}'
+$s.Arguments = '${args}'
+$s.WorkingDirectory = '${path.dirname(targetExe)}'
+$s.Save()
 `;
-
-        const encodedCommand = Buffer.from(psCommand, 'utf16le').toString('base64');
-
-        exec(`powershell -NoProfile -NonInteractive -EncodedCommand ${encodedCommand}`, (err) => {
-          if (err) {
-            console.error('PowerShell shortcut creation failed:', err);
-            return resolve({ success: false, error: err.message });
+            fs.writeFileSync(psPath, psContent, 'utf8');
+            exec(`powershell -ExecutionPolicy Bypass -File "${psPath}"`, (psErr) => {
+              try { fs.unlinkSync(psPath); } catch (_) {}
+              if (psErr || !fs.existsSync(lnkPath)) {
+                return resolve({ success: false, error: psErr ? psErr.message : 'تعذر حفظ الاختصار' });
+              }
+              resolve({ success: true, path: lnkPath, fileName });
+            });
+            return;
           }
+
           resolve({ success: true, path: lnkPath, fileName });
         });
       } else {
-        resolve({ success: false, error: 'الميزة متوافقة مع نظام ويندوز فقط' });
+        resolve({ success: false, error: 'هذه الميزة مخصصة لنظام Windows فقط' });
       }
     } catch (err) {
+      console.error('Shortcut critical error:', err);
       resolve({ success: false, error: err.message });
     }
   });
