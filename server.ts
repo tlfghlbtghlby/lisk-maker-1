@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const portArgIndex = process.argv.indexOf('--port');
 const portFromArg = portArgIndex !== -1 && process.argv[portArgIndex + 1] ? parseInt(process.argv[portArgIndex + 1], 10) : null;
-const PORT = portFromArg || (process.env.NODE_ENV === 'production' && process.env.PORT ? Number(process.env.PORT) : 3000);
+const PORT = portFromArg || (process.env.PORT ? Number(process.env.PORT) : 3000);
 
 const hostArgIndex = process.argv.indexOf('--host');
 const hostFromArg = hostArgIndex !== -1 && process.argv[hostArgIndex + 1] ? process.argv[hostArgIndex + 1] : null;

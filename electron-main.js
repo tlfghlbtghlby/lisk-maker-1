@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import http from 'http';
@@ -459,60 +459,40 @@ function startApp() {
   }
 }
 
-// إنشاء اختصار سطح المكتب الحقيقي لويندوز (.lnk) عبر VBScript السريع والمستقر
-function createWindowsShortcut({ route, name }) {
-  return new Promise((resolve) => {
-    try {
-      const desktopPath = app.getPath('desktop');
-      const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
-      const safeName = (name || 'القسم').replace(/[/\\?%*:|"<>]/g, '').trim();
-      const fileName = `المفكر المحاسبي - ${safeName}.lnk`;
-      const lnkPath = path.join(desktopPath, fileName);
-      const exePath = process.execPath;
-      const args = `--open-route=${cleanRoute}`;
-      const workingDir = path.dirname(exePath);
+// إنشاء اختصار سطح المكتب الحقيقي لويندوز (.lnk) عبر مكتبة Electron الأصلية بدون أي سكريبتات خارجية
+function createWindowsShortcut({ route, name, title }) {
+  try {
+    const desktopPath = app.getPath('desktop');
+    const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
+    const rawName = name || title || 'القسم';
+    const safeName = rawName.replace(/[/\\?%*:|"<>]/g, '').trim();
+    
+    // اسم ملف الاختصار باللغة العربية السليمة
+    const fileName = `المفكر المحاسبي - ${safeName}.lnk`;
+    const lnkPath = path.join(desktopPath, fileName);
+    const exePath = process.execPath;
+    const args = `--open-route=${cleanRoute}`;
 
-      if (process.platform === 'win32') {
-        // إنشاء ملف VBS مؤقت لإنشاء اختصار WScript.Shell بدون مشاكل صلاحيات
-        const tempVbsPath = path.join(app.getPath('temp'), `create_pos_shortcut_${Date.now()}.vbs`);
+    if (process.platform === 'win32') {
+      // كتابة الاختصار برمجياً عبر نواة Electron بنسبة 100%
+      const success = shell.writeShortcutLink(lnkPath, 'replace', {
+        target: exePath,
+        args: args,
+        cwd: path.dirname(exePath),
+        icon: exePath,
+        iconIndex: 0,
+        description: `المفكر المحاسبي - ${safeName}`
+      });
 
-        // محتوى السكريبت المنفذ لإنشاء ملف .lnk رسمي
-        const vbsContent = [
-          'Set ws = WScript.CreateObject("WScript.Shell")',
-          `Set sc = ws.CreateShortcut("${lnkPath.replace(/\\/g, '\\\\')}")`,
-          `sc.TargetPath = "${exePath.replace(/\\/g, '\\\\')}"`,
-          `sc.Arguments = "${args}"`,
-          `sc.WorkingDirectory = "${workingDir.replace(/\\/g, '\\\\')}"`,
-          `sc.IconLocation = "${exePath.replace(/\\/g, '\\\\')},0"`,
-          `sc.Description = "المفكر المحاسبي - ${safeName}"`,
-          'sc.Save'
-        ].join('\r\n');
-
-        // كتابة الملف المؤقت وترميزه
-        fs.writeFileSync(tempVbsPath, vbsContent, 'utf8');
-
-        // تشغيل السكريبت وحذفه فوراً بعد الانتهاء
-        exec(`cscript //nologo "${tempVbsPath}"`, { windowsHide: true }, (err) => {
-          try {
-            if (fs.existsSync(tempVbsPath)) fs.unlinkSync(tempVbsPath);
-          } catch (_) {}
-
-          if (err) {
-            console.error('[Shortcut Error]:', err);
-            resolve({ success: false, error: err.message });
-          } else {
-            console.log(`[Shortcut Created Successfully]: ${lnkPath}`);
-            resolve({ success: true, path: lnkPath });
-          }
-        });
-      } else {
-        resolve({ success: true });
-      }
-    } catch (e) {
-      console.error('[Shortcut Exception]:', e);
-      resolve({ success: false, error: e.message });
+      console.log(`[Shortcut Created Successfully]: ${lnkPath}`);
+      return { success, path: lnkPath, fileName };
     }
-  });
+
+    return { success: true, path: lnkPath, fileName };
+  } catch (e) {
+    console.error('Shortcut creation error:', e);
+    return { success: false, error: e.message };
+  }
 }
 
 // 3. معالجة دوال IPC بين الواجهة وElectron
@@ -528,11 +508,11 @@ ipcMain.handle('open-section-window', (event, { route, title }) => {
   return { success: true };
 });
 
-// استقبال طلب إنشاء الاختصار مع دعم name و title معاً
+// استقبال طلب إنشاء الاختصار من الواجهة
 ipcMain.handle('create-desktop-shortcut', async (event, payload) => {
   const route = payload?.route || 'pos';
   const name = payload?.name || payload?.title || 'القسم';
-  return await createWindowsShortcut({ route, name });
+  return createWindowsShortcut({ route, name });
 });
 
 // استعلام المسار الأولي الممرر للنافذة
