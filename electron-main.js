@@ -459,49 +459,57 @@ function startApp() {
   }
 }
 
-// إنشاء اختصار سطح المكتب الحقيقي لويندوز (.lnk) بدون أي تحذيرات أمان
-function createWindowsShortcut({ route, name, title }) {
+// إنشاء اختصار سطح المكتب الحقيقي لويندوز (.lnk) عبر VBScript السريع والمستقر
+function createWindowsShortcut({ route, name }) {
   return new Promise((resolve) => {
     try {
       const desktopPath = app.getPath('desktop');
       const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
-      const rawName = name || title || 'القسم';
-      const safeName = rawName.replace(/[/\\?%*:|"<>]/g, '').trim();
-      
-      // الامتداد يجب أن يكون .lnk وليس .url
+      const safeName = (name || 'القسم').replace(/[/\\?%*:|"<>]/g, '').trim();
       const fileName = `المفكر المحاسبي - ${safeName}.lnk`;
       const lnkPath = path.join(desktopPath, fileName);
-      const exePath = process.execPath; // مسار ملف البرنامج .exe الحقيقي
+      const exePath = process.execPath;
       const args = `--open-route=${cleanRoute}`;
+      const workingDir = path.dirname(exePath);
 
       if (process.platform === 'win32') {
-        const psScript = `
-          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8;
-          $WshShell = New-Object -ComObject WScript.Shell;
-          $Shortcut = $WshShell.CreateShortcut("${lnkPath.replace(/\\/g, '\\\\')}");
-          $Shortcut.TargetPath = "${exePath.replace(/\\/g, '\\\\')}";
-          $Shortcut.Arguments = "${args}";
-          $Shortcut.WorkingDirectory = "${path.dirname(exePath).replace(/\\/g, '\\\\')}";
-          $Shortcut.IconLocation = "${exePath.replace(/\\/g, '\\\\')},0";
-          $Shortcut.Description = "تشغيل قسم ${safeName} في المفكر المحاسبي مباشرة";
-          $Shortcut.Save();
-        `.trim();
+        // إنشاء ملف VBS مؤقت لإنشاء اختصار WScript.Shell بدون مشاكل صلاحيات
+        const tempVbsPath = path.join(app.getPath('temp'), `create_pos_shortcut_${Date.now()}.vbs`);
 
-        const encodedScript = Buffer.from(psScript, 'utf16le').toString('base64');
-        const cmd = `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand ${encodedScript}`;
+        // محتوى السكريبت المنفذ لإنشاء ملف .lnk رسمي
+        const vbsContent = [
+          'Set ws = WScript.CreateObject("WScript.Shell")',
+          `Set sc = ws.CreateShortcut("${lnkPath.replace(/\\/g, '\\\\')}")`,
+          `sc.TargetPath = "${exePath.replace(/\\/g, '\\\\')}"`,
+          `sc.Arguments = "${args}"`,
+          `sc.WorkingDirectory = "${workingDir.replace(/\\/g, '\\\\')}"`,
+          `sc.IconLocation = "${exePath.replace(/\\/g, '\\\\')},0"`,
+          `sc.Description = "المفكر المحاسبي - ${safeName}"`,
+          'sc.Save'
+        ].join('\r\n');
 
-        exec(cmd, { windowsHide: true }, (err) => {
+        // كتابة الملف المؤقت وترميزه
+        fs.writeFileSync(tempVbsPath, vbsContent, 'utf8');
+
+        // تشغيل السكريبت وحذفه فوراً بعد الانتهاء
+        exec(`cscript //nologo "${tempVbsPath}"`, { windowsHide: true }, (err) => {
+          try {
+            if (fs.existsSync(tempVbsPath)) fs.unlinkSync(tempVbsPath);
+          } catch (_) {}
+
           if (err) {
-            console.error('PowerShell shortcut error:', err);
+            console.error('[Shortcut Error]:', err);
             resolve({ success: false, error: err.message });
           } else {
-            resolve({ success: true, path: lnkPath, fileName });
+            console.log(`[Shortcut Created Successfully]: ${lnkPath}`);
+            resolve({ success: true, path: lnkPath });
           }
         });
       } else {
-        resolve({ success: true, path: lnkPath, fileName });
+        resolve({ success: true });
       }
     } catch (e) {
+      console.error('[Shortcut Exception]:', e);
       resolve({ success: false, error: e.message });
     }
   });
