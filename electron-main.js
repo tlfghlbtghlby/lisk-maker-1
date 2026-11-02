@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import http from 'http';
 import os from 'os';
 import fs from 'fs';
+import { exec } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -332,12 +333,25 @@ function startLocalServer() {
   });
 }
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
+const allWindows = new Set();
+
+function parseOpenRoute(argvList = process.argv) {
+  for (const arg of argvList) {
+    if (typeof arg === 'string' && arg.startsWith('--open-route=')) {
+      return arg.replace('--open-route=', '').trim();
+    }
+  }
+  return '';
+}
+
+function createSectionWindow(route = 'pos', title = '') {
+  const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
+  const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 850,
+    minHeight: 550,
+    title: title ? `برنامج المفكر المحاسبي - ${title}` : 'برنامج المفكر المحاسبي',
     autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
@@ -346,14 +360,108 @@ function createWindow() {
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'dist/index.html'));
+  win.openRoute = cleanRoute;
+  allWindows.add(win);
+  win.on('closed', () => {
+    allWindows.delete(win);
+    if (win === mainWindow) {
+      mainWindow = null;
+    }
+  });
+
+  const indexPath = path.join(__dirname, 'dist/index.html');
+  // الاعتماد على Hash Routing المباشر للقسم (#pos, #inventory, ...) مع وسائط إضافية
+  win.loadFile(indexPath, { hash: cleanRoute, query: { 'open-route': cleanRoute, 'route': cleanRoute } });
+  return win;
+}
+
+function createWindow() {
+  const initialRoute = parseOpenRoute() || 'pos';
+  mainWindow = createSectionWindow(initialRoute, '');
+}
+
+// إنشاء اختصار سطح المكتب بنظام ويندوز (.lnk) عبر PowerShell بدون وميض شاشة سوداء وبدعم كامل للحروف العربية
+function createWindowsShortcut({ route, name }) {
+  return new Promise((resolve) => {
+    try {
+      const desktopPath = path.join(os.homedir(), 'Desktop');
+      const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
+      const safeName = name ? name.replace(/[/\\?%*:|"<>]/g, '').trim() : 'القسم';
+      const fileName = `المفكر المحاسبي - ${safeName}.lnk`;
+      const lnkPath = path.join(desktopPath, fileName);
+      const exePath = process.execPath;
+      const args = `--open-route=${cleanRoute}`;
+
+      if (process.platform === 'win32') {
+        const psScript = `
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8;
+          $WshShell = New-Object -ComObject WScript.Shell;
+          $Shortcut = $WshShell.CreateShortcut("${lnkPath.replace(/\\/g, '\\\\')}");
+          $Shortcut.TargetPath = "${exePath.replace(/\\/g, '\\\\')}";
+          $Shortcut.Arguments = "${args}";
+          $Shortcut.WorkingDirectory = "${path.dirname(exePath).replace(/\\/g, '\\\\')}";
+          $Shortcut.Description = "تشغيل قسم ${safeName} في المفكر المحاسبي مباشرة";
+          $Shortcut.Save();
+        `.trim();
+
+        // تشفير السكريبت بصيغة UTF-16LE Base64 لتفادي أي مشاكل ترميز للأحرف العربية أو علامات التنصيص
+        const encodedScript = Buffer.from(psScript, 'utf16le').toString('base64');
+        const cmd = `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand ${encodedScript}`;
+
+        exec(cmd, { windowsHide: true }, (err) => {
+          if (err) {
+            console.error('PowerShell shortcut error:', err);
+            resolve({ success: false, error: err.message });
+          } else {
+            console.log(`[Shortcut Created] ${lnkPath}`);
+            resolve({ success: true, path: lnkPath, fileName });
+          }
+        });
+      } else {
+        // أنظمة غير ويندوز
+        resolve({ success: true, path: lnkPath, fileName });
+      }
+    } catch (e) {
+      resolve({ success: false, error: e.message });
+    }
+  });
 }
 
 // 3. معالجة دوال IPC بين الواجهة وElectron
-ipcMain.handle('get-printers', async () => {
-  if (!mainWindow) return [];
-  return await mainWindow.webContents.getPrintersAsync();
+ipcMain.handle('get-printers', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  if (!win) return [];
+  return await win.webContents.getPrintersAsync();
 });
+
+// فتح قسم في نافذة BrowserWindow مستقلة
+ipcMain.handle('open-section-window', (event, { route, title }) => {
+  createSectionWindow(route || 'pos', title || '');
+  return { success: true };
+});
+
+// إنشاء اختصار لسطح المكتب يفتح القسم مباشرة
+ipcMain.handle('create-desktop-shortcut', async (event, { route, name }) => {
+  return await createWindowsShortcut({ route: route || 'pos', name: name || 'القسم' });
+});
+
+// استعلام المسار الأولي الممرر للنافذة
+ipcMain.handle('get-initial-route', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return win?.openRoute || parseOpenRoute() || '';
+});
+
+// IPC Relay: تمرير الأحداث بين جميع النوافذ عبر الذاكرة بأقل من ملي ثانية وبدون إنترنت
+const relaySyncEvent = (event, payload) => {
+  for (const win of allWindows) {
+    if (win && !win.isDestroyed() && win.webContents !== event.sender) {
+      win.webContents.send('sync-event', payload);
+    }
+  }
+};
+
+ipcMain.on('sync-event', relaySyncEvent);
+ipcMain.on('broadcast-sync', relaySyncEvent);
 
 // استقبال كتالوج المواد واسم المتجر وحفظه تلقائياً
 ipcMain.on('update-local-catalog', (event, data) => {

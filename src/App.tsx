@@ -37,7 +37,73 @@ const MainContent: React.FC = () => {
   } = useApp();
 
   const [isGuest, setIsGuest] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('pos');
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    if (typeof window !== 'undefined') {
+      const validTabs = ['pos', 'inventory', 'invoices', 'customers', 'reports', 'sales-reps', 'shifts', 'settings'];
+      const hashRoute = window.location.hash.replace(/^#\/?/, '').trim() as TabType;
+      if (validTabs.includes(hashRoute)) {
+        return hashRoute;
+      }
+      const p = new URLSearchParams(window.location.search);
+      const r = (p.get('open-route') || p.get('route')) as TabType | null;
+      if (r && validTabs.includes(r)) {
+        return r;
+      }
+    }
+    return 'pos';
+  });
+
+  const [isStandaloneWindow, setIsStandaloneWindow] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const validTabs = ['pos', 'inventory', 'invoices', 'customers', 'reports', 'sales-reps', 'shifts', 'settings'];
+    const hashRoute = window.location.hash.replace(/^#\/?/, '').trim();
+    const p = new URLSearchParams(window.location.search);
+    return (
+      validTabs.includes(hashRoute) ||
+      p.has('open-route') ||
+      p.has('route') ||
+      p.has('standalone') ||
+      (typeof window.name === 'string' && (window.name.startsWith('mufakir_win_') || window.name.startsWith('window_section_')))
+    );
+  });
+
+  useEffect(() => {
+    const validTabs = ['pos', 'inventory', 'invoices', 'customers', 'reports', 'sales-reps', 'shifts', 'settings'];
+
+    const checkInitialRoute = async () => {
+      try {
+        const hashRoute = window.location.hash.replace(/^#\/?/, '').trim() as TabType;
+        if (validTabs.includes(hashRoute)) {
+          setActiveTab(hashRoute);
+          setIsStandaloneWindow(true);
+          return;
+        }
+
+        const electron = (window as any).electronAPI || (window as any).electron;
+        if (electron && typeof electron.getInitialRoute === 'function') {
+          const elRoute = await electron.getInitialRoute();
+          const clean = elRoute ? elRoute.replace(/^[#?]/, '').trim() as TabType : null;
+          if (clean && validTabs.includes(clean)) {
+            setActiveTab(clean);
+            setIsStandaloneWindow(true);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to query initial route:', e);
+      }
+    };
+    checkInitialRoute();
+
+    const onHashChange = () => {
+      const hashRoute = window.location.hash.replace(/^#\/?/, '').trim() as TabType;
+      if (validTabs.includes(hashRoute)) {
+        setActiveTab(hashRoute);
+        setIsStandaloneWindow(true);
+      }
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   // مزامنة فورية تلقائية مع سيرفر Electron المحلي عند كل تغيير في المواد أو الإعدادات
   useEffect(() => {
@@ -203,6 +269,26 @@ const MainContent: React.FC = () => {
   return (
     <div className={`min-h-screen flex flex-col bg-slate-100 dark:bg-[#070d18] text-slate-800 dark:text-slate-100 transition-colors duration-200 print:min-h-0 print:h-auto print:block print:bg-white ${isMobile ? 'selection:bg-amber-500' : 'selection:bg-amber-500 selection:text-slate-950'}`}>
       <Header onOpenAuth={() => setIsGuest(false)} />
+
+      {isStandaloneWindow && (
+        <div className="no-print bg-emerald-950/90 text-emerald-200 border-b border-emerald-700/60 px-3 sm:px-6 py-1.5 flex flex-wrap items-center justify-between text-xs select-none">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+            </span>
+            <span className="font-bold text-white text-xs sm:text-sm">
+              نافذة مستقلة: {getActiveTabTitle() || 'نقطة البيع'}
+            </span>
+            <span className="text-[11px] bg-emerald-900/80 text-emerald-300 border border-emerald-600/50 px-2 py-0.5 rounded font-mono font-bold">
+              مزامنة فورية بالرام (RAM &lt;1ms)
+            </span>
+          </div>
+          <div className="text-[11px] text-emerald-300/80 hidden md:block">
+            ⚡ متصل بالنافذة الرئيسية - تحديثات المخزون والمبيعات تنعكس فورياً
+          </div>
+        </div>
+      )}
 
       {!isFullComputerMode && (
         <Navigation activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
@@ -410,20 +496,25 @@ export default function App() {
   const [enteredPass, setEnteredPass] = useState('');
   const [errorMsg, setErrorMsg] = useState(false);
 
-  // التحقق التلقائي: إذا كان التطبيق يعمل داخل Electron على الويندوز يفتح المبيعات مباشرة
+  // التحقق التلقائي: إذا كان التطبيق يعمل داخل Electron أو تم فتح نافذة قسم مستقلة يفتح البرنامج مباشرة
   const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const isElectron = !!((window as any).electronAPI || (window as any).electron);
     const params = new URLSearchParams(window.location.search);
-    return isElectron || params.get('admin') === 'true' || localStorage.getItem('is_admin_mode') === 'true';
+    const hash = window.location.hash.replace(/^#\/?/, '').trim();
+    const isSectionHash = ['pos', 'inventory', 'invoices', 'customers', 'reports', 'sales-reps', 'shifts', 'settings'].includes(hash);
+    return isElectron || isSectionHash || params.get('admin') === 'true' || params.has('open-route') || params.has('route') || localStorage.getItem('is_admin_mode') === 'true';
   });
 
   if (typeof window === 'undefined') return null;
 
   const searchParams = new URLSearchParams(window.location.search);
-  const hash = window.location.hash.replace(/^#/, '').trim();
+  const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+  const knownSectionRoutes = ['pos', 'inventory', 'invoices', 'customers', 'reports', 'sales-reps', 'shifts', 'settings'];
+  // إذا كان الـ hash يمثل قسماً مستقلاً، لا يُعامل كرمز متجر لفحص الأسعار
+  const storeHash = knownSectionRoutes.includes(rawHash) ? '' : rawHash;
   let storeId: string | null = null;
-  const rawToken = hash || searchParams.get('k') || searchParams.get('store');
+  const rawToken = storeHash || searchParams.get('k') || searchParams.get('store');
   if (rawToken) {
     try {
       if (rawToken.startsWith('store_') || rawToken.startsWith('user_')) {

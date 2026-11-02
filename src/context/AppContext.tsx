@@ -30,6 +30,7 @@ import {
 import { getOrCreateDeviceId, getOrCreateSessionId, detectSystemInfo } from '../utils/deviceSession';
 import { findDuplicateGroups } from '../utils/duplicateCleaner';
 import { mergeProducts, mergeInvoices, mergeShifts } from '../utils/syncEngine';
+import { broadcastSync, subscribeSync, SyncMessage } from '../utils/syncChannel';
 import pkg from '../../package.json';
 
 export const CURRENT_APP_VERSION = (pkg as any)?.version || '2.0.0';
@@ -489,6 +490,162 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setActiveShift(myActive || null);
   }, [shifts, currentUser, sessionRole, activeSupervisorId, currentAccountIdentifier, currentDeviceId]);
+
+  // دالة بث موحدة تستخدم قناة الذاكرة syncChannel
+  const broadcastSyncEvent = (type: any, data: any, _sessionId?: string, storeUid?: string) => {
+    broadcastSync(type, data, storeUid || currentUser?.uid);
+  };
+
+  // المزامنة اللحظية في أقل من ملي ثانية عبر الرام (BroadcastChannel / IPC Relay) بين النوافذ المنفصلة
+  useEffect(() => {
+    const unsubscribe = subscribeSync((payload: SyncMessage) => {
+      // التحقق من المتجر المشغل لضمان عدم التداخل
+      if (currentUser?.uid && payload.storeUid && payload.storeUid !== currentUser.uid) {
+        return;
+      }
+
+      switch (payload.type) {
+        case 'INVOICE_CREATED': {
+          const { invoice, updatedProducts, updatedShift } = payload.data || {};
+          if (invoice) {
+            setInvoices(prev => {
+              if (prev.some(i => i.id === invoice.id)) return prev;
+              const next = [invoice, ...prev];
+              try {
+                localStorage.setItem('cached_pos_invoices', JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+          }
+
+          // خصم كميات المخزن فورياً في النافذة الرئيسية وباقي النوافذ
+          if (Array.isArray(updatedProducts)) {
+            setProducts(updatedProducts);
+            try {
+              localStorage.setItem('cached_pos_products', JSON.stringify(updatedProducts));
+            } catch {}
+          } else if (invoice?.items && Array.isArray(invoice.items)) {
+            setProducts(prev => {
+              const deductions = new Map<string, number>();
+              invoice.items.forEach((it: any) => {
+                const qty = Number(it.deductedPieces ?? it.quantity) || 0;
+                deductions.set(it.productId, (deductions.get(it.productId) || 0) + qty);
+              });
+              const next = prev.map(p => {
+                const d = deductions.get(p.id);
+                if (d && d > 0) {
+                  return {
+                    ...p,
+                    stock: Math.max(0, Math.round((p.stock - d) * 1000) / 1000),
+                    updatedAt: new Date().toISOString()
+                  };
+                }
+                return p;
+              });
+              try {
+                localStorage.setItem('cached_pos_products', JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+          }
+
+          if (updatedShift) {
+            setShifts(prev => {
+              const next = prev.map(s => s.id === updatedShift.id ? updatedShift : s);
+              if (!prev.some(s => s.id === updatedShift.id)) next.unshift(updatedShift);
+              try {
+                localStorage.setItem('cached_pos_shifts', JSON.stringify(next));
+              } catch {}
+              return next;
+            });
+            setActiveShift(prev => (prev?.id === updatedShift.id ? updatedShift : prev));
+          }
+          break;
+        }
+
+        case 'PRODUCT_SAVED':
+        case 'PRODUCT_DELETED':
+        case 'PRODUCTS_BATCH_UPDATED': {
+          if (Array.isArray(payload.data.allProducts)) {
+            setProducts(payload.data.allProducts);
+            try {
+              localStorage.setItem('cached_pos_products', JSON.stringify(payload.data.allProducts));
+            } catch {}
+          }
+          break;
+        }
+
+        case 'STOCK_ADJUSTED': {
+          if (Array.isArray(payload.data.updatedProducts)) {
+            setProducts(payload.data.updatedProducts);
+            try {
+              localStorage.setItem('cached_pos_products', JSON.stringify(payload.data.updatedProducts));
+            } catch {}
+          }
+          break;
+        }
+
+        case 'INVOICE_DELETED': {
+          const { updatedInvoices, restoredProducts } = payload.data;
+          if (Array.isArray(updatedInvoices)) {
+            setInvoices(updatedInvoices);
+            try {
+              localStorage.setItem('cached_pos_invoices', JSON.stringify(updatedInvoices));
+            } catch {}
+          }
+          if (Array.isArray(restoredProducts)) {
+            setProducts(restoredProducts);
+            try {
+              localStorage.setItem('cached_pos_products', JSON.stringify(restoredProducts));
+            } catch {}
+          }
+          break;
+        }
+
+        case 'SHIFT_UPDATED': {
+          const { shift, allShifts } = payload.data;
+          if (Array.isArray(allShifts)) {
+            setShifts(allShifts);
+            try {
+              localStorage.setItem('cached_pos_shifts', JSON.stringify(allShifts));
+            } catch {}
+          }
+          if (shift) {
+            if (shift.status === 'closed') {
+              setActiveShift(prev => (prev?.id === shift.id ? null : prev));
+            } else if (shift.status === 'active') {
+              setActiveShift(prev => (prev?.id === shift.id ? shift : prev));
+            }
+          }
+          break;
+        }
+
+        case 'CUSTOMERS_UPDATED': {
+          const { customers: updatedCusts } = payload.data;
+          if (Array.isArray(updatedCusts)) {
+            setCustomers(updatedCusts);
+            try {
+              localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCusts));
+            } catch {}
+          }
+          break;
+        }
+
+        case 'SETTINGS_UPDATED': {
+          const { settings: newSettings } = payload.data;
+          if (newSettings) {
+            setSettings(prev => ({ ...prev, ...newSettings }));
+            try {
+              localStorage.setItem('cached_pos_settings', JSON.stringify(newSettings));
+            } catch {}
+          }
+          break;
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentSessionId, currentUser?.uid]);
 
   const [isStartShiftModalOpen, setIsStartShiftModalOpen] = useState(false);
   const [isEndShiftModalOpen, setIsEndShiftModalOpen] = useState(false);
@@ -1251,6 +1408,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('cached_pos_products', JSON.stringify(updated));
     } catch {}
     saveStoreToCloud({ products: updated });
+    broadcastSyncEvent('PRODUCT_SAVED', { product: newProduct, allProducts: updated }, currentSessionId, currentUser?.uid);
     return newProduct;
   };
 
@@ -1278,6 +1436,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('cached_pos_products', JSON.stringify(updated));
     } catch {}
     await saveStoreToCloud({ products: updated });
+    broadcastSyncEvent('PRODUCTS_BATCH_UPDATED', { allProducts: updated }, currentSessionId, currentUser?.uid);
     return { success: true, count: created.length, products: created };
   };
 
@@ -1289,6 +1448,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('cached_pos_products', JSON.stringify(updated));
     } catch {}
     saveStoreToCloud({ products: updated });
+    broadcastSyncEvent('PRODUCT_SAVED', { product: finalUpdates, allProducts: updated }, currentSessionId, currentUser?.uid);
   };
 
   const deleteProduct = (id: string) => {
@@ -1298,6 +1458,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('cached_pos_products', JSON.stringify(updated));
     } catch {}
     saveStoreToCloud({ products: updated });
+    broadcastSyncEvent('PRODUCT_DELETED', { productId: id, allProducts: updated }, currentSessionId, currentUser?.uid);
   };
 
   const batchDeleteProducts = async (
@@ -1334,6 +1495,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
 
       await saveStoreToCloud({ products: updatedProducts });
+      broadcastSyncEvent('PRODUCTS_BATCH_UPDATED', { allProducts: updatedProducts }, currentSessionId, currentUser?.uid);
       return { success: true, deletedCount };
     } catch (err: any) {
       return { success: false, deletedCount: 0, error: err?.message || 'حدث خطأ أثناء الحذف' };
@@ -1350,6 +1512,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('cached_pos_products', JSON.stringify(updated));
       } catch {}
       saveStoreToCloud({ products: updated });
+      broadcastSyncEvent('STOCK_ADJUSTED', { productId: id, delta, updatedProducts: updated }, currentSessionId, currentUser?.uid);
       return updated;
     });
   };
@@ -1372,6 +1535,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('cached_pos_customers', JSON.stringify(updated));
     } catch {}
     saveStoreToCloud({ customers: updated });
+    broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updated }, currentSessionId, currentUser?.uid);
     return newCust;
   };
 
@@ -1382,6 +1546,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('cached_pos_customers', JSON.stringify(updated));
     } catch {}
     saveStoreToCloud({ customers: updated });
+    broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updated }, currentSessionId, currentUser?.uid);
   };
 
   const deleteCustomer = (id: string) => {
@@ -1391,6 +1556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('cached_pos_customers', JSON.stringify(updated));
     } catch {}
     saveStoreToCloud({ customers: updated });
+    broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updated }, currentSessionId, currentUser?.uid);
   };
 
   const createInvoice = (data: CreateInvoiceInput) => {
@@ -1502,6 +1668,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
 
     let updatedShiftsList = shifts;
+    let liveUpdatedShift: Shift | null = null;
     if (activeShift) {
       const currentUid = currentUser?.uid;
       const updatedShift: Shift = {
@@ -1516,6 +1683,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         totalCost: (activeShift.totalCost || 0) + totalCost,
         totalProfit: (activeShift.totalProfit || 0) + (total - totalCost),
       };
+      liveUpdatedShift = updatedShift;
       setActiveShift(updatedShift);
       updatedShiftsList = shifts.map(s => s.id === updatedShift.id ? updatedShift : s);
       setShifts(updatedShiftsList);
@@ -1530,6 +1698,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     saveStoreToCloud({ products: updatedProducts, invoices: updatedInvoices, shifts: updatedShiftsList });
+
+    // بث فوري في الذاكرة (<1ms) لتحديث كميات المخزن والقوائم والشفت في جميع النوافذ المفتوحة
+    broadcastSyncEvent('INVOICE_CREATED', {
+      invoice: newInv,
+      updatedProducts,
+      updatedShift: liveUpdatedShift
+    }, currentSessionId, currentUser?.uid);
+
     return newInv;
   };
 
@@ -1548,6 +1724,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('cached_pos_invoices', JSON.stringify(updated));
     } catch {}
     saveStoreToCloud({ invoices: updated });
+    broadcastSyncEvent('INVOICE_DELETED', { invoiceId: id, updatedInvoices: updated }, currentSessionId, currentUser?.uid);
   };
 
   const returnInvoice = async (id: string): Promise<boolean> => {
@@ -1737,6 +1914,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('cached_pos_settings', JSON.stringify(u));
       } catch {}
       saveStoreToCloud({ settings: u });
+      broadcastSyncEvent('SETTINGS_UPDATED', { settings: u }, currentSessionId, currentUser?.uid);
       return u;
     });
   };
@@ -2110,6 +2288,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
 
     saveStoreToCloud({ shifts: updatedShifts });
+    broadcastSyncEvent('SHIFT_UPDATED', { shift: newShift, allShifts: updatedShifts }, currentSessionId, currentUser?.uid);
     return { success: true, shift: newShift };
   };
 
@@ -2157,6 +2336,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
 
     await saveStoreToCloud({ shifts: updatedShifts });
+    broadcastSyncEvent('SHIFT_UPDATED', { shift: closedShift, allShifts: updatedShifts }, currentSessionId, currentUser?.uid);
     return closedShift;
   };
 
@@ -2183,6 +2363,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     saveStoreToCloud({ shifts: updated });
+    broadcastSyncEvent('SHIFT_UPDATED', { shiftId, allShifts: updated }, currentSessionId, currentUser?.uid);
   };
 
   const refreshSessions = async () => {};
