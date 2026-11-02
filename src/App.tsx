@@ -37,17 +37,12 @@ const MainContent: React.FC = () => {
   } = useApp();
 
   const [isGuest, setIsGuest] = useState(false);
-  // 1. فحص هل النافذة المفتوحة حالياً هي نافذة منفصلة مستقلة (لكل الخانات)
+  // 1. فحص هل النافذة المفتوحة حالياً هي نافذة منفصلة مستقلة عبر فحص standalone=true بدقة
   const [isStandaloneWindow, setIsStandaloneWindow] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const hash = window.location.hash || '';
     const search = window.location.search || '';
-    return (
-      hash.includes('standalone=true') ||
-      search.includes('standalone=true') ||
-      search.includes('open-route=') ||
-      (typeof window.name === 'string' && (window.name.startsWith('mufakir_win_') || window.name.startsWith('window_section_')))
-    );
+    return hash.includes('standalone=true') || search.includes('standalone=true');
   });
 
   // 2. قراءة القسم المطلوب عرضه ودعم كافة الخانات
@@ -57,16 +52,18 @@ const MainContent: React.FC = () => {
       const p = new URLSearchParams(window.location.search);
       const openRoute = (p.get('open-route') || p.get('route') || '').toLowerCase();
 
-      if (hash.includes('inventory') || openRoute === 'inventory') return 'inventory';
-      if (hash.includes('invoices') || openRoute === 'invoices') return 'invoices';
-      if (hash.includes('shifts') || openRoute === 'shifts') return 'shifts';
-      if (hash.includes('customers') || hash.includes('debts') || openRoute === 'customers' || openRoute === 'debts') return 'customers';
-      if (hash.includes('sales-reps') || openRoute === 'sales-reps') return 'sales-reps';
-      if (hash.includes('reports') || openRoute === 'reports') return 'reports';
-      if (hash.includes('settings') || openRoute === 'settings') return 'settings';
-      if (hash.includes('pos') || openRoute === 'pos') return 'pos';
+      if (hash.includes('standalone=true') || p.has('standalone')) {
+        if (hash.includes('inventory') || openRoute === 'inventory') return 'inventory';
+        if (hash.includes('invoices') || openRoute === 'invoices') return 'invoices';
+        if (hash.includes('shifts') || openRoute === 'shifts') return 'shifts';
+        if (hash.includes('customers') || hash.includes('debts') || openRoute === 'customers' || openRoute === 'debts') return 'customers';
+        if (hash.includes('sales-reps') || openRoute === 'sales-reps') return 'sales-reps';
+        if (hash.includes('reports') || openRoute === 'reports') return 'reports';
+        if (hash.includes('settings') || openRoute === 'settings') return 'settings';
+        if (hash.includes('pos') || openRoute === 'pos') return 'pos';
+      }
     }
-    return 'pos'; // الافتراضي
+    return 'pos'; // الافتراضي للنافذة الكاملة
   });
 
   // 3. الاستماع لتغييرات المسار من Electron إذا تم تشغيل اختصار من سطح المكتب أو Hash
@@ -87,21 +84,24 @@ const MainContent: React.FC = () => {
     const checkRoute = async () => {
       const hash = window.location.hash || '';
       const search = window.location.search || '';
-      if (hash.includes('standalone=true') || search.includes('standalone=true') || search.includes('open-route=')) {
+      if (hash.includes('standalone=true') || search.includes('standalone=true')) {
         setIsStandaloneWindow(true);
-      }
-      const matched = parseRouteString(hash);
-      if (matched) {
-        setActiveTab(matched);
+        const matched = parseRouteString(hash);
+        if (matched) {
+          setActiveTab(matched);
+        }
       }
 
       const electron = (window as any).electronAPI || (window as any).electron;
       if (electron && typeof electron.getInitialRoute === 'function') {
         const route = await electron.getInitialRoute();
-        if (route && route !== 'main') {
+        // فقط إذا كان هناك مسار محدد وليس التشغيل العادي 'main'
+        if (route && route !== 'main' && route !== '') {
           const m = parseRouteString(route);
-          if (m) setActiveTab(m);
-          setIsStandaloneWindow(true);
+          if (m) {
+            setActiveTab(m);
+            setIsStandaloneWindow(true);
+          }
         }
       }
     };
@@ -111,10 +111,10 @@ const MainContent: React.FC = () => {
       const hash = window.location.hash || '';
       if (hash.includes('standalone=true')) {
         setIsStandaloneWindow(true);
-      }
-      const matched = parseRouteString(hash);
-      if (matched) {
-        setActiveTab(matched);
+        const matched = parseRouteString(hash);
+        if (matched) {
+          setActiveTab(matched);
+        }
       }
     };
     window.addEventListener('hashchange', onHashChange);

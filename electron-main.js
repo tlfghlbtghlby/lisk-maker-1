@@ -344,22 +344,21 @@ function parseOpenRoute(argvList = process.argv) {
   return '';
 }
 
-// فتح أي قسم من أقسام البرنامج في نافذة مستقلة نظيفة
+// 1. دالة إنشاء النافذة المنفصلة (تُفتح فقط عند الكليك أيمن أو من اختصار مخصص)
 function createSectionWindow(route = 'pos', title = '') {
   const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
 
-  // تحديد اسم النافذة في شريط الويندوز حسب القسم المفتوح
   const titlesMap = {
-    pos: 'نقطة البيع والمبيعات',
+    pos: 'نقطة البيع',
     inventory: 'المواد والمخزون',
     invoices: 'سجل القوائم والفواتير',
-    shifts: 'إدارة الشفتات والورديات',
-    customers: 'البيع الآجل وحسابات الديون',
-    debts: 'حسابات الديون والزبائن',
-    reports: 'التقارير والأرباح المالية',
-    settings: 'إعدادات النظام والنسخ الاحتياطي',
-    'sales-reps': 'المندوبين والأرباح',
-    quick_add: 'الإضافة السريعة للمواد'
+    shifts: 'الشفتات والورديات',
+    customers: 'حسابات الزبائن',
+    debts: 'البيع الآجل والديون',
+    reports: 'التقارير المالية',
+    settings: 'الإعدادات العامة',
+    'sales-reps': 'المندوبين',
+    quick_add: 'إضافة مواد سريعة'
   };
 
   const windowTitle = title || titlesMap[cleanRoute] || 'نافذة مخصصة';
@@ -370,7 +369,7 @@ function createSectionWindow(route = 'pos', title = '') {
     minWidth: 850,
     minHeight: 550,
     title: `المفكر المحاسبي - ${windowTitle}`,
-    autoHideMenuBar: true, // إخفاء شريط القوائم التقليدي
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -379,24 +378,21 @@ function createSectionWindow(route = 'pos', title = '') {
   });
 
   win.openRoute = cleanRoute;
+  win.isStandalone = true;
   allWindows.add(win);
 
   win.on('closed', () => {
     allWindows.delete(win);
-    if (win === mainWindow) {
-      mainWindow = null;
-    }
   });
 
-  // نمرر الـ hash مع standalone=true ليتم إخفاء جميع الأشرطة العلوية في كل الخانات
   const indexPath = path.join(__dirname, 'dist/index.html');
   const targetHash = `${cleanRoute}?standalone=true`;
 
   if (app.isPackaged) {
-    win.loadFile(indexPath, { hash: targetHash, query: { 'standalone': 'true', 'open-route': cleanRoute } });
+    win.loadFile(indexPath, { hash: targetHash, query: { standalone: 'true', 'open-route': cleanRoute } });
   } else {
     if (fs.existsSync(indexPath)) {
-      win.loadFile(indexPath, { hash: targetHash, query: { 'standalone': 'true', 'open-route': cleanRoute } });
+      win.loadFile(indexPath, { hash: targetHash, query: { standalone: 'true', 'open-route': cleanRoute } });
     } else {
       win.loadURL(`http://localhost:5173/#${targetHash}`);
     }
@@ -405,9 +401,62 @@ function createSectionWindow(route = 'pos', title = '') {
   return win;
 }
 
-function createWindow() {
-  const initialRoute = parseOpenRoute() || 'pos';
-  mainWindow = createSectionWindow(initialRoute, '');
+// 2. دالة إنشاء النافذة الرئيسية الكاملة (تفتح عند تشغيل البرنامج العادي مع كافة الأشرطة)
+function createMainWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1366,
+    height: 850,
+    minWidth: 950,
+    minHeight: 600,
+    title: 'برنامج المفكر المحاسبي',
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'electron-preload.cjs'),
+    },
+  });
+
+  mainWindow.openRoute = 'main';
+  mainWindow.isStandalone = false;
+  allWindows.add(mainWindow);
+
+  mainWindow.on('closed', () => {
+    allWindows.delete(mainWindow);
+    mainWindow = null;
+  });
+
+  const indexPath = path.join(__dirname, 'dist/index.html');
+  
+  // تفتح بدون وسم standalone لتعرض الهيدر وشريط التبويبات بالكامل
+  if (app.isPackaged) {
+    winLoadMain(mainWindow, indexPath);
+  } else {
+    if (fs.existsSync(indexPath)) {
+      winLoadMain(mainWindow, indexPath);
+    } else {
+      mainWindow.loadURL('http://localhost:5173/');
+    }
+  }
+
+  return mainWindow;
+}
+
+function winLoadMain(win, indexPath) {
+  win.loadFile(indexPath);
+}
+
+// 3. ضبط بدء التشغيل (يفرق بين النقر على الاختصار أو فتح البرنامج العادي)
+function startApp() {
+  const openRoute = parseOpenRoute();
+  
+  if (openRoute) {
+    // إذا فُتح التطبيق عبر اختصار لسطح المكتب يحمل --open-route=...
+    createSectionWindow(openRoute, '');
+  } else {
+    // تشغيل عادي للبرنامج الرئيسي مع كامل الأشرطة والهيدر
+    createMainWindow();
+  }
 }
 
 // إنشاء اختصار سطح المكتب بنظام ويندوز (.lnk) عبر PowerShell بدون وميض شاشة سوداء وبدعم كامل للحروف العربية
@@ -587,7 +636,7 @@ ipcMain.handle('print-direct', handlePrint);
 app.whenReady().then(() => {
   initCachePath();
   startLocalServer();
-  createWindow();
+  startApp(); // استدعاء startApp بدلاً من createWindow
 });
 
 app.on('window-all-closed', () => {
