@@ -86,46 +86,36 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
     }
   };
 
-  // 2. إنشاء اختصار على سطح المكتب
+  // 2. إنشاء اختصار رسمي على سطح المكتب عبر Electron فقط بصيغة .lnk
   const handleCreateDesktopShortcut = async () => {
     setIsCreatingShortcut(true);
     try {
-      const electron = (window as any).electronAPI || (window as any).electron;
-      if (electron && typeof electron.createDesktopShortcut === 'function') {
-        const res = await electron.createDesktopShortcut({
-          route: tabId,
-          name: tabLabel
+      const api = (window as any).electronAPI || (window as any).electron;
+
+      if (api && typeof api.createDesktopShortcut === 'function') {
+        const res = await api.createDesktopShortcut({ 
+          route: tabId, 
+          name: tabLabel,
+          title: tabLabel 
         });
+
         if (res && res.success) {
-          setFeedback(`✅ تم إنشاء اختصار (.lnk) على سطح المكتب بنجاح!`);
-          setTimeout(onClose, 1500);
-          return;
+          setFeedback(`✅ تم إنشاء اختصار "${tabLabel}" على سطح المكتب بنجاح!`);
+        } else {
+          setFeedback('⚠️ تعذر إنشاء الاختصار على سطح المكتب');
         }
+      } else {
+        setFeedback('ℹ️ ميزة إنشاء اختصارات سطح المكتب تعمل داخل تطبيق البرنامج المثبت فقط');
       }
 
-      // في بيئة الويب أو التوليد المباشر: إنشاء ملف اختصار ويندوز (.url / .bat) وتنزيله لسطح المكتب
-      const currentUrl = new URL(window.location.href);
-      currentUrl.hash = `#${tabId}?standalone=true`;
-      currentUrl.searchParams.set('open-route', tabId);
-      currentUrl.searchParams.set('standalone', 'true');
-
-      // ملف اختصار ويندوز القياسي (.url)
-      const shortcutContent = `[InternetShortcut]\r\nURL=${currentUrl.toString()}\r\nIconIndex=0\r\nHotKey=0\r\nIDList=\r\n[{000214A0-0000-0000-C000-000000000046}]\r\nProp3=19,0\r\n`;
-      const blob = new Blob([shortcutContent], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `المفكر المحاسبي - ${tabLabel}.url`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setFeedback(`✅ تم إنشاء ملف اختصار سطح المكتب (${tabLabel}) جاهز للنقل إلى Desktop!`);
-      setTimeout(onClose, 2000);
+      setTimeout(() => {
+        setFeedback(null);
+        onClose();
+      }, 2000);
     } catch (err: any) {
       console.warn('Shortcut creation error:', err);
-      setFeedback('تعذر إنشاء الاختصار تلقائياً');
+      setFeedback('تعذر إنشاء الاختصار');
+      setTimeout(() => setFeedback(null), 2000);
     } finally {
       setIsCreatingShortcut(false);
     }

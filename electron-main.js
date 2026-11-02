@@ -459,16 +459,19 @@ function startApp() {
   }
 }
 
-// إنشاء اختصار سطح المكتب بنظام ويندوز (.lnk) عبر PowerShell بدون وميض شاشة سوداء وبدعم كامل للحروف العربية
-function createWindowsShortcut({ route, name }) {
+// إنشاء اختصار سطح المكتب الحقيقي لويندوز (.lnk) بدون أي تحذيرات أمان
+function createWindowsShortcut({ route, name, title }) {
   return new Promise((resolve) => {
     try {
-      const desktopPath = path.join(os.homedir(), 'Desktop');
+      const desktopPath = app.getPath('desktop');
       const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
-      const safeName = name ? name.replace(/[/\\?%*:|"<>]/g, '').trim() : 'القسم';
+      const rawName = name || title || 'القسم';
+      const safeName = rawName.replace(/[/\\?%*:|"<>]/g, '').trim();
+      
+      // الامتداد يجب أن يكون .lnk وليس .url
       const fileName = `المفكر المحاسبي - ${safeName}.lnk`;
       const lnkPath = path.join(desktopPath, fileName);
-      const exePath = process.execPath;
+      const exePath = process.execPath; // مسار ملف البرنامج .exe الحقيقي
       const args = `--open-route=${cleanRoute}`;
 
       if (process.platform === 'win32') {
@@ -479,11 +482,11 @@ function createWindowsShortcut({ route, name }) {
           $Shortcut.TargetPath = "${exePath.replace(/\\/g, '\\\\')}";
           $Shortcut.Arguments = "${args}";
           $Shortcut.WorkingDirectory = "${path.dirname(exePath).replace(/\\/g, '\\\\')}";
+          $Shortcut.IconLocation = "${exePath.replace(/\\/g, '\\\\')},0";
           $Shortcut.Description = "تشغيل قسم ${safeName} في المفكر المحاسبي مباشرة";
           $Shortcut.Save();
         `.trim();
 
-        // تشفير السكريبت بصيغة UTF-16LE Base64 لتفادي أي مشاكل ترميز للأحرف العربية أو علامات التنصيص
         const encodedScript = Buffer.from(psScript, 'utf16le').toString('base64');
         const cmd = `powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand ${encodedScript}`;
 
@@ -492,12 +495,10 @@ function createWindowsShortcut({ route, name }) {
             console.error('PowerShell shortcut error:', err);
             resolve({ success: false, error: err.message });
           } else {
-            console.log(`[Shortcut Created] ${lnkPath}`);
             resolve({ success: true, path: lnkPath, fileName });
           }
         });
       } else {
-        // أنظمة غير ويندوز
         resolve({ success: true, path: lnkPath, fileName });
       }
     } catch (e) {
@@ -519,9 +520,11 @@ ipcMain.handle('open-section-window', (event, { route, title }) => {
   return { success: true };
 });
 
-// إنشاء اختصار لسطح المكتب يفتح القسم مباشرة
-ipcMain.handle('create-desktop-shortcut', async (event, { route, name }) => {
-  return await createWindowsShortcut({ route: route || 'pos', name: name || 'القسم' });
+// استقبال طلب إنشاء الاختصار مع دعم name و title معاً
+ipcMain.handle('create-desktop-shortcut', async (event, payload) => {
+  const route = payload?.route || 'pos';
+  const name = payload?.name || payload?.title || 'القسم';
+  return await createWindowsShortcut({ route, name });
 });
 
 // استعلام المسار الأولي الممرر للنافذة
