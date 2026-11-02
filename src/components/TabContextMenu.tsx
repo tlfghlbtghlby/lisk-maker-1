@@ -64,9 +64,10 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
 
       // في المتصفح العادي: فتح نافذة مستقلة منبثقة بالحجم المثالي ومربوطة بالـ BroadcastChannel
       const currentUrl = new URL(window.location.href);
-      currentUrl.hash = `#${tabId}`;
+      currentUrl.hash = `#${tabId}?standalone=true`;
       currentUrl.searchParams.set('open-route', tabId);
       currentUrl.searchParams.set('route', tabId);
+      currentUrl.searchParams.set('standalone', 'true');
 
       const win = window.open(
         currentUrl.toString(),
@@ -104,8 +105,9 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
 
       // في بيئة الويب أو التوليد المباشر: إنشاء ملف اختصار ويندوز (.url / .bat) وتنزيله لسطح المكتب
       const currentUrl = new URL(window.location.href);
-      currentUrl.hash = `#${tabId}`;
+      currentUrl.hash = `#${tabId}?standalone=true`;
       currentUrl.searchParams.set('open-route', tabId);
+      currentUrl.searchParams.set('standalone', 'true');
 
       // ملف اختصار ويندوز القياسي (.url)
       const shortcutContent = `[InternetShortcut]\r\nURL=${currentUrl.toString()}\r\nIconIndex=0\r\nHotKey=0\r\nIDList=\r\n[{000214A0-0000-0000-C000-000000000046}]\r\nProp3=19,0\r\n`;

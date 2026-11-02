@@ -3,6 +3,8 @@ import { ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, C
 import { useApp } from '../context/AppContext';
 import { TabContextMenu } from './TabContextMenu';
 
+import { ContextMenuWrapper } from './ContextMenuWrapper';
+
 export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'shifts' | 'settings';
 
 interface NavigationProps {
@@ -25,14 +27,6 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
     activeSupervisorId,
     currentDeviceId 
   } = useApp();
-
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    tabId: TabType;
-    tabLabel: string;
-    tabIcon: React.ReactNode;
-  } | null>(null);
 
   // فحص صارم: الميزة يجب أن تكون مفعلة في ترخيص المتجر أولاً، ثم مطابقة لصلاحية الجلسة
   const isShiftsPermitted = storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts');
@@ -132,27 +126,22 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
   const isMobile = settings.deviceMode === 'mobile';
 
   return (
-    <>
-      <nav className="no-print bg-white dark:bg-[#0b1728] border-b border-slate-200 dark:border-slate-800/80 sticky top-0 z-20 shadow-xs transition-colors">
-        <div className={`${isMobile ? 'max-w-2xl px-2.5 sm:px-4' : 'max-w-[1650px] px-3 sm:px-6'} mx-auto`}>
-          <div className="flex items-center space-x-1 space-x-reverse overflow-x-auto py-2 scrollbar-none">
-            {navItems.map((item) => {
-              const isActive = activeTab === item.id;
-              return (
+    <nav className="no-print bg-white dark:bg-[#0b1728] border-b border-slate-200 dark:border-slate-800/80 sticky top-0 z-20 shadow-xs transition-colors">
+      <div className={`${isMobile ? 'max-w-2xl px-2.5 sm:px-4' : 'max-w-[1650px] px-3 sm:px-6'} mx-auto`}>
+        <div className="flex items-center space-x-1 space-x-reverse overflow-x-auto py-2 scrollbar-none">
+          {navItems.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <ContextMenuWrapper
+                key={item.id}
+                route={item.id}
+                title={item.label}
+                icon={item.icon}
+                onSelectTab={onSelectTab}
+              >
                 <button
-                  key={item.id}
+                  type="button"
                   onClick={() => onSelectTab(item.id)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setContextMenu({
-                      x: e.clientX,
-                      y: e.clientY,
-                      tabId: item.id,
-                      tabLabel: item.label,
-                      tabIcon: item.icon
-                    });
-                  }}
-                  title="انقر للفتح، أو كليك أيمن (Right-Click) للفتح في نافذة مستقلة أو إنشاء اختصار سطح المكتب"
                   className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer select-none ${
                     isActive
                       ? 'bg-emerald-600 dark:bg-gradient-to-r dark:from-amber-500 dark:via-amber-400 dark:to-yellow-500 text-white dark:text-slate-950 shadow-sm dark:shadow-md dark:shadow-amber-500/20 dark:border dark:border-amber-400/60'
@@ -175,24 +164,12 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
                     </span>
                   )}
                 </button>
-              );
-            })}
-          </div>
+              </ContextMenuWrapper>
+            );
+          })}
         </div>
-      </nav>
-
-      {contextMenu && (
-        <TabContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          tabId={contextMenu.tabId}
-          tabLabel={contextMenu.tabLabel}
-          tabIcon={contextMenu.tabIcon}
-          onClose={() => setContextMenu(null)}
-          onSelectTab={onSelectTab}
-        />
-      )}
-    </>
+      </div>
+    </nav>
   );
 };
 

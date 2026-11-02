@@ -37,68 +37,84 @@ const MainContent: React.FC = () => {
   } = useApp();
 
   const [isGuest, setIsGuest] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>(() => {
-    if (typeof window !== 'undefined') {
-      const validTabs = ['pos', 'inventory', 'invoices', 'customers', 'reports', 'sales-reps', 'shifts', 'settings'];
-      const hashRoute = window.location.hash.replace(/^#\/?/, '').trim() as TabType;
-      if (validTabs.includes(hashRoute)) {
-        return hashRoute;
-      }
-      const p = new URLSearchParams(window.location.search);
-      const r = (p.get('open-route') || p.get('route')) as TabType | null;
-      if (r && validTabs.includes(r)) {
-        return r;
-      }
-    }
-    return 'pos';
-  });
-
-  const [isStandaloneWindow, setIsStandaloneWindow] = useState(() => {
+  // 1. فحص هل النافذة المفتوحة حالياً هي نافذة منفصلة مستقلة (لكل الخانات)
+  const [isStandaloneWindow, setIsStandaloneWindow] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    const validTabs = ['pos', 'inventory', 'invoices', 'customers', 'reports', 'sales-reps', 'shifts', 'settings'];
-    const hashRoute = window.location.hash.replace(/^#\/?/, '').trim();
-    const p = new URLSearchParams(window.location.search);
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
     return (
-      validTabs.includes(hashRoute) ||
-      p.has('open-route') ||
-      p.has('route') ||
-      p.has('standalone') ||
+      hash.includes('standalone=true') ||
+      search.includes('standalone=true') ||
+      search.includes('open-route=') ||
       (typeof window.name === 'string' && (window.name.startsWith('mufakir_win_') || window.name.startsWith('window_section_')))
     );
   });
 
+  // 2. قراءة القسم المطلوب عرضه ودعم كافة الخانات
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    if (typeof window !== 'undefined') {
+      const hash = (window.location.hash || '').toLowerCase();
+      const p = new URLSearchParams(window.location.search);
+      const openRoute = (p.get('open-route') || p.get('route') || '').toLowerCase();
+
+      if (hash.includes('inventory') || openRoute === 'inventory') return 'inventory';
+      if (hash.includes('invoices') || openRoute === 'invoices') return 'invoices';
+      if (hash.includes('shifts') || openRoute === 'shifts') return 'shifts';
+      if (hash.includes('customers') || hash.includes('debts') || openRoute === 'customers' || openRoute === 'debts') return 'customers';
+      if (hash.includes('sales-reps') || openRoute === 'sales-reps') return 'sales-reps';
+      if (hash.includes('reports') || openRoute === 'reports') return 'reports';
+      if (hash.includes('settings') || openRoute === 'settings') return 'settings';
+      if (hash.includes('pos') || openRoute === 'pos') return 'pos';
+    }
+    return 'pos'; // الافتراضي
+  });
+
+  // 3. الاستماع لتغييرات المسار من Electron إذا تم تشغيل اختصار من سطح المكتب أو Hash
   useEffect(() => {
-    const validTabs = ['pos', 'inventory', 'invoices', 'customers', 'reports', 'sales-reps', 'shifts', 'settings'];
+    const parseRouteString = (raw: string): TabType | null => {
+      const clean = raw.toLowerCase().replace(/^[#?]/, '').split('?')[0].trim();
+      if (clean === 'inventory') return 'inventory';
+      if (clean === 'invoices') return 'invoices';
+      if (clean === 'shifts') return 'shifts';
+      if (clean === 'customers' || clean === 'debts') return 'customers';
+      if (clean === 'sales-reps') return 'sales-reps';
+      if (clean === 'reports') return 'reports';
+      if (clean === 'settings') return 'settings';
+      if (clean === 'pos') return 'pos';
+      return null;
+    };
 
-    const checkInitialRoute = async () => {
-      try {
-        const hashRoute = window.location.hash.replace(/^#\/?/, '').trim() as TabType;
-        if (validTabs.includes(hashRoute)) {
-          setActiveTab(hashRoute);
+    const checkRoute = async () => {
+      const hash = window.location.hash || '';
+      const search = window.location.search || '';
+      if (hash.includes('standalone=true') || search.includes('standalone=true') || search.includes('open-route=')) {
+        setIsStandaloneWindow(true);
+      }
+      const matched = parseRouteString(hash);
+      if (matched) {
+        setActiveTab(matched);
+      }
+
+      const electron = (window as any).electronAPI || (window as any).electron;
+      if (electron && typeof electron.getInitialRoute === 'function') {
+        const route = await electron.getInitialRoute();
+        if (route && route !== 'main') {
+          const m = parseRouteString(route);
+          if (m) setActiveTab(m);
           setIsStandaloneWindow(true);
-          return;
         }
-
-        const electron = (window as any).electronAPI || (window as any).electron;
-        if (electron && typeof electron.getInitialRoute === 'function') {
-          const elRoute = await electron.getInitialRoute();
-          const clean = elRoute ? elRoute.replace(/^[#?]/, '').trim() as TabType : null;
-          if (clean && validTabs.includes(clean)) {
-            setActiveTab(clean);
-            setIsStandaloneWindow(true);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to query initial route:', e);
       }
     };
-    checkInitialRoute();
+    checkRoute();
 
     const onHashChange = () => {
-      const hashRoute = window.location.hash.replace(/^#\/?/, '').trim() as TabType;
-      if (validTabs.includes(hashRoute)) {
-        setActiveTab(hashRoute);
+      const hash = window.location.hash || '';
+      if (hash.includes('standalone=true')) {
         setIsStandaloneWindow(true);
+      }
+      const matched = parseRouteString(hash);
+      if (matched) {
+        setActiveTab(matched);
       }
     };
     window.addEventListener('hashchange', onHashChange);
@@ -268,38 +284,26 @@ const MainContent: React.FC = () => {
 
   return (
     <div className={`min-h-screen flex flex-col bg-slate-100 dark:bg-[#070d18] text-slate-800 dark:text-slate-100 transition-colors duration-200 print:min-h-0 print:h-auto print:block print:bg-white ${isMobile ? 'selection:bg-amber-500' : 'selection:bg-amber-500 selection:text-slate-950'}`}>
-      <Header onOpenAuth={() => setIsGuest(false)} />
-
-      {isStandaloneWindow && (
-        <div className="no-print bg-emerald-950/90 text-emerald-200 border-b border-emerald-700/60 px-3 sm:px-6 py-1.5 flex flex-wrap items-center justify-between text-xs select-none">
-          <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-            </span>
-            <span className="font-bold text-white text-xs sm:text-sm">
-              نافذة مستقلة: {getActiveTabTitle() || 'نقطة البيع'}
-            </span>
-            <span className="text-[11px] bg-emerald-900/80 text-emerald-300 border border-emerald-600/50 px-2 py-0.5 rounded font-mono font-bold">
-              مزامنة فورية بالرام (RAM &lt;1ms)
-            </span>
-          </div>
-          <div className="text-[11px] text-emerald-300/80 hidden md:block">
-            ⚡ متصل بالنافذة الرئيسية - تحديثات المخزون والمبيعات تنعكس فورياً
-          </div>
-        </div>
+      
+      {/* 1. الشريط الأسود العلوي (يختفي تماماً في أي نافذة منفصلة لأي خانة) */}
+      {!isStandaloneWindow && (
+        <Header onOpenAuth={() => setIsGuest(false)} />
       )}
 
-      {!isFullComputerMode && (
+      {/* 2. شريط التبويبات العلوي (يختفي تماماً في أي نافذة منفصلة لأي خانة) */}
+      {!isStandaloneWindow && !isFullComputerMode && (
         <Navigation activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
       )}
 
+      {/* 3. منطقة المحتوى فقط (تأخذ الشاشة كاملة 100% بدون أي أشرطة مشتتة) */}
       <main className={`no-print flex-1 w-full mx-auto ${
-        isMobile 
-          ? 'max-w-2xl px-2.5 sm:px-4 py-3 sm:py-4' 
-          : 'max-w-[1650px] px-3 sm:px-6 py-3 sm:py-4'
+        isStandaloneWindow
+          ? 'w-full h-full p-2 max-w-full overflow-auto'
+          : isMobile 
+            ? 'max-w-2xl px-2.5 sm:px-4 py-3 sm:py-4' 
+            : 'max-w-[1650px] px-3 sm:px-6 py-3 sm:py-4'
       }`}>
-        {isFullComputerMode && activeTab !== 'pos' && (
+        {!isStandaloneWindow && isFullComputerMode && activeTab !== 'pos' && (
           <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl flex items-center justify-between mb-4 shadow-sm border border-slate-800">
             <div className="flex items-center gap-2 text-xs font-bold">
               <span className="text-slate-400">أنت تتصفح حالياً:</span>
@@ -316,7 +320,7 @@ const MainContent: React.FC = () => {
           </div>
         )}
 
-        {isFullComputerMode && activeTab === 'pos' && (
+        {!isStandaloneWindow && isFullComputerMode && activeTab === 'pos' && (
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3 bg-white dark:bg-[#0b1728] p-2 sm:px-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs text-xs transition-colors">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-blue-900 dark:text-amber-300 bg-blue-50 dark:bg-amber-950/60 border border-blue-200 dark:border-amber-500/40 px-2 py-0.5 rounded-md flex items-center gap-1">

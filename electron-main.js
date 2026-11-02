@@ -344,15 +344,33 @@ function parseOpenRoute(argvList = process.argv) {
   return '';
 }
 
+// فتح أي قسم من أقسام البرنامج في نافذة مستقلة نظيفة
 function createSectionWindow(route = 'pos', title = '') {
   const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
+
+  // تحديد اسم النافذة في شريط الويندوز حسب القسم المفتوح
+  const titlesMap = {
+    pos: 'نقطة البيع والمبيعات',
+    inventory: 'المواد والمخزون',
+    invoices: 'سجل القوائم والفواتير',
+    shifts: 'إدارة الشفتات والورديات',
+    customers: 'البيع الآجل وحسابات الديون',
+    debts: 'حسابات الديون والزبائن',
+    reports: 'التقارير والأرباح المالية',
+    settings: 'إعدادات النظام والنسخ الاحتياطي',
+    'sales-reps': 'المندوبين والأرباح',
+    quick_add: 'الإضافة السريعة للمواد'
+  };
+
+  const windowTitle = title || titlesMap[cleanRoute] || 'نافذة مخصصة';
+
   const win = new BrowserWindow({
     width: 1280,
-    height: 800,
+    height: 850,
     minWidth: 850,
     minHeight: 550,
-    title: title ? `برنامج المفكر المحاسبي - ${title}` : 'برنامج المفكر المحاسبي',
-    autoHideMenuBar: true,
+    title: `المفكر المحاسبي - ${windowTitle}`,
+    autoHideMenuBar: true, // إخفاء شريط القوائم التقليدي
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -362,6 +380,7 @@ function createSectionWindow(route = 'pos', title = '') {
 
   win.openRoute = cleanRoute;
   allWindows.add(win);
+
   win.on('closed', () => {
     allWindows.delete(win);
     if (win === mainWindow) {
@@ -369,9 +388,20 @@ function createSectionWindow(route = 'pos', title = '') {
     }
   });
 
+  // نمرر الـ hash مع standalone=true ليتم إخفاء جميع الأشرطة العلوية في كل الخانات
   const indexPath = path.join(__dirname, 'dist/index.html');
-  // الاعتماد على Hash Routing المباشر للقسم (#pos, #inventory, ...) مع وسائط إضافية
-  win.loadFile(indexPath, { hash: cleanRoute, query: { 'open-route': cleanRoute, 'route': cleanRoute } });
+  const targetHash = `${cleanRoute}?standalone=true`;
+
+  if (app.isPackaged) {
+    win.loadFile(indexPath, { hash: targetHash, query: { 'standalone': 'true', 'open-route': cleanRoute } });
+  } else {
+    if (fs.existsSync(indexPath)) {
+      win.loadFile(indexPath, { hash: targetHash, query: { 'standalone': 'true', 'open-route': cleanRoute } });
+    } else {
+      win.loadURL(`http://localhost:5173/#${targetHash}`);
+    }
+  }
+
   return win;
 }
 
