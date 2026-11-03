@@ -431,31 +431,81 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     handleBarcodeScannedRef.current = handleBarcodeScanned;
   });
 
+  const handleSaveInvoiceRef = useRef<(andPrint: boolean) => void>(() => {});
+  useEffect(() => {
+    handleSaveInvoiceRef.current = handleSaveInvoice;
+  });
+
+  const cartItemsRef = useRef(cartItems);
+  useEffect(() => {
+    cartItemsRef.current = cartItems;
+  });
+
   useEffect(() => {
     let buffer = '';
     let lastKeyTime = Date.now();
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (showQuickAddModal || isScannerOpen || !!unfoundBarcodePrompt) return;
+      // إيقاف المعالجة إذا كانت هناك نوافذ تفاعلية منبثقة مفتوحة
+      if (
+        showQuickAddModal || 
+        isScannerOpen || 
+        !!unfoundBarcodePrompt || 
+        !!productForPriceEdit || 
+        isSelectRepModalOpen || 
+        showClearConfirmModal
+      ) {
+        return;
+      }
 
       const target = e.target as HTMLElement;
-      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
+      const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
 
       const now = Date.now();
       const diff = now - lastKeyTime;
       lastKeyTime = now;
 
-      if (e.key === 'Enter') {
-        if (buffer.length >= 2) {
-          e.preventDefault();
-          const scanned = buffer.trim();
-          buffer = '';
-          handleBarcodeScannedRef.current(scanned);
+      // 1. اختصار Ctrl + Enter (أو Cmd + Enter): حفظ القائمة فقط دون طباعة
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        buffer = '';
+        if (cartItemsRef.current.length > 0) {
+          handleSaveInvoiceRef.current(false);
         }
         return;
       }
 
-      if (e.key.length === 1) {
+      // 2. اختصار Enter: حفظ وطباعة القائمة (أو قراءة باركود الماسح الشريطي)
+      if (e.key === 'Enter' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        // فحص هل هو ماسح باركود شريطي سريع
+        if (buffer.length >= 2 && diff < 80) {
+          e.preventDefault();
+          const scanned = buffer.trim();
+          buffer = '';
+          handleBarcodeScannedRef.current(scanned);
+          return;
+        }
+
+        // إذا كان المستخدم يكتب نصاً في حقل بحث أو إدخال (نترك الحقل لمعالجة نصه أولاً)
+        if (isInput) {
+          const inputEl = target as HTMLInputElement;
+          if (inputEl.value && inputEl.value.trim().length > 0 && inputEl.type !== 'submit' && inputEl.type !== 'button') {
+            return;
+          }
+        }
+
+        // حفظ وطباعة القائمة الحالية عند الضغط على Enter
+        if (cartItemsRef.current.length > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          buffer = '';
+          handleSaveInvoiceRef.current(true);
+        }
+        return;
+      }
+
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         if (diff > 120 && buffer.length > 0) {
           buffer = '';
         }
@@ -467,7 +517,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [showQuickAddModal, isScannerOpen, unfoundBarcodePrompt]);
+  }, [showQuickAddModal, isScannerOpen, unfoundBarcodePrompt, productForPriceEdit, isSelectRepModalOpen, showClearConfirmModal]);
 
   const updateQuantity = (productId: string, newQty: number) => {
     if (newQty <= 0) {
@@ -783,9 +833,19 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter' && searchQuery.trim()) {
+                      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                         e.preventDefault();
-                        handleBarcodeScanned(searchQuery.trim());
+                        if (cartItems.length > 0) {
+                          handleSaveInvoice(false);
+                        }
+                      } else if (e.key === 'Enter') {
+                        if (searchQuery.trim()) {
+                          e.preventDefault();
+                          handleBarcodeScanned(searchQuery.trim());
+                        } else if (cartItems.length > 0) {
+                          e.preventDefault();
+                          handleSaveInvoice(true);
+                        }
                       }
                     }}
                     placeholder="ابحث باسم المادة أو امسح الباركود..."
@@ -1781,10 +1841,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         ? 'bg-amber-600 hover:bg-amber-700 text-white ring-2 ring-amber-400' 
                         : 'bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white'
                     }`}
-                    title="حفظ وطباعة القائمة"
+                    title="حفظ وطباعة القائمة (اضغط Enter)"
                   >
-                    <Printer className="w-3.5 h-3.5" />
+                    <Printer className="w-3.5 h-3.5 shrink-0" />
                     <span>حفظ وطباعة القائمة</span>
+                    <span className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-black/20 rounded font-mono font-bold">
+                      Enter ↵
+                    </span>
                   </button>
 
                   <button
@@ -1792,10 +1855,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     disabled={cartItems.length === 0 || (saleType === 'credit' && !selectedCustomerId)}
                     onClick={() => handleSaveInvoice(false)}
                     className="py-2 px-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-                    title="حفظ القائمة فقط دون طباعة"
+                    title="حفظ القائمة فقط دون طباعة (اضغط Ctrl + Enter)"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                     <span>حفظ فقط</span>
+                    <span className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-white/20 text-slate-200 rounded font-mono font-bold">
+                      Ctrl+Enter
+                    </span>
                   </button>
                 </div>
 
