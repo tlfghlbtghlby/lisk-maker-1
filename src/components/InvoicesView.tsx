@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Invoice, SaleType } from '../types';
 import { 
@@ -33,6 +33,16 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
   const [selectedInvoiceForPartialReturn, setSelectedInvoiceForPartialReturn] = useState<Invoice | null>(null);
 
+  // حالة ترقيم الصفحات (Pagination)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('invoices_page_size');
+      if (saved) return Number(saved);
+    } catch (e) {}
+    return 50;
+  });
+
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
       const q = searchQuery.toLowerCase().trim();
@@ -51,6 +61,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
       return matchSearch && matchType;
     });
   }, [invoices, searchQuery, typeFilter]);
+
+  const effectivePageSize = pageSize === -1 ? (filteredInvoices.length || 1) : pageSize;
+  const totalPages = Math.ceil(filteredInvoices.length / effectivePageSize) || 1;
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedInvoices = useMemo(() => {
+    if (pageSize === -1) return filteredInvoices;
+    const startIndex = (safeCurrentPage - 1) * effectivePageSize;
+    return filteredInvoices.slice(startIndex, startIndex + effectivePageSize);
+  }, [filteredInvoices, safeCurrentPage, effectivePageSize, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, typeFilter]);
 
   // Overall financial summary for active invoices (exclude returned from active sales)
   const activeInvoices = useMemo(() => invoices.filter(i => i.status !== 'returned'), [invoices]);
@@ -267,7 +291,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map((inv) => {
+                paginatedInvoices.map((inv) => {
                   const dateObj = new Date(inv.date);
                   const dateFormatted = dateObj.toLocaleDateString('ar-EG', {
                     year: 'numeric',
@@ -440,6 +464,80 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        {filteredInvoices.length > 0 && (
+          <div className="p-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+            <div className="flex items-center gap-2">
+              <span className="font-medium">عرض:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setPageSize(val);
+                  setCurrentPage(1);
+                  try {
+                    localStorage.setItem('invoices_page_size', String(val));
+                  } catch (err) {}
+                }}
+                className="bg-white border border-slate-300 rounded px-2 py-1 font-bold text-slate-800 focus:outline-none"
+              >
+                <option value={25}>25 قائمة</option>
+                <option value={50}>50 قائمة</option>
+                <option value={100}>100 قائمة</option>
+                <option value={-1}>عرض الكل ({filteredInvoices.length})</option>
+              </select>
+              <span className="text-slate-500">
+                | عرض {((safeCurrentPage - 1) * effectivePageSize) + 1} إلى {Math.min(safeCurrentPage * effectivePageSize, filteredInvoices.length)} من أصل {filteredInvoices.length} قائمة
+              </span>
+            </div>
+
+            {pageSize !== -1 && totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  disabled={safeCurrentPage <= 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition font-bold cursor-pointer"
+                >
+                  السابق
+                </button>
+                <div className="flex items-center gap-1 font-bold">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, idx) => {
+                    let pageNum = idx + 1;
+                    if (totalPages > 5 && safeCurrentPage > 3) {
+                      pageNum = safeCurrentPage - 2 + idx;
+                      if (pageNum > totalPages) pageNum = totalPages - 4 + idx;
+                    }
+                    if (pageNum < 1 || pageNum > totalPages) return null;
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`w-7 h-7 rounded-lg transition text-xs font-bold cursor-pointer ${
+                          safeCurrentPage === pageNum
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  disabled={safeCurrentPage >= totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition font-bold cursor-pointer"
+                >
+                  التالي
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* نافذة الاسترجاع الجزئي للقوائم */}
