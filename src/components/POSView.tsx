@@ -227,7 +227,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     });
 
     setCartItems(prev => prev.map(item => {
-      if (item.productId === productForPriceEdit.id) {
+      if (item.productId === productForPriceEdit.id && !item.isGift) {
         const basePiece = getPiecePrice(
           { retailPrice: newRetail, wholesalePrice: newWholesale, superWholesalePrice: newSuper, specialPrice: newSpecial },
           item.priceType
@@ -252,11 +252,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   };
 
   const handleToggleEditCartItemPrice = (item: InvoiceItem) => {
-    if (editingPriceProductId === item.productId) {
+    if (editingPriceProductId === lineKeyOf(item)) {
       setEditingPriceProductId(null);
       setTempItemPrice('');
     } else {
-      setEditingPriceProductId(item.productId);
+      setEditingPriceProductId(lineKeyOf(item));
       setTempItemPrice(String(item.unitPrice));
     }
   };
@@ -268,7 +268,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     }
     setCartItems((prev) =>
       prev.map((item) => {
-        if (item.productId === productId) {
+        if (lineKeyOf(item) === productId) {
           return {
             ...item,
             unitPrice: parsed,
@@ -365,10 +365,65 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     setTimeout(() => setScanNotice(null), 4000);
   };
 
-  const addToCartWithPrice = (product: Product, priceType: PriceType, delta = 1) => {
+  // مفتاح السطر: سطر الهدية منفصل عن السطر العادي لنفس المادة
+  const lineKeyOf = (item: { productId: string; isGift?: boolean }) =>
+    item.isGift ? `${item.productId}__gift` : item.productId;
+  const baseIdOf = (key: string) => key.replace(/__gift$/, '');
+
+  // الكمية السريعة: آخر مادة أُضيفت بالنقر تنتظر ضغط رقم لتحديد كميتها
+  const quickQtyArmedRef = useRef<string | null>(null);
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  });
+
+  const [giftMenu, setGiftMenu] = useState<{ x: number; y: number; product: Product } | null>(null);
+
+  const addGiftToCart = (product: Product) => {
     const isWeighted = Boolean(product.isWeighted || product.unit === 'كغم' || product.unit === 'كيلو');
     setCartItems((prev) => {
-      const existingIndex = prev.findIndex((item) => item.productId === product.id);
+      const idx = prev.findIndex((it) => it.productId === product.id && it.isGift);
+      if (idx > -1) {
+        const t = prev[idx];
+        const q = Math.round((t.quantity + 1) * 1000) / 1000;
+        const updated: InvoiceItem = {
+          ...t,
+          quantity: q,
+          deductedPieces: t.unitType === 'carton' ? q * (t.piecesPerCarton || 1) : q,
+          total: 0,
+        };
+        return [updated, ...prev.filter((_, i) => i !== idx)];
+      }
+      const cap = isWeighted ? 1 : (product.piecesPerCarton || 1);
+      const gift: InvoiceItem = {
+        productId: product.id,
+        productName: product.name,
+        code: product.code,
+        unit: isWeighted ? 'كغم' : product.unit,
+        priceType: 'retail',
+        unitType: 'piece',
+        piecesPerCarton: cap,
+        deductedPieces: 1,
+        costPrice: product.costPrice,
+        unitPrice: 0,
+        quantity: 1,
+        isWeighted,
+        weightGrams: isWeighted ? 1000 : undefined,
+        total: 0,
+        isGift: true,
+        notes: 'هدية',
+      } as InvoiceItem;
+      return [gift, ...prev];
+    });
+    setScanNotice(`تمت إضافة "${product.name}" كهدية (سعر 0)`);
+    setTimeout(() => setScanNotice(null), 2500);
+  };
+
+  const addToCartWithPrice = (product: Product, priceType: PriceType, delta = 1) => {
+    quickQtyArmedRef.current = !product.isWeighted ? product.id : null;
+    const isWeighted = Boolean(product.isWeighted || product.unit === 'كغم' || product.unit === 'كيلو');
+    setCartItems((prev) => {
+      const existingIndex = prev.findIndex((item) => item.productId === product.id && !item.isGift);
       const piecePrice = getPiecePrice(product, priceType);
 
       if (existingIndex > -1) {
@@ -424,6 +479,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     if (matched) {
       playScannerBeep('success');
       addToCartWithPrice(matched, globalPriceType, 1);
+      quickQtyArmedRef.current = null;
       setSearchQuery('');
       setUnfoundBarcodePrompt(null);
       setScanNotice(`تم مسح الباركود #${clean}: زيادة كمية "${matched.name}" في القائمة (+1)`);
@@ -454,6 +510,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   useEffect(() => {
     let buffer = '';
+    let quickQtyBuf = '';
+    let quickQtyTime = 0;
+    let quickQtyFor = '';
     let lastKeyTime = Date.now();
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -516,6 +575,33 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         return;
       }
 
+      // إدخال الكمية السريع: بعد إضافة مادة بالنقر، ضغط رقم يحدد كميتها مباشرة
+      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const armed = quickQtyArmedRef.current;
+        if (settingsRef.current.quickQuantityEntry && armed && !isInput) {
+          if (/^[0-9]$/.test(e.key)) {
+            if (quickQtyFor !== armed) { quickQtyBuf = ''; quickQtyFor = armed; }
+            if (quickQtyBuf !== '' && now - quickQtyTime > 1500) quickQtyBuf = '';
+            if (quickQtyBuf !== '' && diff < 40) {
+              // سرعة إدخال تشبه الماسح الضوئي: لا نتدخل
+              quickQtyArmedRef.current = null;
+              quickQtyBuf = '';
+            } else {
+              quickQtyBuf += e.key;
+              quickQtyTime = now;
+              const n = parseInt(quickQtyBuf, 10);
+              if (n > 0) updateQuantityRef.current(armed, n);
+              e.preventDefault();
+              buffer = '';
+              return;
+            }
+          } else {
+            quickQtyArmedRef.current = null;
+            quickQtyBuf = '';
+          }
+        }
+      }
+
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         if (diff > 120 && buffer.length > 0) {
           buffer = '';
@@ -538,7 +624,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     const cleanQty = Math.round(newQty * 1000) / 1000;
     setCartItems((prev) =>
       prev.map((item) => {
-        if (item.productId === productId) {
+        if (lineKeyOf(item) === productId) {
           const cartonCap = item.piecesPerCarton || 1;
           const isCarton = !item.isWeighted && item.unitType === 'carton';
           const deductedPieces = isCarton ? cleanQty * cartonCap : cleanQty;
@@ -555,6 +641,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     );
   };
 
+  const updateQuantityRef = useRef(updateQuantity);
+  useEffect(() => {
+    updateQuantityRef.current = updateQuantity;
+  });
+
   const updateItemWeight = (productId: string, weightKg: number) => {
     updateQuantity(productId, Math.max(0.001, Math.round(weightKg * 1000) / 1000));
   };
@@ -569,7 +660,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     if (targetAmount < 0) return;
     setCartItems((prev) =>
       prev.map((item) => {
-        if (item.productId === productId && item.isWeighted) {
+        if (lineKeyOf(item) === productId && item.isWeighted) {
           const effectivePrice = item.unitPrice > 0 ? item.unitPrice : 1;
           const computedWeightKg = Math.round((targetAmount / effectivePrice) * 1000) / 1000;
           return {
@@ -586,14 +677,18 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   };
 
   const toggleItemUnitType = (productId: string, newUnitType: 'piece' | 'carton') => {
-    const prod = products.find((p) => p.id === productId);
+    const prod = products.find((p) => p.id === baseIdOf(productId));
     if (!prod) return;
 
     const cartonCapacity = Math.max(1, prod.piecesPerCarton || 1);
 
     setCartItems((prev) =>
       prev.map((item) => {
-        if (item.productId === productId) {
+        if (lineKeyOf(item) === productId) {
+          if (item.isGift) {
+            const capG = newUnitType === 'carton' ? cartonCapacity : 1;
+            return { ...item, unitType: newUnitType, piecesPerCarton: cartonCapacity, unitPrice: 0, total: 0, deductedPieces: item.quantity * capG };
+          }
           const piecePrice = getPiecePrice(prod, item.priceType);
           const pieceCost = prod.costPrice;
           const isCarton = newUnitType === 'carton';
@@ -621,6 +716,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     setGlobalPriceType(type);
     setCartItems((prev) =>
       prev.map((item) => {
+        if (item.isGift) return item;
         const prod = products.find((p) => p.id === item.productId);
         if (!prod) return item;
         const piecePrice = getPiecePrice(prod, type);
@@ -639,7 +735,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   };
 
   const removeFromCart = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.productId !== productId));
+    setCartItems((prev) => prev.filter((item) => lineKeyOf(item) !== productId));
   };
 
   const clearCart = () => {
@@ -979,6 +1075,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       <div
                         key={`${prod.id}_${pIdx}`}
                         onClick={() => addToCart(prod)}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setGiftMenu({ x: e.clientX, y: e.clientY, product: prod });
+                        }}
                         title={
                           prod.isWeighted
                             ? `${prod.name} (يباع بالوزن - سعر الكيلو ${formatMoney(effectivePrice)})`
@@ -1029,6 +1129,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     return (
                       <div
                         key={`${prod.id}_${pIdx}`}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setGiftMenu({ x: e.clientX, y: e.clientY, product: prod });
+                        }}
                         className={`bg-white rounded-xl border p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition text-right group select-none relative ${
                           isOutOfStock
                             ? 'border-rose-300 bg-rose-50/20 hover:border-rose-500 hover:shadow-xs'
@@ -1122,7 +1226,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {settings.enableWholesale && hasOwnPrice(prod, 'superWholesale') && (
+                          {settings.enableWholesale && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
                             <div className="bg-orange-50/90 border border-orange-200/90 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
                               <div className="text-[10px] text-orange-800 font-bold">
                                 جملة الجملة:
@@ -1133,7 +1237,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {settings.enableWholesale && hasOwnPrice(prod, 'special') && (
+                          {settings.enableWholesale && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
                             <div className="bg-violet-50/90 border border-violet-200/90 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
                               <div className="text-[10px] text-violet-800 font-bold">
                                 السعر الخاص:
@@ -1190,7 +1294,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                   <span>جملة</span>
                                 </button>
 
-                                {hasOwnPrice(prod, 'superWholesale') && (
+                                {settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -1205,7 +1309,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                   </button>
                                 )}
 
-                                {hasOwnPrice(prod, 'special') && (
+                                {settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
                                   <button
                                     type="button"
                                     onClick={(e) => {
@@ -1400,6 +1504,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         >
                           جملة
                         </button>
+                        {settings.showSuperWholesale !== false && (
                         <button
                           onClick={() => handleGlobalPriceTypeChange('superWholesale')}
                           className={`px-1.5 py-0.5 rounded transition ${
@@ -1410,6 +1515,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         >
                           {PRICE_TYPE_LABELS.superWholesale}
                         </button>
+                        )}
+                        {settings.showSpecialPrice !== false && (
                         <button
                           onClick={() => handleGlobalPriceTypeChange('special')}
                           className={`px-1.5 py-0.5 rounded transition ${
@@ -1420,6 +1527,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         >
                           {PRICE_TYPE_LABELS.special}
                         </button>
+                        )}
                       </div>
                     </div>
                     <SessionBadgeButton compact={true} />
@@ -1464,7 +1572,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
                     return (
                       <div
-                        key={`${item.productId}_${index}`}
+                        key={`${lineKeyOf(item)}_${index}`}
                         className={`border rounded-lg p-2 flex flex-col gap-1.5 transition text-right ${
                           isStockZero 
                             ? 'bg-rose-50/50 border-rose-300' 
@@ -1478,7 +1586,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                 {index + 1}
                               </span>
                               <span className="text-xs font-bold text-slate-900 leading-snug truncate">
-                                {item.productName}
+                                {item.productName}{item.isGift && <span className="mr-1 text-[10px] font-black text-pink-700 bg-pink-50 border border-pink-300 px-1 rounded">🎁 هدية</span>}
                               </span>
 
                               {item.isWeighted && (
@@ -1519,7 +1627,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               type="button"
                               onClick={() => handleToggleEditCartItemPrice(item)}
                               className={`p-1 rounded border transition cursor-pointer flex items-center justify-center ${
-                                editingPriceProductId === item.productId
+                                editingPriceProductId === lineKeyOf(item)
                                   ? 'bg-blue-600 text-white border-blue-600'
                                   : 'bg-white text-blue-600 hover:text-blue-800 border-slate-300 hover:border-blue-400'
                               }`}
@@ -1532,7 +1640,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               <div className="inline-flex items-center bg-slate-200/80 p-0.5 rounded border border-slate-300 text-[9px] font-bold">
                                 <button
                                   type="button"
-                                  onClick={() => toggleItemUnitType(item.productId, 'piece')}
+                                  onClick={() => toggleItemUnitType(lineKeyOf(item), 'piece')}
                                   className={`px-1 py-0.2 rounded transition cursor-pointer ${
                                     !isCarton
                                       ? 'bg-white text-emerald-800 shadow-2xs font-extrabold'
@@ -1544,7 +1652,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => toggleItemUnitType(item.productId, 'carton')}
+                                  onClick={() => toggleItemUnitType(lineKeyOf(item), 'carton')}
                                   className={`px-1 py-0.2 rounded transition cursor-pointer flex items-center gap-0.5 ${
                                     isCarton
                                       ? 'bg-amber-600 text-white shadow-2xs font-extrabold'
@@ -1560,7 +1668,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
                             <button
                               type="button"
-                              onClick={() => removeFromCart(item.productId)}
+                              onClick={() => removeFromCart(lineKeyOf(item))}
                               className="p-1 text-slate-400 hover:text-rose-600 transition cursor-pointer rounded hover:bg-rose-50"
                               title="حذف من القائمة"
                             >
@@ -1569,7 +1677,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           </div>
                         </div>
 
-                        {editingPriceProductId === item.productId && (
+                        {editingPriceProductId === lineKeyOf(item) && (
                           <div className="bg-blue-50 border border-blue-300 rounded-lg p-2 my-0.5 flex flex-col gap-1.5 shadow-2xs">
                             <div className="flex items-center justify-between text-[10px] font-bold text-blue-950">
                               <span>تعديل السعر للقائمة:</span>
@@ -1587,7 +1695,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
                                     e.preventDefault();
-                                    handleSaveCartItemPrice(item.productId);
+                                    handleSaveCartItemPrice(lineKeyOf(item));
                                   } else if (e.key === 'Escape') {
                                     setEditingPriceProductId(null);
                                   }
@@ -1597,7 +1705,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               />
                               <button
                                 type="button"
-                                onClick={() => handleSaveCartItemPrice(item.productId)}
+                                onClick={() => handleSaveCartItemPrice(lineKeyOf(item))}
                                 className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold transition cursor-pointer"
                               >
                                 حفظ
@@ -1620,7 +1728,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                 <span className="text-[10px] font-bold text-emerald-950 shrink-0">كغم:</span>
                                 <button
                                   type="button"
-                                  onClick={() => updateItemWeight(item.productId, Math.max(0.005, item.quantity - 0.05))}
+                                  onClick={() => updateItemWeight(lineKeyOf(item), Math.max(0.005, item.quantity - 0.05))}
                                   className="p-0.5 hover:bg-slate-100 text-slate-700 rounded transition cursor-pointer"
                                   title="إنقاص 50 غرام"
                                 >
@@ -1633,13 +1741,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                   value={item.quantity}
                                   onChange={(e) => {
                                     const val = parseFloat(e.target.value);
-                                    if (!isNaN(val)) updateItemWeight(item.productId, val);
+                                    if (!isNaN(val)) updateItemWeight(lineKeyOf(item), val);
                                   }}
                                   className="w-full text-center text-xs font-black focus:outline-none font-mono bg-transparent"
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => updateItemWeight(item.productId, item.quantity + 0.05)}
+                                  onClick={() => updateItemWeight(lineKeyOf(item), item.quantity + 0.05)}
                                   className="p-0.5 hover:bg-slate-100 text-slate-700 rounded transition cursor-pointer"
                                   title="زيادة 50 غرام"
                                 >
@@ -1656,7 +1764,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                   value={item.weightGrams ?? Math.round(item.quantity * 1000)}
                                   onChange={(e) => {
                                     const val = parseFloat(e.target.value);
-                                    if (!isNaN(val)) updateItemWeightInGrams(item.productId, val);
+                                    if (!isNaN(val)) updateItemWeightInGrams(lineKeyOf(item), val);
                                   }}
                                   placeholder="350"
                                   className="w-full text-center text-xs font-black focus:outline-none font-mono bg-transparent text-amber-950"
@@ -1675,7 +1783,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                   value={item.total}
                                   onChange={(e) => {
                                     const val = parseFloat(e.target.value);
-                                    if (!isNaN(val)) updateItemByTargetAmount(item.productId, val);
+                                    if (!isNaN(val)) updateItemByTargetAmount(lineKeyOf(item), val);
                                   }}
                                   className="w-16 text-center text-xs font-black text-blue-900 focus:outline-none font-mono bg-transparent"
                                 />
@@ -1693,7 +1801,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                   <button
                                     key={chip.label}
                                     type="button"
-                                    onClick={() => updateItemWeight(item.productId, chip.kg)}
+                                    onClick={() => updateItemWeight(lineKeyOf(item), chip.kg)}
                                     className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition cursor-pointer ${
                                       Math.abs(item.quantity - chip.kg) < 0.001
                                         ? 'bg-emerald-600 text-white shadow-2xs'
@@ -1724,7 +1832,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               <div className="flex items-center bg-white border border-slate-300 rounded overflow-hidden">
                                 <button
                                   type="button"
-                                  onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                                  onClick={() => updateQuantity(lineKeyOf(item), item.quantity - 1)}
                                   className="p-1 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
                                 >
                                   <Minus className="w-2.5 h-2.5" />
@@ -1735,13 +1843,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                   value={item.quantity}
                                   onChange={(e) => {
                                     const parsed = parseFloat(e.target.value);
-                                    if (!isNaN(parsed)) updateQuantity(item.productId, parsed);
+                                    if (!isNaN(parsed)) updateQuantity(lineKeyOf(item), parsed);
                                   }}
                                   className="w-10 text-center text-xs font-bold py-0.5 border-x border-slate-200 focus:outline-none font-mono"
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                                  onClick={() => updateQuantity(lineKeyOf(item), item.quantity + 1)}
                                   className="p-1 hover:bg-slate-100 text-slate-600 transition cursor-pointer"
                                 >
                                   <Plus className="w-2.5 h-2.5" />
@@ -2214,6 +2322,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 </div>
               </div>
 
+              {settings.showSuperWholesale !== false && (
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
                   جملة الجملة ({settings.currency}) <span className="text-slate-400 font-medium">(اختياري)</span>
@@ -2232,7 +2341,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   </span>
                 </div>
               </div>
+              )}
 
+              {settings.showSpecialPrice !== false && (
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
                   السعر الخاص ({settings.currency}) <span className="text-slate-400 font-medium">(اختياري)</span>
@@ -2251,6 +2362,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   </span>
                 </div>
               </div>
+              )}
 
               {canViewCost && (
                 <div>
@@ -2479,6 +2591,42 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 إلغاء التراجع
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {giftMenu && (
+        <div
+          className="fixed inset-0 z-[90]"
+          onClick={() => setGiftMenu(null)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            setGiftMenu(null);
+          }}
+        >
+          <div
+            className="absolute bg-white border border-slate-300 rounded-xl shadow-2xl py-1 min-w-[190px] text-right"
+            style={{
+              top: Math.min(giftMenu.y, window.innerHeight - 90),
+              left: Math.min(giftMenu.x, window.innerWidth - 210),
+            }}
+            dir="rtl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-1 text-[10px] font-bold text-slate-400 truncate max-w-[220px]">
+              {giftMenu.product.name}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                addGiftToCart(giftMenu.product);
+                setGiftMenu(null);
+              }}
+              className="w-full text-right px-3 py-2 text-xs font-bold text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 transition flex items-center gap-2"
+            >
+              <span>🎁</span>
+              <span>إضافة إلى القائمة كهدية (0 {settings.currency})</span>
+            </button>
           </div>
         </div>
       )}

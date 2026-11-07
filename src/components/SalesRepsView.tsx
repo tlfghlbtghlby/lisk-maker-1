@@ -588,6 +588,54 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
         </div>
       </div>
 
+      {selectedRepObj && (
+        <div className="bg-white rounded-2xl border border-indigo-200 p-4 sm:p-5 shadow-xs space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-black">
+              {selectedRepObj.name.substring(0, 1)}
+            </div>
+            <div className="flex-1 min-w-[180px]">
+              <div className="font-black text-slate-900 text-base">{selectedRepObj.name}</div>
+              <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                <span>الهاتف: {selectedRepObj.phone || 'بدون'}</span>
+                <span>
+                  العمولة: {selectedRepObj.commissionRate}% {selectedRepObj.commissionType === 'percentage_sales' ? 'من المبيعات' : 'من صافي الربح'}
+                </span>
+                <span>{selectedRepObj.isActive === false ? 'الحالة: معطل' : 'الحالة: فعّال'}</span>
+              </div>
+              {selectedRepObj.notes && (
+                <div className="text-[11px] text-slate-500 mt-1 italic">{selectedRepObj.notes}</div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('invoices')}
+              className="px-3 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer"
+            >
+              عرض قوائمه ({metrics.invoicesCount})
+            </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-2.5">
+              <div className="text-slate-500 font-bold">عدد القوائم</div>
+              <div className="font-black font-mono text-slate-900 text-sm">{metrics.invoicesCount}</div>
+            </div>
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-2.5">
+              <div className="text-slate-500 font-bold">إجمالي المبيعات</div>
+              <div className="font-black font-mono text-slate-900 text-sm">{formatMoney(metrics.totalSales)}</div>
+            </div>
+            <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-2.5">
+              <div className="text-indigo-700 font-bold">عمولة المندوب</div>
+              <div className="font-black font-mono text-indigo-800 text-sm">{formatMoney(metrics.totalRepCommission)}</div>
+            </div>
+            <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-2.5">
+              <div className="text-emerald-700 font-bold">أرباح المالك</div>
+              <div className="font-black font-mono text-emerald-800 text-sm">{formatMoney(metrics.totalStoreNetProfit)}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sub Tabs: Products Sold, Invoices, Profiles */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="border-b border-slate-200 bg-slate-50/70 p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
@@ -946,6 +994,16 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                           className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
                         >
                           عرض المواد المباعة ←
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedRepId(rep.id);
+                            setActiveSubTab('invoices');
+                          }}
+                          className="text-xs font-bold text-emerald-700 hover:text-emerald-900 transition cursor-pointer mr-3"
+                        >
+                          عرض القوائم ←
                         </button>
                       </div>
                     </div>
