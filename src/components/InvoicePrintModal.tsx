@@ -145,6 +145,13 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
     const n = Number(item.piecesPerCarton) || 0;
     return !item.isWeighted && n > 1 ? n : null;
   };
+  const showCartonCols = !isThermal && settings.invoiceShowCartonColumns !== false;
+  const showPiecePrice = !isThermal && settings.invoiceShowPiecePrice === true;
+  const getPiecePriceOfItem = (item: any): number => {
+    if (item.isGift) return 0;
+    const n = Number(item.piecesPerCarton) || 0;
+    return item.unitType === 'carton' && n > 1 ? Math.round((item.unitPrice / n) * 100) / 100 : item.unitPrice;
+  };
   const fmtQty = (n: number | null) => (n === null || n === 0 ? '-' : n.toLocaleString());
 
   const invoiceTotal = invoice.total;
@@ -608,8 +615,10 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                         {!isThermal && (
                           <th className="py-1 px-2 border-l border-black text-center w-32">الملاحظات</th>
                         )}
-                        <th className="py-1 px-1 border-l border-black text-center w-10">العدد</th>
-                        {!isThermal && (
+                        {!showCartonCols && (
+                          <th className="py-1 px-1 border-l border-black text-center w-10">العدد</th>
+                        )}
+                        {showCartonCols && (
                           <>
                             <th className="py-0 px-0 border-l border-black text-center w-24">
                               <div className="border-b border-black py-0.5">عدد القطع</div>
@@ -622,6 +631,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                           </>
                         )}
                         <th className="py-1 px-1 border-l border-black text-center w-16">السعر</th>
+                        {showPiecePrice && (
+                          <th className="py-1 px-1 border-l border-black text-center w-16">سعر القطعة</th>
+                        )}
                         <th className="py-1 px-1 text-center w-16">المبلغ</th>
                       </tr>
                     </thead>
@@ -654,10 +666,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                                 {(item as any).notes || (item.isGift ? 'هدية مجانية' : '-')}
                               </td>
                             )}
-                            <td className="py-0.5 px-0.5 border-l border-black text-center font-mono">
-                              {item.isWeighted ? `${item.quantity} كغم` : netQty}
-                            </td>
-                            {!isThermal && (
+                            {!showCartonCols && (
+                              <td className="py-0.5 px-0.5 border-l border-black text-center font-mono">
+                                {item.isWeighted ? `${item.quantity} كغم` : netQty}
+                              </td>
+                            )}
+                            {showCartonCols && (
                               <>
                                 <td className="py-0 px-0 border-l border-black text-center font-mono">
                                   <div className="flex h-full">
@@ -673,6 +687,11 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                             <td className="py-0.5 px-1 border-l border-black text-center font-mono">
                               {item.isGift ? '0' : item.unitPrice.toLocaleString()}
                             </td>
+                            {showPiecePrice && (
+                              <td className="py-0.5 px-1 border-l border-black text-center font-mono">
+                                {item.isWeighted ? '-' : getPiecePriceOfItem(item).toLocaleString()}
+                              </td>
+                            )}
                             <td className="py-0.5 px-1 text-center font-mono font-bold">
                               {item.isGift ? '0' : Math.round(netQty * item.unitPrice).toLocaleString()}
                             </td>
@@ -709,12 +728,10 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                             <td className="py-0.5 px-2 border-l border-black bg-slate-100">مجموع القائمة</td>
                             <td className="py-0.5 px-2 font-mono text-left">{invoiceTotal.toLocaleString()} {currencyLabel}</td>
                           </tr>
-                          {previousDebt > 0 && (
-                            <tr className="border-b border-black">
-                              <td className="py-0.5 px-2 border-l border-black bg-slate-100">حساب سابق</td>
-                              <td className="py-0.5 px-2 font-mono text-left">{previousDebt.toLocaleString()} {currencyLabel}</td>
-                            </tr>
-                          )}
+                          <tr className="border-b border-black">
+                            <td className="py-0.5 px-2 border-l border-black bg-slate-100">الدين القديم</td>
+                            <td className="py-0.5 px-2 font-mono text-left">{previousDebt.toLocaleString()} {currencyLabel}</td>
+                          </tr>
                           <tr className="border-b border-black bg-slate-50 font-black">
                             <td className="py-0.5 px-2 border-l border-black">المجموع الكلي</td>
                             <td className="py-0.5 px-2 font-mono text-left text-xs">{grandTotal.toLocaleString()} {currencyLabel}</td>
@@ -746,14 +763,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     <span>مجموع القائمة:</span>
                     <span className="font-mono">{invoiceTotal.toLocaleString()} {currencyLabel}</span>
                   </div>
-                  {previousDebt > 0 && (
-                    <div className="flex justify-between items-center px-0.5">
-                      <span>حساب سابق:</span>
-                      <span className="font-mono">{previousDebt.toLocaleString()} {currencyLabel}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between items-center px-0.5">
+                    <span>الدين القديم:</span>
+                    <span className="font-mono">{previousDebt.toLocaleString()} {currencyLabel}</span>
+                  </div>
                   <div className="flex justify-between items-center text-[10.5px] font-black border-t border-dotted border-black pt-1 px-0.5">
-                    <span>الإجمالي:</span>
+                    <span>المجموع الكلي:</span>
                     <span className="font-mono">{grandTotal.toLocaleString()} {currencyLabel}</span>
                   </div>
                   <div className="flex justify-between items-center px-0.5">

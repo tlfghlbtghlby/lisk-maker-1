@@ -821,6 +821,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {settings.showSuperWholesale !== false && (
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold text-orange-300 block text-right">
                         جملة الجملة:
@@ -839,7 +840,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         </span>
                       </div>
                     </div>
+                    )}
 
+                    {settings.showSpecialPrice !== false && (
                     <div className="space-y-1">
                       <label className="text-[11px] font-semibold text-violet-300 block text-right">
                         السعر الخاص:
@@ -858,6 +861,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         </span>
                       </div>
                     </div>
+                    )}
                   </div>
                   <p className="text-[10px] text-slate-400 text-right">
                     إن تُركت فارغة: جملة الجملة تُباع بسعر الجملة، والسعر الخاص بسعر المفرد.

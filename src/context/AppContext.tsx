@@ -141,6 +141,8 @@ interface AppContextType {
   ) => Promise<{ success: boolean; error?: string }>;
   applyBulkPriceAdjustment: (percentage: number, priceTargets: { retail: boolean; wholesale: boolean; cost: boolean }, roundToHundreds?: boolean) => Promise<{ updatedCount: number }>;
   recordPayment: (customerId: string, amount: number, notes?: string) => PaymentRecord;
+  getUnappliedDebts: () => { customerId: string; customerName: string; amount: number; invoices: number }[];
+  reconcileCustomerDebts: () => number;
   updateSettings: (newSettings: Partial<StoreSettings>) => void;
   resetToDemo: () => void;
   resetToZero: () => void;
@@ -228,6 +230,11 @@ const defaultEmptySettings: StoreSettings = {
     deliveryNote: 'توصيل جميع المحافظات',
   },
   enableWholesale: true,
+  showSuperWholesale: true,
+  showSpecialPrice: true,
+  invoiceShowCartonColumns: true,
+  invoiceShowPiecePrice: false,
+  quickQuantityEntry: false,
   deviceMode: typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
   desktopLayout: 'full',
   supervisorPin: '1122',
@@ -372,7 +379,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>(() => {
+    try {
+      const raw = localStorage.getItem('cached_pos_payments');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
 
   const [shifts, setShifts] = useState<Shift[]>(() => {
     try {
@@ -1070,6 +1085,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             setCustomers(storeData.customers);
             localStorage.setItem('cached_pos_customers', JSON.stringify(storeData.customers));
           }
+          if (Array.isArray(storeData.payments)) {
+            setPayments(storeData.payments);
+            try { localStorage.setItem('cached_pos_payments', JSON.stringify(storeData.payments)); } catch {}
+          }
           if (Array.isArray(storeData.invoices)) {
             setInvoices(prevInvoices => {
               const merged = mergeInvoices(prevInvoices, storeData.invoices || []);
@@ -1142,6 +1161,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch {}
           return merged;
         });
+      }
+      if (Array.isArray(newData.payments)) {
+        setPayments(newData.payments);
+        try { localStorage.setItem('cached_pos_payments', JSON.stringify(newData.payments)); } catch {}
       }
       if (Array.isArray(newData.customers)) {
         setCustomers(newData.customers);
@@ -1221,6 +1244,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoices: Invoice[];
       shifts: Shift[];
       settings: StoreSettings;
+      payments: PaymentRecord[];
     }>,
     immediate: boolean = false
   ) => {
@@ -1247,6 +1271,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           customers: merged.customers ?? customers,
           invoices: merged.invoices ?? invoices,
           shifts: storeShifts,
+          payments: merged.payments ?? payments,
           settings: merged.settings ?? settings,
           offers: [],
           features: storeFeatures,
@@ -1304,6 +1329,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setInvoices(mergedInvs);
         setShifts(mergedShs);
         setCustomers(mergedCusts);
+        if (Array.isArray(cloudData.payments)) setPayments(cloudData.payments);
 
         if (cloudData.features || cloudData.settings?.features) {
           const rawFeats = cloudData.features || cloudData.settings?.features;
@@ -1892,18 +1918,80 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const recordPayment = (customerId: string, amount: number, notes?: string): PaymentRecord => {
     const newId = 'pay_' + Date.now();
+    const cust = customers.find(c => c.id === customerId);
+    const paid = Math.max(0, Number(amount) || 0);
     const p: PaymentRecord = {
       id: newId,
       customerId,
-      customerName: '',
-      amount,
+      customerName: cust?.name || '',
+      amount: paid,
       date: new Date().toISOString(),
       notes: notes || '',
       receiptNumber: `REC-${Date.now()}`
     };
-    const updated = [p, ...payments];
-    setPayments(updated);
+    const updatedPayments = [p, ...payments];
+    setPayments(updatedPayments);
+    try {
+      localStorage.setItem('cached_pos_payments', JSON.stringify(updatedPayments));
+    } catch {}
+
+    // تخفيض دين الزبون بمقدار الدفعة (لا يقل عن صفر)
+    const updatedCustomers = customers.map(c =>
+      c.id === customerId
+        ? { ...c, totalDebt: Math.max(0, (Number(c.totalDebt) || 0) - paid) }
+        : c
+    );
+    setCustomers(updatedCustomers);
+    try {
+      localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers));
+    } catch {}
+    saveStoreToCloud({ customers: updatedCustomers, payments: updatedPayments });
+    broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomers }, currentSessionId, currentUser?.uid);
     return p;
+  };
+
+  // يحسب الديون القديمة غير المضافة لرصيد الزبائن (قوائم آجلة قبل هذا التحديث)
+  const getUnappliedDebts = (): { customerId: string; customerName: string; amount: number; invoices: number }[] => {
+    const map = new Map<string, { customerId: string; customerName: string; amount: number; invoices: number }>();
+    invoices.forEach((inv: any) => {
+      if (!inv.customerId || inv.status === 'returned' || inv.debtApplied) return;
+      const rem = Number(inv.remainingAmount) || 0;
+      if (rem <= 0) return;
+      const cur = map.get(inv.customerId) || {
+        customerId: inv.customerId,
+        customerName: inv.customerName || '',
+        amount: 0,
+        invoices: 0,
+      };
+      cur.amount += rem;
+      cur.invoices += 1;
+      map.set(inv.customerId, cur);
+    });
+    return Array.from(map.values());
+  };
+
+  // يضيف الديون القديمة مرة واحدة ويعلّم القوائم كمحتسبة لمنع التكرار
+  const reconcileCustomerDebts = (): number => {
+    const unapplied = getUnappliedDebts();
+    if (unapplied.length === 0) return 0;
+    const byCust = new Map(unapplied.map(u => [u.customerId, u.amount]));
+    const updatedCustomers = customers.map(c =>
+      byCust.has(c.id) ? { ...c, totalDebt: (Number(c.totalDebt) || 0) + (byCust.get(c.id) || 0) } : c
+    );
+    const updatedInvoices = invoices.map((inv: any) =>
+      inv.customerId && byCust.has(inv.customerId) && !inv.debtApplied && inv.status !== 'returned' && (Number(inv.remainingAmount) || 0) > 0
+        ? { ...inv, debtApplied: true }
+        : inv
+    );
+    setCustomers(updatedCustomers);
+    setInvoices(updatedInvoices as any);
+    try {
+      localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers));
+      localStorage.setItem('cached_pos_invoices', JSON.stringify(updatedInvoices));
+    } catch {}
+    saveStoreToCloud({ customers: updatedCustomers, invoices: updatedInvoices as any });
+    broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomers }, currentSessionId, currentUser?.uid);
+    return unapplied.length;
   };
 
   const updateSettings = (newSettings: Partial<StoreSettings>) => {
@@ -2490,6 +2578,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         returnPartialInvoice,
         applyBulkPriceAdjustment,
         recordPayment,
+        getUnappliedDebts,
+        reconcileCustomerDebts,
         updateSettings,
         resetToDemo,
         resetToZero,

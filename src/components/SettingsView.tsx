@@ -250,6 +250,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   }, []);
 
   const [enableWholesale, setEnableWholesale] = useState<boolean>(settings.enableWholesale ?? true);
+  const [showSuperWholesale, setShowSuperWholesale] = useState<boolean>(settings.showSuperWholesale !== false);
+  const [showSpecialPrice, setShowSpecialPrice] = useState<boolean>(settings.showSpecialPrice !== false);
+  const [invoiceShowCartonColumns, setInvoiceShowCartonColumns] = useState<boolean>(settings.invoiceShowCartonColumns !== false);
+  const [invoiceShowPiecePrice, setInvoiceShowPiecePrice] = useState<boolean>(settings.invoiceShowPiecePrice === true);
+  const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
   const [enableSalesReps, setEnableSalesReps] = useState<boolean>(settings.enableSalesReps ?? false);
   const [defaultShowRepOnInvoice, setDefaultShowRepOnInvoice] = useState<boolean>(settings.defaultShowRepOnInvoice ?? true);
   const [repCommissionDefaultType, setRepCommissionDefaultType] = useState<'percentage_profit' | 'percentage_sales'>(
@@ -398,6 +403,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       if ((settings as any).selectedPrinterName !== undefined) setSelectedPrinterName((settings as any).selectedPrinterName);
       if (settings.enableWholesale !== undefined) setEnableWholesale(settings.enableWholesale);
       if (settings.enableSalesReps !== undefined) setEnableSalesReps(settings.enableSalesReps);
+      setShowSuperWholesale(settings.showSuperWholesale !== false);
+      setShowSpecialPrice(settings.showSpecialPrice !== false);
+      setInvoiceShowCartonColumns(settings.invoiceShowCartonColumns !== false);
+      setInvoiceShowPiecePrice(settings.invoiceShowPiecePrice === true);
+      setQuickQuantityEntry(settings.quickQuantityEntry === true);
       if (settings.defaultShowRepOnInvoice !== undefined) setDefaultShowRepOnInvoice(settings.defaultShowRepOnInvoice);
       if (settings.repCommissionDefaultType !== undefined) setRepCommissionDefaultType(settings.repCommissionDefaultType);
       if (settings.desktopLayout) setDesktopLayout(settings.desktopLayout);
@@ -474,6 +484,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       directPrintEnabled,
       selectedPrinterName: selectedPrinterName.trim(),
       enableWholesale,
+      showSuperWholesale,
+      showSpecialPrice,
+      invoiceShowCartonColumns,
+      invoiceShowPiecePrice,
+      quickQuantityEntry,
       enableSalesReps,
       defaultShowRepOnInvoice,
       repCommissionDefaultType,
@@ -1463,6 +1478,70 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-[#070e1b] border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-2">
+            <h4 className="text-xs font-black text-slate-900 dark:text-white mb-1">خيارات الأسعار والقوائم والبيع السريع</h4>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">إظهار سعر «جملة الجملة»</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">عند الإلغاء يختفي هذا السعر من المخزن ونقطة البيع</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={showSuperWholesale}
+                onChange={(e) => setShowSuperWholesale(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">إظهار «السعر الخاص»</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">عند الإلغاء يختفي هذا السعر من المخزن ونقطة البيع</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={showSpecialPrice}
+                onChange={(e) => setShowSpecialPrice(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">القائمة المطبوعة: خانات الكراتين والقطع والتعبئة</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">عند الإلغاء تُستبدل بخانة «العدد» فقط (مناسب لمن يبيع مفرداً)</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={invoiceShowCartonColumns}
+                onChange={(e) => setInvoiceShowCartonColumns(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">القائمة المطبوعة: خانة سعر القطعة الواحدة</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">تظهر بجانب السعر في القائمة (A4/A5)</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={invoiceShowPiecePrice}
+                onChange={(e) => setInvoiceShowPiecePrice(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">إدخال الكمية السريع في نقطة البيع</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">بعد إضافة المادة اضغط رقماً (مثلاً 6) لتصبح كميتها 6 مباشرة</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={quickQuantityEntry}
+                onChange={(e) => setQuickQuantityEntry(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
           </div>
 
           <div>

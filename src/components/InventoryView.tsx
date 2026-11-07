@@ -406,10 +406,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 {settings.enableWholesale && (
                   <th className="py-3 px-4 text-blue-900">سعر بيع الجملة</th>
                 )}
-                {settings.enableWholesale && (
+                {settings.enableWholesale && settings.showSuperWholesale !== false && (
                   <th className="py-3 px-4 text-orange-800">جملة الجملة</th>
                 )}
-                {settings.enableWholesale && (
+                {settings.enableWholesale && settings.showSpecialPrice !== false && (
                   <th className="py-3 px-4 text-violet-800">السعر الخاص</th>
                 )}
                 <th className="py-3 px-4 text-center">تعبئة الكارتون</th>
@@ -479,12 +479,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       )}
 
                       {/* Super Wholesale + Special */}
-                      {settings.enableWholesale && (
+                      {settings.enableWholesale && settings.showSuperWholesale !== false && (
                         <td className="py-3 px-4 font-bold text-orange-700">
                           {prod.superWholesalePrice ? formatMoney(prod.superWholesalePrice) : <span className="text-slate-300">-</span>}
                         </td>
                       )}
-                      {settings.enableWholesale && (
+                      {settings.enableWholesale && settings.showSpecialPrice !== false && (
                         <td className="py-3 px-4 font-bold text-violet-700">
                           {prod.specialPrice ? formatMoney(prod.specialPrice) : <span className="text-slate-300">-</span>}
                         </td>

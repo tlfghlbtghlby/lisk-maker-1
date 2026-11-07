@@ -31,6 +31,8 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
     addCustomer, 
     updateCustomer, 
     recordPayment, 
+    getUnappliedDebts,
+    reconcileCustomerDebts,
     formatMoney,
     settings,
     hasPermission,
@@ -226,6 +228,25 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
           >
             {filterDebtOnly ? 'عرض المدينين فقط ✓' : 'تصفية: أصحاب الديون فقط'}
           </button>
+
+          {getUnappliedDebts().length > 0 && (
+            <button
+              onClick={() => {
+                const list = getUnappliedDebts();
+                const total = list.reduce((a, b) => a + b.amount, 0);
+                const msg =
+                  'سيتم إضافة ديون القوائم الآجلة القديمة إلى رصيد الزبائن (مرة واحدة فقط):\n\n' +
+                  list.map(u => `• ${u.customerName || 'زبون'}: ${formatMoney(u.amount)} (${u.invoices} قائمة)`).join('\n') +
+                  `\n\nالمجموع: ${formatMoney(total)}\n\nهل تريد المتابعة؟`;
+                if (window.confirm(msg)) reconcileCustomerDebts();
+              }}
+              className="px-4 py-2 text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-lg flex items-center gap-1.5 transition"
+              title="احتساب الديون من القوائم الآجلة القديمة التي لم تُضف لرصيد الزبون"
+            >
+              <AlertCircle className="w-4 h-4" />
+              <span>احتساب الديون القديمة</span>
+            </button>
+          )}
 
           <button
             onClick={() => setIsAddCustomerOpen(true)}

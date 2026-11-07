@@ -372,6 +372,11 @@ export interface StoreSettings {
   selectedPrinterName?: string;
   printerPaperSize?: PrintFormatType | string;
   enableWholesale: boolean;
+  showSuperWholesale?: boolean;
+  showSpecialPrice?: boolean;
+  invoiceShowCartonColumns?: boolean;
+  invoiceShowPiecePrice?: boolean;
+  quickQuantityEntry?: boolean;
   deviceMode: DeviceMode;
   desktopLayout: DesktopLayoutMode;
   headerRightSealText?: string;
