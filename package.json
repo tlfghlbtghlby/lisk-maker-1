@@ -11,7 +11,10 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "electron:build": "vite build && electron-builder --win"
+    "electron:build": "vite build && electron-builder --win",
+    "android:sync": "vite build && cap sync android",
+    "android:setup": "node scripts/android-setup.mjs",
+    "android:open": "cap open android"
   },
   "build": {
     "appId": "com.listmanger.app",
@@ -30,9 +33,12 @@
     }
   },
   "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/app": "^8.0.0",
     "@capacitor/core": "^8.5.3",
     "@capacitor/filesystem": "^8.1.5",
     "@capacitor/share": "^8.0.3",
+    "@capacitor/status-bar": "^8.0.0",
     "@google/genai": "^2.4.0",
     "@supabase/supabase-js": "^2.118.0",
     "@tailwindcss/vite": "^4.3.3",
@@ -52,6 +58,7 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.0.0",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/qrcode": "^1.5.6",

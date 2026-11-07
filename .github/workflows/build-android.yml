@@ -1,0 +1,125 @@
+name: Build Android APK
+
+# يبني ملف APK تلقائياً عند الرفع إلى الفرع android-app، ويمكن تشغيله يدوياً من تبويب Actions.
+# - نسخة debug: تُبنى دائماً، وتُثبَّت مباشرة على الهاتف.
+# - نسخة release موقّعة: تُبنى فقط إذا أضفت أسرار التوقيع (راجع ANDROID.md).
+
+on:
+  push:
+    branches: [ android-app ]
+  workflow_dispatch:
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Build Web Application
+        run: npm run build
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+
+      - name: Add Android Platform
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+
+      - name: Generate App Icons
+        continue-on-error: true
+        run: |
+          mkdir -p assets
+          cp public/logo.png assets/icon.png
+          npx --yes @capacitor/assets generate --android
+
+      - name: Configure Android Project (permissions and version)
+        run: node scripts/android-setup.mjs
+        env:
+          ANDROID_VERSION_CODE: ${{ github.run_number }}
+          ANDROID_VERSION_NAME: 2.0.${{ github.run_number }}
+
+      - name: Sync Web Assets to Android
+        run: npx cap sync android
+
+      - name: Accept Android SDK Licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+
+      - name: Make Gradle Executable
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlMufakir-Android-Debug-APK
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Build and Sign Release APK
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+          (cd android && ./gradlew assembleRelease --stacktrace)
+
+          UNSIGNED=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+
+          "$BT/zipalign" -p -f 4 "$UNSIGNED" "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" sign \
+            --ks "$RUNNER_TEMP/release.jks" \
+            --ks-pass env:KS_PASS \
+            --ks-key-alias "$KEY_ALIAS" \
+            --key-pass env:KEY_PASS \
+            --out "$RUNNER_TEMP/AlMufakir-release.apk" \
+            "$RUNNER_TEMP/aligned.apk"
+          "$BT/apksigner" verify "$RUNNER_TEMP/AlMufakir-release.apk"
+
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Upload Signed Release APK
+        if: env.HAS_KEYSTORE == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlMufakir-Android-Release-APK
+          path: ${{ runner.temp }}/AlMufakir-release.apk
+          if-no-files-found: error
+          retention-days: 30
