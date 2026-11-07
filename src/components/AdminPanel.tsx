@@ -6,7 +6,7 @@ import {
   updateClientAccount,
   deleteClientAccount,
   updateClientSubscription,
-  migrateAllUsersFromFirebase,
+  secureAllPasswords,
   CreateClientInput,
   UpdateClientInput,
   getDocument,
@@ -79,8 +79,6 @@ export const AdminPanel: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Password visibility map
-  const [hiddenPasswords, setHiddenPasswords] = useState<Record<string, boolean>>({});
-  const [copiedUid, setCopiedUid] = useState<string | null>(null);
 
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -100,28 +98,25 @@ export const AdminPanel: React.FC = () => {
     fetchClients();
   }, []);
 
-  const handleMigrateFromFirebase = async () => {
+  // تحويل أي كلمات مرور قديمة (نصية) إلى تجزئات مشفرة في السحابة
+  const handleSecurePasswords = async () => {
     setIsMigrating(true);
     setFeedback(null);
     try {
-      const res = await migrateAllUsersFromFirebase();
+      const res = await secureAllPasswords();
       if (res.success) {
         setFeedback({
           type: 'success',
-          message: `✅ تم ترحيل وتأمين ${res.count} حساب بنجاح!`
+          message: res.count > 0
+            ? `✅ تم تشفير كلمات مرور ${res.count} حساب بنجاح!`
+            : '✅ جميع كلمات المرور مشفّرة مسبقاً، لا يوجد ما يحتاج تحويلاً.'
         });
         await fetchClients();
       } else {
-        setFeedback({
-          type: 'error',
-          message: res.error || 'تعذر استيراد الحسابات من Firebase'
-        });
+        setFeedback({ type: 'error', message: res.error || 'تعذر تشفير كلمات المرور' });
       }
     } catch (err: any) {
-      setFeedback({
-        type: 'error',
-        message: err.message || 'حدث خطأ أثناء ترحيل الحسابات'
-      });
+      setFeedback({ type: 'error', message: err.message || 'حدث خطأ أثناء تشفير كلمات المرور' });
     } finally {
       setIsMigrating(false);
     }
@@ -212,7 +207,7 @@ export const AdminPanel: React.FC = () => {
     setEditDisplayName(client.displayName || '');
     setEditStoreName(client.storeName || '');
     setEditPhone(client.phone || '');
-    setEditPassword(client.password || '');
+    setEditPassword('');
     setEditIsActive(client.isActive !== false);
     setEditIsPermanent(client.isPermanent === true);
     setEditEnableShifts(client.enableShifts !== false);
@@ -405,23 +400,6 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  const copyPasswordToClipboard = (pwd: string, name: string, uid: string) => {
-    navigator.clipboard.writeText(pwd);
-    setCopiedUid(uid);
-    setTimeout(() => setCopiedUid(null), 2000);
-    setFeedback({
-      type: 'success',
-      message: `تم نسخ كلمة المرور الخاصة بحساب (${name}) بنجاح: ${pwd}`
-    });
-  };
-
-  const togglePasswordVisibility = (uid: string) => {
-    setHiddenPasswords(prev => ({
-      ...prev,
-      [uid]: !prev[uid]
-    }));
-  };
-
   const filteredClients = clients.filter(c => {
     const q = searchQuery.toLowerCase().trim();
     if (!q) return true;
@@ -429,8 +407,7 @@ export const AdminPanel: React.FC = () => {
       c.displayName?.toLowerCase().includes(q) ||
       c.username?.toLowerCase().includes(q) ||
       c.storeName?.toLowerCase().includes(q) ||
-      c.phone?.includes(q) ||
-      c.password?.toLowerCase().includes(q)
+      c.phone?.includes(q)
     );
   });
 
@@ -457,16 +434,16 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-          {/* زر ترحيل الحسابات من فايربيس إلى سوبابيس */}
+          {/* زر تشفير كلمات المرور القديمة */}
           <button
             type="button"
-            onClick={handleMigrateFromFirebase}
+            onClick={handleSecurePasswords}
             disabled={isMigrating || isLoading}
             className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md"
-            title="سحب وتأمين كافة الحسابات والمشتركين"
+            title="تحويل أي كلمات مرور قديمة إلى صيغة مشفرة"
           >
             <Zap className={`w-3.5 h-3.5 ${isMigrating ? 'animate-pulse text-amber-300' : ''}`} />
-            <span>{isMigrating ? 'جاري الترحيل...' : 'ترحيل الحسابات وتأمينها'}</span>
+            <span>{isMigrating ? 'جاري التشفير...' : 'تشفير كلمات المرور'}</span>
           </button>
 
           {/* زر التحديث */}
@@ -674,9 +651,6 @@ export const AdminPanel: React.FC = () => {
               ) : (
                 filteredClients.map((client) => {
                   const isActive = client.isActive !== false;
-                  const isHidden = hiddenPasswords[client.uid] ?? false;
-                  const hasPassword = Boolean(client.password);
-                  const isCopied = copiedUid === client.uid;
                   const isActionLoading = actionLoadingUid === client.uid;
 
                   return (
@@ -694,41 +668,16 @@ export const AdminPanel: React.FC = () => {
                         {client.phone || '-'}
                       </td>
                       
-                      {/* Password Field Column */}
+                      {/* Password Field Column: كلمات المرور مشفرة ولا يمكن عرضها، يمكن فقط تعيين كلمة جديدة من زر التعديل */}
                       <td className="py-2.5 px-3 text-center">
-                        {hasPassword ? (
-                          <div className="inline-flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 shadow-xs">
+                        {client.hasPassword ? (
+                          <span className="inline-flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1 text-[11px] font-bold text-emerald-300">
                             <KeyRound className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            <span 
-                              className="font-mono text-emerald-300 font-bold select-all tracking-wider text-xs px-1" 
-                              dir="ltr"
-                            >
-                              {isHidden ? '••••••••' : client.password}
-                            </span>
-                            
-                            <button
-                              type="button"
-                              onClick={() => togglePasswordVisibility(client.uid)}
-                              className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer transition"
-                              title={isHidden ? 'إظهار كلمة المرور' : 'إخفاء كلمة المرور'}
-                            >
-                              {isHidden ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => copyPasswordToClipboard(client.password!, client.displayName, client.uid)}
-                              className={`p-0.5 rounded cursor-pointer transition ${
-                                isCopied ? 'text-emerald-400' : 'text-slate-400 hover:text-white'
-                              }`}
-                              title="نسخ كلمة المرور"
-                            >
-                              {isCopied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                            </button>
-                          </div>
+                            مشفّرة 🔒
+                          </span>
                         ) : (
-                          <span className="text-slate-500 font-mono text-[11px] bg-slate-900/60 px-2 py-0.5 rounded border border-slate-800">
-                            مُشفر سحابياً
+                          <span className="text-rose-300 font-mono text-[11px] bg-rose-950/40 px-2 py-0.5 rounded border border-rose-500/40">
+                            بلا كلمة مرور
                           </span>
                         )}
                       </td>
@@ -1006,8 +955,8 @@ export const AdminPanel: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center justify-between">
-                    <span>رمز الحساب (كلمة المرور)</span>
-                    <span className="text-[10px] text-emerald-400 font-mono">ظاهر للأدمن</span>
+                    <span>كلمة مرور جديدة</span>
+                    <span className="text-[10px] text-emerald-400 font-mono">اتركها فارغة لعدم التغيير</span>
                   </label>
                   <div className="relative">
                     <KeyRound className="w-3.5 h-3.5 text-amber-400 absolute right-3 top-1/2 -translate-y-1/2" />
@@ -1016,7 +965,8 @@ export const AdminPanel: React.FC = () => {
                       minLength={6}
                       value={editPassword}
                       onChange={(e) => setEditPassword(e.target.value)}
-                      placeholder="كلمة المرور"
+                      placeholder="6 خانات على الأقل"
+                      autoComplete="new-password"
                       className="w-full pl-3 pr-9 py-2 text-xs bg-slate-800 border border-slate-700 rounded-lg text-emerald-300 font-bold focus:outline-none focus:border-emerald-500 font-mono"
                     />
                   </div>

@@ -305,7 +305,10 @@ export interface UserProfile {
   displayName: string;
   storeName: string;
   phone?: string;
-  password?: string;
+  /** تجزئة PBKDF2 لكلمة المرور (لا تُخزَّن كلمة المرور نفسها أبداً) */
+  passwordHash?: string;
+  /** هل للحساب كلمة مرور؟ (للعرض في لوحة الإدارة فقط) */
+  hasPassword?: boolean;
   role: UserRole;
   isActive?: boolean;
   createdAt: string;

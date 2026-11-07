@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { supabase, getDocument, setDocument, subscribeToDocument } from '../supabase';
+import { supabase, getDocument, setDocument, subscribeToDocument, verifyAccountPassword } from '../supabase';
 import { 
   Product, 
   Customer, 
@@ -152,6 +152,7 @@ interface AppContextType {
     mode?: 'merge' | 'replace',
     onProgress?: (curr: number, total: number) => void
   ) => Promise<{ success: boolean; count: number; error?: string }>;
+  addProductsBulk: (newProducts: Product[]) => Promise<{ success: boolean; count: number; error?: string }>;
   wipeAllProductsFromServer: (verificationCode: string) => Promise<{ success: boolean; error?: string }>;
   formatMoney: (amount: number) => string;
   currentUser: any;
@@ -920,14 +921,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (targetRole === 'supervisor') {
       const cleanPin = (passwordOrPin || '').trim();
-      const adminPass = (currentUser?.password || '123456').trim();
+      const isAccountPass = async () => (cleanPin ? verifyAccountPassword(currentUser, cleanPin) : false);
       const supervisorsList = settings.supervisors || [];
 
       const targetSupId = targetSupervisorId || targetSupervisorIdForModal;
       if (targetSupId) {
         const sup = supervisorsList.find(s => s.id === targetSupId);
         if (sup) {
-          if (cleanPin && (cleanPin === sup.pin.trim() || cleanPin === adminPass)) {
+          if (cleanPin && (cleanPin === sup.pin.trim() || (await isAccountPass()))) {
             setSessionRole('supervisor');
             setActiveSupervisorId(sup.id);
             try {
@@ -952,7 +953,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const validPin = (settings.supervisorPin || '1122').trim();
-      if (cleanPin && (cleanPin === validPin || cleanPin === adminPass)) {
+      if (cleanPin && (cleanPin === validPin || (await isAccountPass()))) {
         setSessionRole('supervisor');
         const fallbackId = supervisorsList[0]?.id || null;
         setActiveSupervisorId(fallbackId);
@@ -970,55 +971,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const cleanPass = (passwordOrPin || '').trim();
       if (!cleanPass) return { success: false, error: 'يرجى إدخال رمز الحساب (كلمة المرور)' };
 
-      const localPass = currentUser?.password ? String(currentUser.password).trim() : null;
-      let lastKnownPass: string | null = null;
-      let cachedSessionPass: string | null = null;
-      try {
-        lastKnownPass = localStorage.getItem('last_known_account_password')?.trim() || null;
-        const s = localStorage.getItem('active_client_session');
-        if (s) {
-          const parsed = JSON.parse(s);
-          if (parsed?.password) cachedSessionPass = String(parsed.password).trim();
-        }
-      } catch (e) {}
-
-      if (
-        (localPass && cleanPass === localPass) ||
-        (lastKnownPass && cleanPass === lastKnownPass) ||
-        (cachedSessionPass && cleanPass === cachedSessionPass) ||
-        cleanPass === '123456' ||
-        cleanPass === 'admin123' ||
-        cleanPass === 'admin'
-      ) {
+      if (await verifyAccountPassword(currentUser, cleanPass)) {
         setSessionRole('admin');
         setActiveSupervisorId(null);
-        if (currentUser && !currentUser.password) currentUser.password = cleanPass;
         try {
           localStorage.setItem('active_session_role', 'admin');
-          localStorage.setItem('last_known_account_password', cleanPass);
           localStorage.removeItem('active_supervisor_id');
         } catch {}
         return { success: true };
-      }
-
-      try {
-        const uid = currentUser?.uid;
-        if (uid) {
-          const userData = await getDocument('users', uid);
-          if (userData?.password && String(userData.password).trim() === cleanPass) {
-            setSessionRole('admin');
-            setActiveSupervisorId(null);
-            if (currentUser) currentUser.password = cleanPass;
-            try {
-              localStorage.setItem('active_session_role', 'admin');
-              localStorage.setItem('last_known_account_password', cleanPass);
-              localStorage.removeItem('active_supervisor_id');
-            } catch {}
-            return { success: true };
-          }
-        }
-      } catch (e) {
-        console.warn('Supabase admin check:', e);
       }
 
       return { success: false, error: 'رمز الحساب غير صحيح.' };
@@ -2054,18 +2014,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // إضافة (أو تحديث بالمعرّف) مجموعة مواد دفعة واحدة وحفظها في السحابة (Supabase)
+  const addProductsBulk = async (
+    newProducts: Product[]
+  ): Promise<{ success: boolean; count: number; error?: string }> => {
+    try {
+      if (!Array.isArray(newProducts) || newProducts.length === 0) {
+        return { success: false, count: 0, error: 'لا توجد مواد للإضافة.' };
+      }
+      const map = new Map<string, Product>();
+      products.forEach(p => map.set(String(p.id), p));
+      newProducts.forEach(p => map.set(String(p.id), p));
+      const updatedList = Array.from(map.values());
+      setProducts(updatedList);
+      try {
+        localStorage.setItem('cached_pos_products', JSON.stringify(updatedList));
+      } catch {}
+      await saveStoreToCloud({ products: updatedList });
+      return { success: true, count: newProducts.length };
+    } catch (err: any) {
+      return { success: false, count: 0, error: err.message };
+    }
+  };
+
   const wipeAllProductsFromServer = async (
     verificationCode: string
   ): Promise<{ success: boolean; error?: string }> => {
     const cleanCode = verificationCode.trim();
     if (!cleanCode) return { success: false, error: 'يرجى كتابة رمز الحساب للتأكيد.' };
 
-    const storedKnownPassword = localStorage.getItem('last_known_account_password');
-    const userPass = currentUser?.password;
     const supervisorPin = settings.supervisorPin || '1122';
-    const isOwnerOrAdmin = currentUser?.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-
-    const isMatch = (userPass && cleanCode === userPass) || (storedKnownPassword && cleanCode === storedKnownPassword) || cleanCode === supervisorPin || (isOwnerOrAdmin && (cleanCode === '1122' || cleanCode === userPass));
+    const isMatch = cleanCode === supervisorPin || (await verifyAccountPassword(currentUser, cleanCode));
     if (!isMatch) return { success: false, error: 'رمز الحساب غير مطابق!' };
 
     setProducts([]);
@@ -2222,9 +2201,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const enteredCode = (shiftCode || '').trim();
     const correctCode = (selectedPreset.code || '').trim();
-    const adminPass = (currentUser?.password || '123456').trim();
+    const matchesAccountPass = sessionRole === 'admin' && enteredCode ? await verifyAccountPassword(currentUser, enteredCode) : false;
 
-    if (!(enteredCode && enteredCode === correctCode) && !(sessionRole === 'admin' && enteredCode === adminPass)) {
+    if (!(enteredCode && enteredCode === correctCode) && !matchesAccountPass) {
       return { success: false, error: `الرمز السري الخاص بالشفت (${selectedPreset.name}) غير صحيح.` };
     }
 
@@ -2477,6 +2456,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         exportCustomBackup,
         importDataJSON,
         importProductsOnly,
+        addProductsBulk,
         wipeAllProductsFromServer,
         formatMoney,
         currentUser,

@@ -5,7 +5,8 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: './',
+    // عند النشر على GitHub Pages يمرر سير العمل BASE_URL (مثل /lisk-maker-1/)، وبخلاف ذلك تبقى المسارات نسبية لـ Electron
+    base: process.env.BASE_URL || './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

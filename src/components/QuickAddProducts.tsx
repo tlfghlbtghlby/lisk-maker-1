@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { db } from '../firebase';
-import { doc, writeBatch } from 'firebase/firestore';
-import { sanitizeForFirestore } from '../context/AppContext';
 import { Product } from '../types';
 import { 
   Zap, 
@@ -36,7 +33,7 @@ interface ParsedItem {
 }
 
 export const QuickAddProducts: React.FC = () => {
-  const { products, setSyncNotice, formatMoney, currentUser } = useApp();
+  const { products, setSyncNotice, formatMoney, currentUser, addProductsBulk } = useApp();
   
   const [inputText, setInputText] = useState<string>('');
   const [parsedItems, setParsedItems] = useState<ParsedItem[]>([]);
@@ -177,7 +174,7 @@ export const QuickAddProducts: React.FC = () => {
     setParsedItems(prev => prev.filter((_, idx) => idx !== index));
   };
 
-  const handleSaveToFirestore = async () => {
+  const handleSaveProducts = async () => {
     if (parsedItems.length === 0) return;
 
     setIsSaving(true);
@@ -187,39 +184,28 @@ export const QuickAddProducts: React.FC = () => {
     const now = new Date().toISOString();
     const currentUid = currentUser?.uid || '';
     const total = parsedItems.length;
-    const batchSize = 400;
 
     try {
-      for (let i = 0; i < total; i += batchSize) {
-        const chunk = parsedItems.slice(i, i + batchSize);
-        const batch = writeBatch(db);
+      const newProducts: Product[] = parsedItems.map(item => ({
+        id: item.id,
+        code: item.barcode,
+        name: item.name,
+        category: 'عام',
+        unit: 'قطعة',
+        costPrice: item.costPiece,
+        retailPrice: item.retailPricePiece,
+        wholesalePrice: item.wholesalePricePiece || item.retailPricePiece,
+        stock: item.stock,
+        piecesPerCarton: item.piecesPerBox,
+        minStock: 5,
+        ownerUid: currentUid,
+        createdAt: now,
+        updatedAt: now,
+      }));
 
-        chunk.forEach(item => {
-          const newProduct: Product = {
-            id: item.id,
-            code: item.barcode,
-            name: item.name,
-            category: 'عام',
-            unit: 'قطعة',
-            costPrice: item.costPiece,
-            retailPrice: item.retailPricePiece,
-            wholesalePrice: item.wholesalePricePiece || item.retailPricePiece,
-            stock: item.stock,
-            piecesPerCarton: item.piecesPerBox,
-            minStock: 5,
-            ownerUid: currentUid,
-            createdAt: now,
-            updatedAt: now,
-          };
-
-          const docRef = doc(db, 'items', item.id);
-          batch.set(docRef, sanitizeForFirestore(newProduct), { merge: true });
-        });
-
-        await batch.commit();
-        const currentDone = Math.min(i + batchSize, total);
-        setProgress(Math.round((currentDone / total) * 100));
-      }
+      const result = await addProductsBulk(newProducts);
+      if (!result.success) throw new Error(result.error || 'تعذر الحفظ');
+      setProgress(100);
 
       setSuccessCount(total);
       setInputText('');
@@ -229,7 +215,7 @@ export const QuickAddProducts: React.FC = () => {
         setSyncNotice(`تمت إضافة ${total} مادة جديدة بنجاح إلى المخزن والسحاب!`);
       }
     } catch (err: any) {
-      console.error('Error saving quick products to Firestore:', err);
+      console.error('Error saving quick products:', err);
       alert('حدث خطأ أثناء الحفظ في السحاب: ' + (err.message || err));
     } finally {
       setIsSaving(false);
@@ -381,13 +367,13 @@ export const QuickAddProducts: React.FC = () => {
               <button
                 type="button"
                 disabled={isSaving || parsedItems.some(i => !i.isValid)}
-                onClick={handleSaveToFirestore}
+                onClick={handleSaveProducts}
                 className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md cursor-pointer"
               >
                 {isSaving ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>جاري الرفع إلى Firestore ({progress}%)...</span>
+                    <span>جاري الرفع إلى السحابة ({progress}%)...</span>
                   </>
                 ) : (
                   <>
@@ -487,13 +473,13 @@ export const QuickAddProducts: React.FC = () => {
               <button
                 type="button"
                 disabled={isSaving || parsedItems.some(i => !i.isValid)}
-                onClick={handleSaveToFirestore}
+                onClick={handleSaveProducts}
                 className="px-7 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg cursor-pointer"
               >
                 {isSaving ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>جاري الرفع إلى Firestore ({progress}%)...</span>
+                    <span>جاري الرفع إلى السحابة ({progress}%)...</span>
                   </>
                 ) : (
                   <>

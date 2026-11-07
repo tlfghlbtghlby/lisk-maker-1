@@ -241,7 +241,7 @@ export const QuickAddItemsSection: React.FC = () => {
     setParsedItems((prev) => prev.filter((item) => item.id !== id));
   };
 
-  const handleSaveToFirestore = async () => {
+  const handleSaveProducts = async () => {
     setInlineError(null);
     const validItems = parsedItems.filter((item) => item.isValid);
     if (validItems.length === 0) {
@@ -510,7 +510,7 @@ export const QuickAddItemsSection: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleSaveToFirestore}
+                onClick={handleSaveProducts}
                 disabled={validCount === 0 || isUploading}
                 className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-xs transition flex items-center gap-2 cursor-pointer ${
                   validCount === 0 || isUploading
@@ -654,12 +654,12 @@ export const QuickAddItemsSection: React.FC = () => {
 
           <div className="p-4 bg-slate-100/80 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="text-xs text-slate-600">
-              جاهز لحفظ <strong>{validCount}</strong> مادة ورفعها مباشرة إلى Firestore.
+              جاهز لحفظ <strong>{validCount}</strong> مادة ورفعها مباشرة إلى السحابة (Supabase).
             </div>
 
             <button
               type="button"
-              onClick={handleSaveToFirestore}
+              onClick={handleSaveProducts}
               disabled={validCount === 0 || isUploading}
               className={`px-6 py-2.5 rounded-xl text-xs font-black text-white shadow-sm transition flex items-center justify-center gap-2 cursor-pointer ${
                 validCount === 0 || isUploading

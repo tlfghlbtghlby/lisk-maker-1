@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Search, Camera, RefreshCw, CheckCircle, X, QrCode, AlertTriangle } from 'lucide-react';
 
-const SUPABASE_URL = "https://obodoxxzolgcwvzkkoua.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_0aNPlD59KqYsmVr8r_tMEw_wpgmlj2o";
+import { supabaseUrl as SUPABASE_URL, supabaseAnonKey as SUPABASE_ANON_KEY } from '../supabase';
 
 interface ProductItem {
   id: string;

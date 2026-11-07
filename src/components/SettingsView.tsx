@@ -12,7 +12,7 @@ import {
   PresetShift, 
   StoreSupervisor 
 } from '../types';
-import { changeAccountPassword } from '../firebase';
+import { changeAccountPassword, getActiveLocalSession } from '../supabase';
 import { 
   Settings, 
   Store, 
@@ -622,8 +622,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     try {
       const res = await changeAccountPassword(currentUser.uid, oldPassword.trim(), newPassword.trim());
       if (res.success) {
-        if (currentUser) currentUser.password = newPassword.trim();
-        try { localStorage.setItem('last_known_account_password', newPassword.trim()); } catch {}
+        // تحديث التجزئة في الجلسة الحالية (كلمة المرور نفسها لا تُحفظ في أي مكان)
+        try {
+          const refreshed = getActiveLocalSession();
+          if (currentUser && refreshed?.passwordHash) currentUser.passwordHash = refreshed.passwordHash;
+        } catch {}
         setPasswordFeedback({ type: 'success', message: res.message || 'تم حفظ وتحديث كلمة المرور الجديدة بنجاح!' });
         setOldPassword('');
         setNewPassword('');

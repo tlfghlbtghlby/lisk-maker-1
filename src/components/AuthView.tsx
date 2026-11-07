@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { loginWithEmailOrUsername } from '../supabase';
+import { loginWithEmailOrUsername, setupAdminPassword, ADMIN_SETUP_REQUIRED } from '../supabase';
 import { useApp } from '../context/AppContext';
 import { 
   Lock, 
@@ -25,6 +25,9 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onContinueAsGuest
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  // وضع تعيين كلمة مرور المدير لأول مرة (يظهر فقط إن لم تكن للمدير كلمة مرور محفوظة)
+  const [setupMode, setSetupMode] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -59,9 +62,16 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onContinueAsGuest
       return;
     }
 
+    if (setupMode && password !== confirmPassword) {
+      setErrorMessage('كلمة المرور وتأكيدها غير متطابقتين');
+      return;
+    }
+
     setIsLoading(true);
     try {
-      const loggedInUser = await loginWithEmailOrUsername(targetIdentifier, password);
+      const loggedInUser = setupMode
+        ? await setupAdminPassword(password)
+        : await loginWithEmailOrUsername(targetIdentifier, password);
       if (loginUser && loggedInUser) {
         await loginUser(loggedInUser);
       }
@@ -70,6 +80,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onContinueAsGuest
       }
     } catch (err: any) {
       console.warn("Login attempt notice:", err?.message || err);
+      if (err?.code === ADMIN_SETUP_REQUIRED) {
+        setSetupMode(true);
+        setPassword('');
+        setConfirmPassword('');
+        setErrorMessage('لم يتم تعيين كلمة مرور للمدير بعد. اختر كلمة مرور جديدة (6 خانات على الأقل) وأكّدها للمتابعة.');
+        return;
+      }
       let msg = err.message || 'بيانات الدخول غير صحيحة. يرجى التحقق من اسم المستخدم وكلمة المرور.';
       if (msg.includes('معطل') || msg.includes('تعطيل') || msg.includes('حذف') || msg.includes('تجريبية') || msg.includes('اشتراك')) {
         // رسائل التعطيل أو انتهاء الصلاحية تظهر كما هي
@@ -172,7 +189,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onContinueAsGuest
                 <input
                   type="text"
                   value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
+                  onChange={(e) => { setIdentifier(e.target.value); if (setupMode) { setSetupMode(false); setConfirmPassword(''); } }}
                   placeholder="أدخل اسم المستخدم أو البريد"
                   required
                   autoFocus
@@ -207,6 +224,27 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onContinueAsGuest
               </div>
             </div>
 
+            {setupMode && (
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  تأكيد كلمة المرور
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="أعد كتابة كلمة المرور"
+                    required
+                    autoComplete="new-password"
+                    className="w-full pl-3 pr-10 py-2.5 text-sm border border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-slate-800 text-white placeholder-slate-500 text-left font-mono"
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={isLoading}
@@ -220,7 +258,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onContinueAsGuest
               ) : (
                 <>
                   <LogIn className="w-4 h-4 text-slate-950" />
-                  <span>تسجيل الدخول</span>
+                  <span>{setupMode ? 'حفظ كلمة المرور والدخول' : 'تسجيل الدخول'}</span>
                 </>
               )}
             </button>
