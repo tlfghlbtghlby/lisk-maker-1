@@ -137,8 +137,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const handleExportCSV = () => {
     const headers = canViewCost 
-      ? ['الكود', 'اسم المادة', 'الفئة', 'الوحدة', 'سعر الجملة (التكلفة)', 'سعر التجزئة', 'سعر بيع الجملة', 'الكمية بالمخزن', 'الحد الأدنى']
-      : ['الكود', 'اسم المادة', 'الفئة', 'الوحدة', 'سعر التجزئة', 'سعر بيع الجملة', 'الكمية بالمخزن', 'الحد الأدنى'];
+      ? ['الكود', 'اسم المادة', 'الفئة', 'الوحدة', 'سعر الجملة (التكلفة)', 'سعر التجزئة', 'سعر بيع الجملة', 'جملة الجملة', 'السعر الخاص', 'تعبئة الكارتون', 'الكمية بالمخزن', 'الحد الأدنى']
+      : ['الكود', 'اسم المادة', 'الفئة', 'الوحدة', 'سعر التجزئة', 'سعر بيع الجملة', 'جملة الجملة', 'السعر الخاص', 'تعبئة الكارتون', 'الكمية بالمخزن', 'الحد الأدنى'];
 
     const rows = products.map((p) => {
       if (canViewCost) {
@@ -150,6 +150,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           p.costPrice,
           p.retailPrice,
           p.wholesalePrice,
+          p.superWholesalePrice || '',
+          p.specialPrice || '',
+          p.piecesPerCarton || '',
           p.stock,
           p.minStock,
         ];
@@ -161,6 +164,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           `"${p.unit}"`,
           p.retailPrice,
           p.wholesalePrice,
+          p.superWholesalePrice || '',
+          p.specialPrice || '',
+          p.piecesPerCarton || '',
           p.stock,
           p.minStock,
         ];
@@ -400,6 +406,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 {settings.enableWholesale && (
                   <th className="py-3 px-4 text-blue-900">سعر بيع الجملة</th>
                 )}
+                {settings.enableWholesale && (
+                  <th className="py-3 px-4 text-orange-800">جملة الجملة</th>
+                )}
+                {settings.enableWholesale && (
+                  <th className="py-3 px-4 text-violet-800">السعر الخاص</th>
+                )}
+                <th className="py-3 px-4 text-center">تعبئة الكارتون</th>
                 {canViewCost && (
                   <th className="py-3 px-4 text-slate-700">هامش الربح (مفرق)</th>
                 )}
@@ -410,7 +423,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             <tbody className="divide-y divide-slate-100">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-400">
+                  <td colSpan={13} className="py-12 text-center text-slate-400">
                     <Boxes className="w-10 h-10 mx-auto mb-2 text-slate-300" />
                     <p className="font-semibold text-slate-600">لا توجد مواد مطابقة لخيارات البحث</p>
                   </td>
@@ -464,6 +477,23 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           {formatMoney(prod.wholesalePrice)}
                         </td>
                       )}
+
+                      {/* Super Wholesale + Special */}
+                      {settings.enableWholesale && (
+                        <td className="py-3 px-4 font-bold text-orange-700">
+                          {prod.superWholesalePrice ? formatMoney(prod.superWholesalePrice) : <span className="text-slate-300">-</span>}
+                        </td>
+                      )}
+                      {settings.enableWholesale && (
+                        <td className="py-3 px-4 font-bold text-violet-700">
+                          {prod.specialPrice ? formatMoney(prod.specialPrice) : <span className="text-slate-300">-</span>}
+                        </td>
+                      )}
+
+                      {/* Carton packing */}
+                      <td className="py-3 px-4 text-center font-mono font-bold text-slate-700">
+                        {(prod.piecesPerCarton || 0) > 1 ? prod.piecesPerCarton : <span className="text-slate-300">-</span>}
+                      </td>
 
                       {/* Margin */}
                       {canViewCost && (

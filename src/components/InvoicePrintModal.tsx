@@ -129,6 +129,24 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
   const seconds = String(dateObj.getSeconds()).padStart(2, '0');
   const timeFormatted = `${hours}:${minutes}:${seconds}`;
 
+  // اسم المندوب يظهر في القائمة إن وُجد، إلا إذا أُلغي إظهاره صراحةً عند البيع
+  const repNameToShow =
+    invoice.salesRepName && invoice.showRepOnInvoice !== false ? invoice.salesRepName : '';
+
+  // تقسيم الكمية إلى كراتين وقطع، وتعبئة الكارتون (قطع/كرتون) لكل سطر
+  const getQtyBreakdown = (item: any) => {
+    if (item.isWeighted) return { cartons: null as number | null, pieces: null as number | null };
+    const net = Math.max(0, item.quantity - (item.returnedQuantity || 0));
+    return item.unitType === 'carton'
+      ? { cartons: net, pieces: 0 }
+      : { cartons: 0, pieces: net };
+  };
+  const getPacking = (item: any): number | null => {
+    const n = Number(item.piecesPerCarton) || 0;
+    return !item.isWeighted && n > 1 ? n : null;
+  };
+  const fmtQty = (n: number | null) => (n === null || n === 0 ? '-' : n.toLocaleString());
+
   const invoiceTotal = invoice.total;
   const previousDebt = invoice.previousDebt || 0;
   const grandTotal = invoiceTotal + previousDebt;
@@ -303,6 +321,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
     summaryText += `رقم القائمة: ${invoice.invoiceNumber}\n`;
     summaryText += `التاريخ: ${dayName} ${dateFormatted}\n`;
     summaryText += `حضرة السيد: ${invoice.customerName}\n`;
+    if (repNameToShow) {
+      summaryText += `المندوب: ${repNameToShow}\n`;
+    }
     summaryText += `المبلغ المطلوب: ${invoice.total.toLocaleString()} ${currencyLabel}\n`;
     if (totalRemainingDebt > 0) {
       summaryText += `مجموع الديون بذمة العميل: ${totalRemainingDebt.toLocaleString()} ${currencyLabel}\n`;
@@ -555,6 +576,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                       <div><span>رقم القائمة: </span><span className="font-mono underline">{invoice.invoiceNumber}</span></div>
                       <div><span>التاريخ: </span><span>{dayName} </span><span className="font-mono">{dateFormatted}</span></div>
                       <div><span>السيد: </span><span className="underline">{invoice.customerName}</span></div>
+                      {repNameToShow && (
+                        <div><span>المندوب: </span><span className="underline">{repNameToShow}</span></div>
+                      )}
                       {!isThermal && paginatedPages.length > 1 && (
                         <div className="text-[10px] bg-slate-100 px-2 py-0.5 rounded font-mono border border-slate-300">
                           صفحة {pageIdx + 1} من {paginatedPages.length}
@@ -585,6 +609,18 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                           <th className="py-1 px-2 border-l border-black text-center w-32">الملاحظات</th>
                         )}
                         <th className="py-1 px-1 border-l border-black text-center w-10">العدد</th>
+                        {!isThermal && (
+                          <>
+                            <th className="py-0 px-0 border-l border-black text-center w-24">
+                              <div className="border-b border-black py-0.5">عدد القطع</div>
+                              <div className="flex">
+                                <span className="flex-1 py-0.5 border-l border-black">كراتين</span>
+                                <span className="flex-1 py-0.5">قطع</span>
+                              </div>
+                            </th>
+                            <th className="py-1 px-1 border-l border-black text-center w-14">تعبئة الكارتون</th>
+                          </>
+                        )}
                         <th className="py-1 px-1 border-l border-black text-center w-16">السعر</th>
                         <th className="py-1 px-1 text-center w-16">المبلغ</th>
                       </tr>
@@ -607,6 +643,11 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                                   </span>
                                 )}
                               </div>
+                              {isThermal && getPacking(item) !== null && (
+                                <div className="text-[8px] font-normal text-slate-700">
+                                  كراتين: {fmtQty(getQtyBreakdown(item).cartons)} · قطع: {fmtQty(getQtyBreakdown(item).pieces)} · تعبئة: {getPacking(item)}
+                                </div>
+                              )}
                             </td>
                             {!isThermal && (
                               <td className="py-0.5 px-2 border-l border-black text-center text-[10px] text-slate-800 truncate max-w-[150px]">
@@ -616,6 +657,19 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                             <td className="py-0.5 px-0.5 border-l border-black text-center font-mono">
                               {item.isWeighted ? `${item.quantity} كغم` : netQty}
                             </td>
+                            {!isThermal && (
+                              <>
+                                <td className="py-0 px-0 border-l border-black text-center font-mono">
+                                  <div className="flex h-full">
+                                    <span className="flex-1 py-0.5 border-l border-black">{fmtQty(getQtyBreakdown(item).cartons)}</span>
+                                    <span className="flex-1 py-0.5">{fmtQty(getQtyBreakdown(item).pieces)}</span>
+                                  </div>
+                                </td>
+                                <td className="py-0.5 px-0.5 border-l border-black text-center font-mono">
+                                  {fmtQty(getPacking(item))}
+                                </td>
+                              </>
+                            )}
                             <td className="py-0.5 px-1 border-l border-black text-center font-mono">
                               {item.isGift ? '0' : item.unitPrice.toLocaleString()}
                             </td>

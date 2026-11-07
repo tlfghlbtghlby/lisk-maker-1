@@ -1567,6 +1567,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
+    // الدين السابق للزبون المسجل قبل هذه القائمة، ويُضاف إليه الباقي من هذه القائمة
+    const debtCustomer = data.customerId ? customers.find(c => c.id === data.customerId) : undefined;
+    const previousDebt = debtCustomer ? Math.max(0, Number(debtCustomer.totalDebt) || 0) : 0;
+    const currentTotalDebt = previousDebt + remainingAmount;
+
     const newInv: any = {
       id: newId,
       ownerUid: currentUser?.uid || '',
@@ -1584,8 +1589,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       total,
       paidAmount,
       remainingAmount,
-      previousDebt: 0,
-      currentTotalDebt: remainingAmount,
+      previousDebt,
+      currentTotalDebt,
+      // يدل على أن الباقي أُضيف فعلاً إلى رصيد الزبون (لتصحيح الرصيد عند حذف القائمة)
+      debtApplied: Boolean(debtCustomer && remainingAmount > 0),
       paymentDueDate: data.paymentDueDate || '',
       status,
       notes: data.notes || '',
@@ -1657,7 +1664,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
     }
 
-    saveStoreToCloud({ products: updatedProducts, invoices: updatedInvoices, shifts: updatedShiftsList });
+    // إضافة الباقي (الدين الجديد) إلى مجموع دين الزبون السابق
+    let updatedCustomersList = customers;
+    if (debtCustomer && remainingAmount > 0) {
+      updatedCustomersList = customers.map(c =>
+        c.id === debtCustomer.id ? { ...c, totalDebt: previousDebt + remainingAmount } : c
+      );
+      setCustomers(updatedCustomersList);
+      try {
+        localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomersList));
+      } catch {}
+    }
+
+    saveStoreToCloud({
+      products: updatedProducts,
+      invoices: updatedInvoices,
+      shifts: updatedShiftsList,
+      ...(updatedCustomersList !== customers ? { customers: updatedCustomersList } : {}),
+    });
+    if (updatedCustomersList !== customers) {
+      broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomersList }, currentSessionId, currentUser?.uid);
+    }
 
     // بث فوري في الذاكرة (<1ms) لتحديث كميات المخزن والقوائم والشفت في جميع النوافذ المفتوحة
     broadcastSyncEvent('INVOICE_CREATED', {
@@ -1683,7 +1710,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       localStorage.setItem('cached_pos_invoices', JSON.stringify(updated));
     } catch {}
-    saveStoreToCloud({ invoices: updated });
+
+    // إرجاع الدين الذي أضافته هذه القائمة (للقوائم المسجلة بعد إصلاح الدين فقط)
+    let customersAfterDelete = customers;
+    if ((inv as any).debtApplied && inv.customerId && inv.status !== 'returned' && inv.remainingAmount > 0) {
+      customersAfterDelete = customers.map(c =>
+        c.id === inv.customerId ? { ...c, totalDebt: Math.max(0, (c.totalDebt || 0) - inv.remainingAmount) } : c
+      );
+      setCustomers(customersAfterDelete);
+      try {
+        localStorage.setItem('cached_pos_customers', JSON.stringify(customersAfterDelete));
+      } catch {}
+    }
+    saveStoreToCloud(customersAfterDelete !== customers ? { invoices: updated, customers: customersAfterDelete } : { invoices: updated });
     broadcastSyncEvent('INVOICE_DELETED', { invoiceId: id, updatedInvoices: updated }, currentSessionId, currentUser?.uid);
   };
 
@@ -1987,6 +2026,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         costPrice: Number(item.costPrice) || 0,
         retailPrice: Number(item.retailPrice) || 0,
         wholesalePrice: Number(item.wholesalePrice) || Number(item.retailPrice) || 0,
+        superWholesalePrice: Number(item.superWholesalePrice) > 0 ? Number(item.superWholesalePrice) : undefined,
+        specialPrice: Number(item.specialPrice) > 0 ? Number(item.specialPrice) : undefined,
         stock: Number(item.stock) || 0,
         piecesPerCarton: item.piecesPerCarton ? Number(item.piecesPerCarton) : undefined,
         minStock: Number(item.minStock) || 5,

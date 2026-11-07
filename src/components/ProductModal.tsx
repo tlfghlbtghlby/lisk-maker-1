@@ -53,6 +53,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
   const [cartonWholesaleInput, setCartonWholesaleInput] = useState<string>('0');
   const [pieceWholesaleInput, setPieceWholesaleInput] = useState<string>('0');
+  const [superWholesaleInput, setSuperWholesaleInput] = useState<string>('');
+  const [specialPriceInput, setSpecialPriceInput] = useState<string>('');
 
   const [stock, setStock] = useState<number | ''>(0);
   const [minStock, setMinStock] = useState<number | ''>(5);
@@ -165,6 +167,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       const wholesale = productToEdit.wholesalePrice ?? 0;
       setPieceWholesaleInput(String(wholesale));
       setCartonWholesaleInput(String(Math.round(wholesale * ppc)));
+      setSuperWholesaleInput(productToEdit.superWholesalePrice ? String(productToEdit.superWholesalePrice) : '');
+      setSpecialPriceInput(productToEdit.specialPrice ? String(productToEdit.specialPrice) : '');
 
       setStock(productToEdit.stock ?? 0);
       setMinStock(productToEdit.minStock ?? 5);
@@ -184,6 +188,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setPieceRetailInput('0');
       setCartonWholesaleInput('0');
       setPieceWholesaleInput('0');
+      setSuperWholesaleInput('');
+      setSpecialPriceInput('');
 
       setStock(0);
       setMinStock(5);
@@ -214,6 +220,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const numCost = parseFloat(pieceCostInput) || 0;
   const numRetail = parseFloat(pieceRetailInput) || 0;
   const numWholesale = parseFloat(pieceWholesaleInput) || 0;
+  const numSuperWholesale = parseFloat(superWholesaleInput) || 0;
+  const numSpecialPrice = parseFloat(specialPriceInput) || 0;
   const numStock = typeof stock === 'number' ? stock : 0;
 
   const profitPerPiece = numRetail - numCost;
@@ -336,6 +344,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       costPrice: numCost,
       retailPrice: numRetail,
       wholesalePrice: numWholesale,
+      superWholesalePrice: numSuperWholesale,
+      specialPrice: numSpecialPrice,
       stock: numStock,
       minStock: typeof minStock === 'number' ? minStock : 5,
       piecesPerCarton: numPieces,
@@ -796,6 +806,62 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       </span>
                     </div>
                   </div>
+                </div>
+
+                {/* 4. جملة الجملة والسعر الخاص (سعر القطعة الواحدة) */}
+                <div className="bg-[#070e1b] border border-orange-500/30 rounded-2xl p-3.5 space-y-3 col-span-full">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-orange-500/20">
+                    <span className="text-xs font-bold text-orange-400 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400"></span>
+                      <span>4. أسعار إضافية (للقطعة الواحدة)</span>
+                    </span>
+                    <span className="text-[10px] font-bold text-orange-400 bg-orange-950/60 border border-orange-500/30 px-2 py-0.5 rounded-md">
+                      اختياري
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-orange-300 block text-right">
+                        جملة الجملة:
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={superWholesaleInput}
+                          onChange={(e) => setSuperWholesaleInput(e.target.value)}
+                          placeholder="غير محدد"
+                          className="w-full bg-[#060b13] border border-orange-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-orange-300 font-mono font-bold focus:outline-none focus:border-orange-400 text-left"
+                        />
+                        <span className="absolute left-2.5 top-2 text-[10px] text-orange-400 font-bold">
+                          {settings.currency || 'دينار'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-violet-300 block text-right">
+                        السعر الخاص:
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={specialPriceInput}
+                          onChange={(e) => setSpecialPriceInput(e.target.value)}
+                          placeholder="غير محدد"
+                          className="w-full bg-[#060b13] border border-violet-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-violet-300 font-mono font-bold focus:outline-none focus:border-violet-400 text-left"
+                        />
+                        <span className="absolute left-2.5 top-2 text-[10px] text-violet-400 font-bold">
+                          {settings.currency || 'دينار'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 text-right">
+                    إن تُركت فارغة: جملة الجملة تُباع بسعر الجملة، والسعر الخاص بسعر المفرد.
+                  </p>
                 </div>
               </div>
             </div>

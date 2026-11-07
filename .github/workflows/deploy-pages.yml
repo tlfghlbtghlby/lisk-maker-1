@@ -2,7 +2,7 @@ name: Deploy Price Checker to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
+    branches: [ security-update ]
   workflow_dispatch:
 
 permissions:
