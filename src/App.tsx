@@ -500,14 +500,16 @@ export default function App() {
   const [enteredPass, setEnteredPass] = useState('');
   const [errorMsg, setErrorMsg] = useState(false);
 
-  // التحقق التلقائي: إذا كان التطبيق يعمل داخل Electron أو تم فتح نافذة قسم مستقلة يفتح البرنامج مباشرة
+  // التحقق التلقائي: إذا كان التطبيق يعمل داخل Electron (ويندوز) أو تطبيق أندرويد (Capacitor)
+  // أو تم فتح نافذة قسم مستقلة، يفتح البرنامج مباشرة دون شاشة كاشف الأسعار للزبائن
   const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const isElectron = !!((window as any).electronAPI || (window as any).electron);
+    const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
     const params = new URLSearchParams(window.location.search);
     const hash = window.location.hash.replace(/^#\/?/, '').trim();
     const isSectionHash = ['pos', 'inventory', 'invoices', 'customers', 'reports', 'sales-reps', 'shifts', 'settings'].includes(hash);
-    return isElectron || isSectionHash || params.get('admin') === 'true' || params.has('open-route') || params.has('route') || localStorage.getItem('is_admin_mode') === 'true';
+    return isElectron || isNativeApp || isSectionHash || params.get('admin') === 'true' || params.has('open-route') || params.has('route') || localStorage.getItem('is_admin_mode') === 'true';
   });
 
   if (typeof window === 'undefined') return null;
