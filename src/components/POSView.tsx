@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product, SaleType, PriceType, InvoiceItem, Invoice } from '../types';
+import { getPiecePrice, hasOwnPrice, PRICE_TYPE_LABELS } from '../utils/pricing';
 import { 
   Search, 
   ShoppingCart, 
@@ -182,6 +183,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const [productForPriceEdit, setProductForPriceEdit] = useState<Product | null>(null);
   const [editRetailPrice, setEditRetailPrice] = useState<number | ''>('');
   const [editWholesalePrice, setEditWholesalePrice] = useState<number | ''>('');
+  const [editSuperWholesalePrice, setEditSuperWholesalePrice] = useState<number | ''>('');
+  const [editSpecialPrice, setEditSpecialPrice] = useState<number | ''>('');
   const [editCostPrice, setEditCostPrice] = useState<number | ''>('');
   const [editPiecesPerCarton, setEditPiecesPerCarton] = useState<number | ''>('');
 
@@ -197,6 +200,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     setProductForPriceEdit(prod);
     setEditRetailPrice(prod.retailPrice);
     setEditWholesalePrice(prod.wholesalePrice);
+    setEditSuperWholesalePrice(prod.superWholesalePrice || '');
+    setEditSpecialPrice(prod.specialPrice || '');
     setEditCostPrice(prod.costPrice);
     setEditPiecesPerCarton(prod.piecesPerCarton || 1);
   };
@@ -207,20 +212,26 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
     const newRetail = typeof editRetailPrice === 'number' ? editRetailPrice : productForPriceEdit.retailPrice;
     const newWholesale = typeof editWholesalePrice === 'number' ? editWholesalePrice : productForPriceEdit.wholesalePrice;
+    const newSuper = typeof editSuperWholesalePrice === 'number' ? editSuperWholesalePrice : 0;
+    const newSpecial = typeof editSpecialPrice === 'number' ? editSpecialPrice : 0;
     const newCost = typeof editCostPrice === 'number' ? editCostPrice : productForPriceEdit.costPrice;
     const newCarton = typeof editPiecesPerCarton === 'number' && editPiecesPerCarton > 0 ? editPiecesPerCarton : (productForPriceEdit.piecesPerCarton || 1);
 
     updateProduct(productForPriceEdit.id, {
       retailPrice: newRetail,
       wholesalePrice: newWholesale,
+      superWholesalePrice: newSuper,
+      specialPrice: newSpecial,
       costPrice: newCost,
       piecesPerCarton: newCarton,
     });
 
     setCartItems(prev => prev.map(item => {
       if (item.productId === productForPriceEdit.id) {
-        const isWholesale = item.priceType === 'wholesale';
-        const basePiece = isWholesale ? newWholesale : newRetail;
+        const basePiece = getPiecePrice(
+          { retailPrice: newRetail, wholesalePrice: newWholesale, superWholesalePrice: newSuper, specialPrice: newSpecial },
+          item.priceType
+        );
         const isCarton = item.unitType === 'carton';
         const effectiveUnit = isCarton ? basePiece * newCarton : basePiece;
         return {
@@ -358,7 +369,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     const isWeighted = Boolean(product.isWeighted || product.unit === 'كغم' || product.unit === 'كيلو');
     setCartItems((prev) => {
       const existingIndex = prev.findIndex((item) => item.productId === product.id);
-      const piecePrice = priceType === 'wholesale' ? product.wholesalePrice : product.retailPrice;
+      const piecePrice = getPiecePrice(product, priceType);
 
       if (existingIndex > -1) {
         const target = prev[existingIndex];
@@ -583,7 +594,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     setCartItems((prev) =>
       prev.map((item) => {
         if (item.productId === productId) {
-          const piecePrice = item.priceType === 'wholesale' ? prod.wholesalePrice : prod.retailPrice;
+          const piecePrice = getPiecePrice(prod, item.priceType);
           const pieceCost = prod.costPrice;
           const isCarton = newUnitType === 'carton';
           const effectiveUnitPrice = isCarton ? piecePrice * cartonCapacity : piecePrice;
@@ -612,7 +623,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       prev.map((item) => {
         const prod = products.find((p) => p.id === item.productId);
         if (!prod) return item;
-        const newUnitPrice = type === 'wholesale' ? prod.wholesalePrice : prod.retailPrice;
+        const piecePrice = getPiecePrice(prod, type);
+        // سطر الكرتون: السعر للكرتون الكامل = سعر القطعة × تعبئة الكرتون
+        const newUnitPrice = item.unitType === 'carton'
+          ? piecePrice * Math.max(1, item.piecesPerCarton || prod.piecesPerCarton || 1)
+          : piecePrice;
         return {
           ...item,
           priceType: type,
@@ -956,8 +971,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
                   {visibleProducts.map((prod, pIdx) => {
                     const isOutOfStock = prod.stock <= 0;
-                    const effectivePrice = globalPriceType === 'wholesale' && settings.enableWholesale 
-                      ? prod.wholesalePrice 
+                    const effectivePrice = settings.enableWholesale
+                      ? getPiecePrice(prod, globalPriceType)
                       : prod.retailPrice;
 
                     return (
@@ -1107,6 +1122,28 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
+                          {settings.enableWholesale && hasOwnPrice(prod, 'superWholesale') && (
+                            <div className="bg-orange-50/90 border border-orange-200/90 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
+                              <div className="text-[10px] text-orange-800 font-bold">
+                                جملة الجملة:
+                              </div>
+                              <div className="text-xs sm:text-sm font-black text-orange-950 font-mono">
+                                {formatMoney(prod.superWholesalePrice || 0)}
+                              </div>
+                            </div>
+                          )}
+
+                          {settings.enableWholesale && hasOwnPrice(prod, 'special') && (
+                            <div className="bg-violet-50/90 border border-violet-200/90 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
+                              <div className="text-[10px] text-violet-800 font-bold">
+                                السعر الخاص:
+                              </div>
+                              <div className="text-xs sm:text-sm font-black text-violet-950 font-mono">
+                                {formatMoney(prod.specialPrice || 0)}
+                              </div>
+                            </div>
+                          )}
+
                           <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-3 py-1.5 text-right min-w-[105px] shrink-0">
                             <div className="text-[10px] text-emerald-800 font-bold">
                               {settings.enableWholesale ? 'سعر بيع المفرد:' : 'سعر البيع:'}
@@ -1152,6 +1189,36 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                   <Plus className="w-3.5 h-3.5" />
                                   <span>جملة</span>
                                 </button>
+
+                                {hasOwnPrice(prod, 'superWholesale') && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      addToCartWithPrice(prod, 'superWholesale');
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer shrink-0 bg-orange-600 hover:bg-orange-700 text-white"
+                                    title="إضافة بسعر جملة الجملة"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>جملة الجملة</span>
+                                  </button>
+                                )}
+
+                                {hasOwnPrice(prod, 'special') && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      addToCartWithPrice(prod, 'special');
+                                    }}
+                                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer shrink-0 bg-violet-600 hover:bg-violet-700 text-white"
+                                    title="إضافة بالسعر الخاص"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>خاص</span>
+                                  </button>
+                                )}
                               </>
                             ) : (
                               <button
@@ -1332,6 +1399,26 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           }`}
                         >
                           جملة
+                        </button>
+                        <button
+                          onClick={() => handleGlobalPriceTypeChange('superWholesale')}
+                          className={`px-1.5 py-0.5 rounded transition ${
+                            globalPriceType === 'superWholesale'
+                              ? 'bg-white text-orange-800 shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {PRICE_TYPE_LABELS.superWholesale}
+                        </button>
+                        <button
+                          onClick={() => handleGlobalPriceTypeChange('special')}
+                          className={`px-1.5 py-0.5 rounded transition ${
+                            globalPriceType === 'special'
+                              ? 'bg-white text-violet-800 shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {PRICE_TYPE_LABELS.special}
                         </button>
                       </div>
                     </div>
@@ -2120,6 +2207,44 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     value={editWholesalePrice}
                     onChange={(e) => setEditWholesalePrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
                     className="w-full pl-12 pr-3 py-2 text-sm font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    {settings.currency}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  جملة الجملة ({settings.currency}) <span className="text-slate-400 font-medium">(اختياري)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editSuperWholesalePrice}
+                    onChange={(e) => setEditSuperWholesalePrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                    className="w-full pl-12 pr-3 py-2 text-sm font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                  />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    {settings.currency}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  السعر الخاص ({settings.currency}) <span className="text-slate-400 font-medium">(اختياري)</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={editSpecialPrice}
+                    onChange={(e) => setEditSpecialPrice(e.target.value === '' ? '' : parseFloat(e.target.value) || 0)}
+                    className="w-full pl-12 pr-3 py-2 text-sm font-mono font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 bg-white"
                   />
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
                     {settings.currency}

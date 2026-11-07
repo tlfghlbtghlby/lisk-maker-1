@@ -1,5 +1,5 @@
 export type SaleType = 'direct' | 'credit';
-export type PriceType = 'retail' | 'wholesale';
+export type PriceType = 'retail' | 'wholesale' | 'superWholesale' | 'special';
 export type InvoiceStatus = 'paid' | 'partial' | 'unpaid' | 'returned' | 'partially_returned';
 
 export interface StoreFeatures {
@@ -37,6 +37,10 @@ export interface Product {
   costPrice: number;
   retailPrice: number;
   wholesalePrice: number;
+  /** جملة الجملة (اختياري) */
+  superWholesalePrice?: number;
+  /** السعر الخاص (اختياري) */
+  specialPrice?: number;
   stock: number;
   piecesPerCarton?: number;
   minStock: number;
@@ -126,6 +130,8 @@ export interface Invoice {
   remainingAmount: number;
   previousDebt: number;
   currentTotalDebt: number;
+  /** true إذا أُضيف باقي هذه القائمة إلى رصيد دين الزبون عند إنشائها */
+  debtApplied?: boolean;
   paymentDueDate?: string;
   status: InvoiceStatus;
   notes?: string;
