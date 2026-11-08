@@ -1870,7 +1870,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       storeSecret = generateStoreSecret();
       updateSettings({ invoiceSecret: storeSecret });
     }
-    const invoiceNumberNew = `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4, '0')}`;
+    // رقم القائمة يحمل رمز المتجر الخاص: INV-<رمز المتجر>-<السنة>-<تسلسل>
+    // فلا يستطيع متجر آخر إنشاء قائمة بنفس الرقم. التسلسل = أعلى رقم موجود + 1 (لا يتكرر بعد الحذف).
+    const storeCodeNew = getStoreCode(storeSecret);
+    const numberPrefix = `INV-${storeCodeNew}-${new Date().getFullYear()}-`;
+    const lastSeq = invoices.reduce((mx, i) => {
+      const n = String(i.invoiceNumber || '');
+      if (!n.startsWith(numberPrefix)) return mx;
+      const v = parseInt(n.slice(numberPrefix.length), 10);
+      return isNaN(v) ? mx : Math.max(mx, v);
+    }, 0);
+    const invoiceNumberNew = `${numberPrefix}${String(lastSeq + 1).padStart(4, '0')}`;
     const customerNameNew = data.customerName || (data.type === 'direct' ? 'زبون نقدي مباشر' : 'عميل غير مسجل');
     const sealNew = computeInvoiceSeal(storeSecret, {
       invoiceNumber: invoiceNumberNew,
@@ -1882,7 +1892,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const newInv: any = {
       id: newId,
-      storeCode: getStoreCode(storeSecret),
+      storeCode: storeCodeNew,
       seal: sealNew,
       ownerUid: currentUser?.uid || '',
       invoiceNumber: invoiceNumberNew,
