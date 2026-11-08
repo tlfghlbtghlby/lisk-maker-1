@@ -54,6 +54,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [cartonWholesaleInput, setCartonWholesaleInput] = useState<string>('0');
   const [pieceWholesaleInput, setPieceWholesaleInput] = useState<string>('0');
   const [superWholesaleInput, setSuperWholesaleInput] = useState<string>('');
+  const [cartonSuperInput, setCartonSuperInput] = useState<string>('');
+  const [cartonSpecialInput, setCartonSpecialInput] = useState<string>('');
   const [specialPriceInput, setSpecialPriceInput] = useState<string>('');
 
   const [stock, setStock] = useState<number | ''>(0);
@@ -169,6 +171,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setCartonWholesaleInput(String(Math.round(wholesale * ppc)));
       setSuperWholesaleInput(productToEdit.superWholesalePrice ? String(productToEdit.superWholesalePrice) : '');
       setSpecialPriceInput(productToEdit.specialPrice ? String(productToEdit.specialPrice) : '');
+      setCartonSuperInput(productToEdit.superWholesalePrice ? String(Math.round(productToEdit.superWholesalePrice * ppc)) : '');
+      setCartonSpecialInput(productToEdit.specialPrice ? String(Math.round(productToEdit.specialPrice * ppc)) : '');
 
       setStock(productToEdit.stock ?? 0);
       setMinStock(productToEdit.minStock ?? 5);
@@ -190,6 +194,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setPieceWholesaleInput('0');
       setSuperWholesaleInput('');
       setSpecialPriceInput('');
+      setCartonSuperInput('');
+      setCartonSpecialInput('');
 
       setStock(0);
       setMinStock(5);
@@ -300,6 +306,26 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     }
   };
 
+  const makeTierHandlers = (
+    setPiece: (v: string) => void,
+    setCarton: (v: string) => void
+  ) => ({
+    onCarton: (val: string) => {
+      setCarton(val);
+      const w = parseFloat(val);
+      if (val.trim() === '' || isNaN(w)) { setPiece(''); return; }
+      setPiece(numPieces > 1 ? String(parseFloat((w / numPieces).toFixed(2))) : String(w));
+    },
+    onPiece: (val: string) => {
+      setPiece(val);
+      const p = parseFloat(val);
+      if (val.trim() === '' || isNaN(p)) { setCarton(''); return; }
+      setCarton(String(parseFloat((p * numPieces).toFixed(2))));
+    },
+  });
+  const superHandlers = makeTierHandlers(setSuperWholesaleInput, setCartonSuperInput);
+  const specialHandlers = makeTierHandlers(setSpecialPriceInput, setCartonSpecialInput);
+
   const handlePiecesPerCartonUpdate = (newPieces: number | '') => {
     setPiecesPerCarton(newPieces);
     const validPieces = typeof newPieces === 'number' && newPieces > 0 ? newPieces : 1;
@@ -314,6 +340,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     if (pieceWholesaleInput && pieceWholesaleInput !== '0') {
       const p = parseFloat(pieceWholesaleInput) || 0;
       setCartonWholesaleInput(String(parseFloat((p * validPieces).toFixed(2))));
+    }
+    if (superWholesaleInput) {
+      setCartonSuperInput(String(parseFloat(((parseFloat(superWholesaleInput) || 0) * validPieces).toFixed(2))));
+    }
+    if (specialPriceInput) {
+      setCartonSpecialInput(String(parseFloat(((parseFloat(specialPriceInput) || 0) * validPieces).toFixed(2))));
     }
   };
 
@@ -367,24 +399,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   return (
     <>
       <div 
-        className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto"
+        className="fixed inset-0 bg-black/40 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto"
         dir="rtl"
       >
         <div 
-          className="bg-[#0b1728] border border-slate-700/80 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in duration-150"
+          className="bg-white dark:bg-[#0b1728] border border-slate-300 dark:border-slate-700/80 rounded-2xl w-full max-w-[1180px] shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in duration-150"
           onClick={(e) => e.stopPropagation()}
         >
           {/* ترويسة النافذة */}
-          <div className="flex items-center justify-between px-5 py-3.5 bg-slate-900/90 border-b border-slate-800">
+          <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 dark:bg-slate-900/90 border-b border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                 <Package className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-white">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                   {productToEdit ? 'تعديل بيانات مادة' : 'إضافة مادة جديدة للمخزن'}
                 </h3>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   {productToEdit ? 'تحديث الأسعار، الباركود أو الكميات المتوفرة' : 'تسجيل المادة في النظام وقاعدة البيانات السحابية'}
                 </p>
               </div>
@@ -393,7 +425,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+              className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -401,8 +433,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
           {/* تنبيهات البحث التلقائي والتحقق */}
           {foundSuccessSource && (
-            <div className="mx-5 mt-3 p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+            <div className="mx-5 mt-3 p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/40 text-emerald-700 dark:text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <span>
                 {foundSuccessSource === 'community'
                   ? 'تم العثور على اسم وتصنيف المادة من قاعدة بيانات المتاجر المشتركة!'
@@ -412,24 +444,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           )}
 
           {notFoundMessage && (
-            <div className="mx-5 mt-3 p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
-              <HelpCircle className="w-4 h-4 shrink-0 text-amber-400" />
+            <div className="mx-5 mt-3 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs flex items-center gap-2">
+              <HelpCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
               <span>{notFoundMessage}</span>
             </div>
           )}
 
           {validationError && (
-            <div className="mx-5 mt-3 p-2.5 rounded-xl bg-rose-950/50 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <div className="mx-5 mt-3 p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-500/40 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
               <span>{validationError}</span>
             </div>
           )}
 
           {/* أزرار اختيار مصدر الاستعلام التلقائي المفضّل */}
           {!productToEdit && (
-            <div className="mx-5 mt-3 p-2 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-between text-xs">
-              <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <div className="mx-5 mt-3 p-2 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                 <span>مصدر البحث التلقائي المفضل:</span>
               </span>
               <div className="flex items-center gap-1.5">
@@ -443,7 +475,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition flex items-center gap-1 cursor-pointer ${
                     lookupPreference === 'global'
                       ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                   title="البحث في القواعد المليونية المفتوحة أولاً وترجمة النتيجة"
                 >
@@ -460,7 +492,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition flex items-center gap-1 cursor-pointer ${
                     lookupPreference === 'community'
                       ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                   title="البحث في وثائق المتاجر المشتركة في Supabase أولاً"
                 >
@@ -472,20 +504,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({
           )}
 
           {/* جسم النموذج */}
-          <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[75vh] overflow-y-auto custom-scrollbar">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-3 max-h-[calc(100vh-130px)] overflow-y-auto custom-scrollbar">
             {/* قسم الباركود والاسم */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
               <div className="sm:col-span-6 space-y-1">
-                <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <Barcode className="w-3.5 h-3.5 text-emerald-400" />
+                    <Barcode className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                     <span>الباركود / كود المادة</span>
                   </span>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => setIsScannerOpen(true)}
-                      className="text-[10px] text-emerald-400 hover:text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer"
+                      className="text-[10px] text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer"
                       title="مسح بالكاميرا"
                     >
                       <Camera className="w-3 h-3" />
@@ -494,7 +526,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     <button
                       type="button"
                       onClick={generateUniqueBarcode}
-                      className="text-[10px] text-slate-400 hover:text-slate-200 bg-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer"
+                      className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1 transition cursor-pointer"
                       title="توليد باركود تلقائي"
                     >
                       <RefreshCw className="w-3 h-3" />
@@ -509,10 +541,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     onChange={(e) => setCode(e.target.value)}
                     onBlur={handleBarcodeBlur}
                     placeholder="امسح أو اكتب الباركود..."
-                    className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono tracking-wider"
+                    className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-mono tracking-wider"
                   />
                   {isSearchingBarcode && (
-                    <div className="absolute left-3 top-2.5 text-emerald-400 flex items-center gap-1 text-[11px]">
+                    <div className="absolute left-3 top-2.5 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[11px]">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span>جاري البحث...</span>
                     </div>
@@ -521,8 +553,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
 
               <div className="sm:col-span-6 space-y-1">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                   <span>اسم المادة *</span>
                 </label>
                 <input
@@ -531,16 +563,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="مثال: شاي الوزة 400 غرام"
-                  className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
 
             {/* التصنيف، الوحدة، وميزة الوزن */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
-                  <Layers className="w-3.5 h-3.5 text-blue-400" />
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                  <Layers className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
                   <span>القسم / التصنيف</span>
                 </label>
                 <div className="relative">
@@ -549,7 +581,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     list="category-suggestions"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                     placeholder="اختر أو اكتب قسماً..."
                   />
                   <datalist id="category-suggestions">
@@ -561,14 +593,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1">
-                  <Box className="w-3.5 h-3.5 text-purple-400" />
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                  <Box className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                   <span>الوحدة الأساسية</span>
                 </label>
                 <select
                   value={unit}
                   onChange={(e) => setUnit(e.target.value)}
-                  className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 >
                   <option value="قطعة">قطعة</option>
                   <option value="كرتون">كرتون</option>
@@ -584,7 +616,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
 
               <div className="space-y-1 flex flex-col justify-end">
-                <label className="text-xs font-semibold text-slate-300 invisible sm:block">خيارات</label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 invisible sm:block">خيارات</label>
                 <button
                   type="button"
                   onClick={() => {
@@ -594,33 +626,22 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   }}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs font-semibold transition cursor-pointer ${
                     isWeighted
-                      ? 'bg-amber-950/60 border-amber-500/50 text-amber-300'
-                      : 'bg-[#060b13] border-slate-700 text-slate-400 hover:text-slate-200'
+                      ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-500/50 text-amber-700 dark:text-amber-300'
+                      : 'bg-white dark:bg-[#060b13] border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                   }`}
                 >
                   <span className="flex items-center gap-1.5">
-                    <Scale className="w-3.5 h-3.5 text-amber-400" />
+                    <Scale className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                     <span>مادة وزنية (ميزان)</span>
                   </span>
-                  <span className={`w-2.5 h-2.5 rounded-full ${isWeighted ? 'bg-amber-400' : 'bg-slate-600'}`}></span>
+                  <span className={`w-2.5 h-2.5 rounded-full ${isWeighted ? 'bg-amber-400' : 'bg-slate-300 dark:bg-slate-600'}`}></span>
                 </button>
               </div>
-            </div>
-
-            {/* سعة الكرتون */}
-            <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <Box className="w-4 h-4 text-emerald-400" />
-                  <span>تعبئة الكرتون (سعة الكرتون بالقطع)</span>
-                </span>
-                <span className="text-[11px] text-slate-400">
-                  {numPieces > 1 ? `كل كرتون يحتوي على ${numPieces} ${unit}` : 'يباع بالقطعة المفردة فقط'}
-                </span>
-              </div>
-
-              <div className="max-w-xs space-y-1">
-                <label className="text-[11px] text-slate-400">سعة الكرتون (قطعة/كرتون)</label>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                  <Box className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>تعبئة الكرتون (قطعة/كرتون)</span>
+                </label>
                 <input
                   type="number"
                   min="1"
@@ -629,39 +650,42 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     const v = e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1);
                     handlePiecesPerCartonUpdate(v);
                   }}
-                  className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold"
+                  className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-bold"
                 />
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                  {numPieces > 1 ? `كل كرتون = ${numPieces} ${unit}` : 'يباع بالقطعة فقط'}
+                </p>
               </div>
             </div>
 
             {/* بطاقات التسعير */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold px-1 text-slate-200">
+              <div className="flex items-center justify-between text-xs font-bold px-1 text-slate-800 dark:text-slate-200">
                 <span className="flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-emerald-400" />
+                  <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                   <span>تسعير المادة ({settings.currency || 'د.ع'})</span>
                 </span>
                 {canViewCost && (
-                  <span className="text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
                     الربح: {formatMoney(profitPerPiece)} ({profitMarginPercent}%)
                   </span>
                 )}
               </div>
 
-              <div className={`grid grid-cols-1 ${canViewCost ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
+              <div className={`grid grid-cols-1 sm:grid-cols-2 ${canViewCost ? 'xl:grid-cols-5' : 'xl:grid-cols-4'} gap-2.5`}>
                 {/* 1. بطاقة سعر التكلفة / الشراء */}
                 {canViewCost && (
-                  <div className="bg-[#070e1b] border border-slate-800 rounded-2xl p-3.5 space-y-3">
-                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
-                      <span className="text-xs font-bold text-slate-200">1. سعر التكلفة / الشراء</span>
-                      <span className="text-[10px] font-bold text-slate-400 bg-slate-800/70 px-2 py-0.5 rounded-md">
+                  <div className="bg-slate-50 dark:bg-[#070e1b] border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 space-y-3">
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-200 dark:border-slate-800/80">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">1. سعر التكلفة / الشراء</span>
+                      <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/70 px-2 py-0.5 rounded-md">
                         رأس المال
                       </span>
                     </div>
 
                     {numPieces > 1 && (
-                      <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 space-y-1">
-                        <label className="text-[11px] font-semibold text-slate-300 block text-right">
+                      <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 space-y-1">
+                        <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block text-right">
                           سعر الكرتون الكامل:
                         </label>
                         <div className="relative">
@@ -671,17 +695,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                             value={cartonCostInput}
                             onChange={(e) => handleCartonCostChange(e.target.value)}
                             placeholder="0"
-                            className="w-full bg-[#060b13] border border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-white font-mono font-semibold focus:outline-none focus:border-emerald-500 text-left"
+                            className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-slate-900 dark:text-white font-mono font-semibold focus:outline-none focus:border-emerald-500 text-left"
                           />
-                          <span className="absolute left-2.5 top-2 text-[10px] text-slate-400 font-bold">
+                          <span className="absolute left-2.5 top-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
                             {settings.currency || 'دينار'}
                           </span>
                         </div>
                       </div>
                     )}
 
-                    <div className="bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-2.5 space-y-1">
-                      <label className="text-[11px] font-semibold text-emerald-400 block text-right">
+                    <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-500/30 rounded-xl p-2.5 space-y-1">
+                      <label className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block text-right">
                         {numPieces > 1 ? `تكلفة القطعة (${numPieces} ق):` : 'سعر الشراء للقطعة:'}
                       </label>
                       <div className="relative">
@@ -691,7 +715,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           value={pieceCostInput}
                           onChange={(e) => handlePieceCostChange(e.target.value)}
                           placeholder="0"
-                          className="w-full bg-[#060b13] border border-emerald-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-400 text-left"
+                          className="w-full bg-white dark:bg-[#060b13] border border-emerald-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-emerald-600 dark:text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-400 text-left"
                         />
                         <span className="absolute left-2.5 top-2 text-[10px] text-emerald-500/80 font-bold">
                           {settings.currency || 'دينار'}
@@ -702,20 +726,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 )}
 
                 {/* 2. بطاقة سعر بيع المفرد */}
-                <div className="bg-[#070e1b] border border-emerald-500/40 rounded-2xl p-3.5 space-y-3">
+                <div className="bg-slate-50 dark:bg-[#070e1b] border border-emerald-500/40 rounded-2xl p-3.5 space-y-3">
                   <div className="flex items-center justify-between pb-1.5 border-b border-emerald-500/20">
-                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                    <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                       <span>2. سعر بيع المفرد *</span>
                     </span>
-                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
                       تجزئة
                     </span>
                   </div>
 
                   {numPieces > 1 && (
-                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 space-y-1">
-                      <label className="text-[11px] font-semibold text-slate-300 block text-right">
+                    <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block text-right">
                         سعر بيع الكرتون:
                       </label>
                       <div className="relative">
@@ -725,17 +749,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           value={cartonRetailInput}
                           onChange={(e) => handleCartonRetailChange(e.target.value)}
                           placeholder="0"
-                          className="w-full bg-[#060b13] border border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-white font-mono font-semibold focus:outline-none focus:border-emerald-500 text-left"
+                          className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-slate-900 dark:text-white font-mono font-semibold focus:outline-none focus:border-emerald-500 text-left"
                         />
-                        <span className="absolute left-2.5 top-2 text-[10px] text-slate-400 font-bold">
+                        <span className="absolute left-2.5 top-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
                           {settings.currency || 'دينار'}
                         </span>
                       </div>
                     </div>
                   )}
 
-                  <div className="bg-blue-950/20 border border-blue-500/30 rounded-xl p-2.5 space-y-1">
-                    <label className="text-[11px] font-semibold text-blue-400 block text-right">
+                  <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30 rounded-xl p-2.5 space-y-1">
+                    <label className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 block text-right">
                       {numPieces > 1 ? `سعر بيع القطعة (${numPieces} ق):` : 'سعر بيع المفرد للقطعة:'}
                     </label>
                     <div className="relative">
@@ -746,9 +770,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         value={pieceRetailInput}
                         onChange={(e) => handlePieceRetailChange(e.target.value)}
                         placeholder="0"
-                        className="w-full bg-[#060b13] border border-blue-500/50 rounded-lg py-1.5 pr-3 pl-12 text-sm text-blue-400 font-mono font-bold focus:outline-none focus:border-blue-400 text-left"
+                        className="w-full bg-white dark:bg-[#060b13] border border-blue-500/50 rounded-lg py-1.5 pr-3 pl-12 text-sm text-blue-600 dark:text-blue-400 font-mono font-bold focus:outline-none focus:border-blue-400 text-left"
                       />
-                      <span className="absolute left-2.5 top-2 text-[10px] text-blue-400 font-bold">
+                      <span className="absolute left-2.5 top-2 text-[10px] text-blue-600 dark:text-blue-400 font-bold">
                         {settings.currency || 'دينار'}
                       </span>
                     </div>
@@ -756,20 +780,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
 
                 {/* 3. بطاقة سعر بيع الجملة */}
-                <div className="bg-[#070e1b] border border-amber-500/30 rounded-2xl p-3.5 space-y-3">
+                <div className="bg-slate-50 dark:bg-[#070e1b] border border-amber-500/30 rounded-2xl p-3.5 space-y-3">
                   <div className="flex items-center justify-between pb-1.5 border-b border-amber-500/20">
-                    <span className="text-xs font-bold text-amber-400 flex items-center gap-1">
+                    <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
                       <span>3. سعر بيع الجملة</span>
                     </span>
-                    <span className="text-[10px] font-bold text-amber-400 bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-md">
                       اختياري
                     </span>
                   </div>
 
                   {numPieces > 1 && (
-                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 space-y-1">
-                      <label className="text-[11px] font-semibold text-slate-300 block text-right">
+                    <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block text-right">
                         بيع كرتون (جملة):
                       </label>
                       <div className="relative">
@@ -779,17 +803,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           value={cartonWholesaleInput}
                           onChange={(e) => handleCartonWholesaleChange(e.target.value)}
                           placeholder="0"
-                          className="w-full bg-[#060b13] border border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-white font-mono font-semibold focus:outline-none focus:border-amber-500 text-left"
+                          className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-slate-900 dark:text-white font-mono font-semibold focus:outline-none focus:border-amber-500 text-left"
                         />
-                        <span className="absolute left-2.5 top-2 text-[10px] text-slate-400 font-bold">
+                        <span className="absolute left-2.5 top-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
                           {settings.currency || 'دينار'}
                         </span>
                       </div>
                     </div>
                   )}
 
-                  <div className="bg-purple-950/20 border border-purple-500/30 rounded-xl p-2.5 space-y-1">
-                    <label className="text-[11px] font-semibold text-purple-300 block text-right">
+                  <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-500/30 rounded-xl p-2.5 space-y-1">
+                    <label className="text-[11px] font-semibold text-purple-700 dark:text-purple-300 block text-right">
                       {numPieces > 1 ? `بيع قطعة (جملة ${numPieces} ق):` : 'سعر بيع الجملة للقطعة:'}
                     </label>
                     <div className="relative">
@@ -799,84 +823,135 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         value={pieceWholesaleInput}
                         onChange={(e) => handlePieceWholesaleChange(e.target.value)}
                         placeholder="0"
-                        className="w-full bg-[#060b13] border border-purple-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-purple-300 font-mono font-bold focus:outline-none focus:border-purple-400 text-left"
+                        className="w-full bg-white dark:bg-[#060b13] border border-purple-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-purple-700 dark:text-purple-300 font-mono font-bold focus:outline-none focus:border-purple-400 text-left"
                       />
-                      <span className="absolute left-2.5 top-2 text-[10px] text-purple-400 font-bold">
+                      <span className="absolute left-2.5 top-2 text-[10px] text-purple-600 dark:text-purple-400 font-bold">
                         {settings.currency || 'دينار'}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* 4. جملة الجملة والسعر الخاص (سعر القطعة الواحدة) */}
-                <div className="bg-[#070e1b] border border-orange-500/30 rounded-2xl p-3.5 space-y-3 col-span-full">
+                {settings.showSuperWholesale !== false && (
+                <div className="bg-slate-50 dark:bg-[#070e1b] border border-orange-500/30 rounded-2xl p-3.5 space-y-3">
                   <div className="flex items-center justify-between pb-1.5 border-b border-orange-500/20">
-                    <span className="text-xs font-bold text-orange-400 flex items-center gap-1">
+                    <span className="text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-orange-400"></span>
-                      <span>4. أسعار إضافية (للقطعة الواحدة)</span>
+                      <span>4. سعر جملة الجملة</span>
                     </span>
-                    <span className="text-[10px] font-bold text-orange-400 bg-orange-950/60 border border-orange-500/30 px-2 py-0.5 rounded-md">
+                    <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/60 border border-orange-500/30 px-2 py-0.5 rounded-md">
                       اختياري
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {settings.showSuperWholesale !== false && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-orange-300 block text-right">
-                        جملة الجملة:
+                  {numPieces > 1 && (
+                    <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block text-right">
+                        بيع كرتون (جملة الجملة)
                       </label>
                       <div className="relative">
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={superWholesaleInput}
-                          onChange={(e) => setSuperWholesaleInput(e.target.value)}
+                          value={cartonSuperInput}
+                          onChange={(e) => superHandlers.onCarton(e.target.value)}
                           placeholder="غير محدد"
-                          className="w-full bg-[#060b13] border border-orange-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-orange-300 font-mono font-bold focus:outline-none focus:border-orange-400 text-left"
+                          className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-slate-900 dark:text-white font-mono font-semibold focus:outline-none focus:border-orange-500 text-left"
                         />
-                        <span className="absolute left-2.5 top-2 text-[10px] text-orange-400 font-bold">
+                        <span className="absolute left-2.5 top-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
                           {settings.currency || 'دينار'}
                         </span>
                       </div>
                     </div>
-                    )}
+                  )}
 
-                    {settings.showSpecialPrice !== false && (
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-violet-300 block text-right">
-                        السعر الخاص:
+                  <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-500/30 rounded-xl p-2.5 space-y-1">
+                    <label className="text-[11px] font-semibold text-orange-700 dark:text-orange-300 block text-right">
+                      {numPieces > 1 ? `بيع قطعة (جملة الجملة ${numPieces} ق):` : 'سعر جملة الجملة للقطعة:'}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={superWholesaleInput}
+                        onChange={(e) => superHandlers.onPiece(e.target.value)}
+                        placeholder="غير محدد"
+                        className="w-full bg-white dark:bg-[#060b13] border border-orange-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-orange-700 dark:text-orange-300 font-mono font-bold focus:outline-none focus:border-orange-400 text-left"
+                      />
+                      <span className="absolute left-2.5 top-2 text-[10px] text-orange-600 dark:text-orange-400 font-bold">
+                        {settings.currency || 'دينار'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 text-right">إن تُرك فارغاً يُباع بسعر الجملة.</p>
+                  </div>
+                </div>
+                )}
+
+                {settings.showSpecialPrice !== false && (
+                <div className="bg-slate-50 dark:bg-[#070e1b] border border-violet-500/30 rounded-2xl p-3.5 space-y-3">
+                  <div className="flex items-center justify-between pb-1.5 border-b border-violet-500/20">
+                    <span className="text-xs font-bold text-violet-600 dark:text-violet-400 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+                      <span>5. السعر الخاص</span>
+                    </span>
+                    <span className="text-[10px] font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/60 border border-violet-500/30 px-2 py-0.5 rounded-md">
+                      اختياري
+                    </span>
+                  </div>
+
+                  {numPieces > 1 && (
+                    <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 space-y-1">
+                      <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block text-right">
+                        بيع كرتون (السعر الخاص)
                       </label>
                       <div className="relative">
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={specialPriceInput}
-                          onChange={(e) => setSpecialPriceInput(e.target.value)}
+                          value={cartonSpecialInput}
+                          onChange={(e) => specialHandlers.onCarton(e.target.value)}
                           placeholder="غير محدد"
-                          className="w-full bg-[#060b13] border border-violet-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-violet-300 font-mono font-bold focus:outline-none focus:border-violet-400 text-left"
+                          className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-slate-900 dark:text-white font-mono font-semibold focus:outline-none focus:border-violet-500 text-left"
                         />
-                        <span className="absolute left-2.5 top-2 text-[10px] text-violet-400 font-bold">
+                        <span className="absolute left-2.5 top-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
                           {settings.currency || 'دينار'}
                         </span>
                       </div>
                     </div>
-                    )}
+                  )}
+
+                  <div className="bg-violet-50 dark:bg-violet-950/20 border border-violet-500/30 rounded-xl p-2.5 space-y-1">
+                    <label className="text-[11px] font-semibold text-violet-700 dark:text-violet-300 block text-right">
+                      {numPieces > 1 ? `بيع قطعة (السعر الخاص ${numPieces} ق):` : 'السعر الخاص للقطعة:'}
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={specialPriceInput}
+                        onChange={(e) => specialHandlers.onPiece(e.target.value)}
+                        placeholder="غير محدد"
+                        className="w-full bg-white dark:bg-[#060b13] border border-violet-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-violet-700 dark:text-violet-300 font-mono font-bold focus:outline-none focus:border-violet-400 text-left"
+                      />
+                      <span className="absolute left-2.5 top-2 text-[10px] text-violet-600 dark:text-violet-400 font-bold">
+                        {settings.currency || 'دينار'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 text-right">إن تُرك فارغاً يُباع بسعر المفرد.</p>
                   </div>
-                  <p className="text-[10px] text-slate-400 text-right">
-                    إن تُركت فارغة: جملة الجملة تُباع بسعر الجملة، والسعر الخاص بسعر المفرد.
-                  </p>
                 </div>
+                )}
+
               </div>
             </div>
 
             {/* الرصيد الحالي وحد الطلب الأدنى */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
                   <span>الرصيد المتوفر في المخزن ({unit})</span>
                   {numPieces > 1 && (
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
                       يعادل: {Math.floor(numStock / numPieces)} كرتون و {numStock % numPieces} {unit}
                     </span>
                   )}
@@ -889,12 +964,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     const val = e.target.value === '' ? '' : parseFloat(e.target.value) || 0;
                     setStock(val);
                   }}
-                  className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 font-bold"
+                  className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-bold"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   حد التنبيه الأدنى (تنبيه قرب النفاد)
                 </label>
                 <input
@@ -902,25 +977,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   min="0"
                   value={minStock}
                   onChange={(e) => setMinStock(e.target.value === '' ? '' : parseInt(e.target.value) || 0)}
-                  className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
-            </div>
-
-            {/* ملاحظات إضافية */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">ملاحظات إضافية (اختياري)</label>
+            <div className="space-y-1 sm:col-span-2 lg:col-span-1">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">ملاحظات إضافية (اختياري)</label>
               <input
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="مكان الرف، المورد، أو أي معلومات..."
-                className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
               />
+            </div>
             </div>
 
             {/* أزرار الحفظ والإلغاء */}
-            <div className="flex items-center gap-2.5 pt-3 border-t border-slate-800">
+            <div className="flex items-center gap-2.5 pt-3 border-t border-slate-200 dark:border-slate-800">
               <button
                 type="submit"
                 className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-950/40"
@@ -932,7 +1005,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer"
+                className="px-5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer"
               >
                 إلغاء
               </button>

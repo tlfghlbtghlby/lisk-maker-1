@@ -116,6 +116,8 @@ export interface SalesRep {
 
 export interface Invoice {
   id: string;
+  storeCode?: string;
+  seal?: string;
   ownerUid?: string;
   invoiceNumber: string;
   type: SaleType;
@@ -377,6 +379,8 @@ export interface StoreSettings {
   invoiceShowCartonColumns?: boolean;
   invoiceShowPiecePrice?: boolean;
   quickQuantityEntry?: boolean;
+  giftCostCounted?: boolean;
+  invoiceSecret?: string;
   deviceMode: DeviceMode;
   desktopLayout: DesktopLayoutMode;
   headerRightSealText?: string;

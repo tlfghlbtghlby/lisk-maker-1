@@ -532,7 +532,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
           {paginatedPages.map((page, pageIdx) => (
             <div
               key={pageIdx}
-              className={`printable-invoice-page bg-white shadow-xl text-black transition-all box-border print:p-0 print:m-0 print:border-none print:shadow-none print:rounded-none print:w-full print:page-break-after-always ${
+              className={`keep-light printable-invoice-page bg-white shadow-xl text-black transition-all box-border print:p-0 print:m-0 print:border-none print:shadow-none print:rounded-none print:w-full print:page-break-after-always ${
                 is58mm
                   ? 'w-[200px] max-w-[200px] p-2 font-mono text-[9px]'
                   : printLayout === 'thermal80'
@@ -581,6 +581,11 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     {/* شريط معلومات الفاتورة */}
                     <div className="border border-black rounded px-2 py-1 flex items-center justify-between text-[10px] sm:text-[10.5px] font-bold text-black flex-wrap gap-1">
                       <div><span>رقم القائمة: </span><span className="font-mono underline">{invoice.invoiceNumber}</span></div>
+                      {invoice.seal && (
+                        <div className="text-[9px] font-mono" dir="ltr">
+                          <span dir="rtl">بصمة التحقق: </span>{invoice.storeCode ? `${invoice.storeCode}·` : ''}{invoice.seal}
+                        </div>
+                      )}
                       <div><span>التاريخ: </span><span>{dayName} </span><span className="font-mono">{dateFormatted}</span></div>
                       <div><span>السيد: </span><span className="underline">{invoice.customerName}</span></div>
                       {repNameToShow && (
