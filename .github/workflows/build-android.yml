@@ -74,10 +74,17 @@ jobs:
       - name: Accept Android SDK Licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
 
-      - name: Setup Gradle
+      - name: Make Gradle Executable
+        run: chmod +x android/gradlew
+
+      - name: Raise Gradle download timeout
+        run: |
+          f=android/gradle/wrapper/gradle-wrapper.properties
+          if grep -q '^networkTimeout' "$f"; then sed -i 's/^networkTimeout=.*/networkTimeout=120000/' "$f"; else echo 'networkTimeout=120000' >> "$f"; fi
+
+      # للتخزين المؤقت فقط (يحفظ ما نُزّل لتسريع/تثبيت البناءات القادمة). ./gradlew يستخدم إصدار المشروع نفسه.
+      - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.7'
 
       - name: Build Debug APK
         run: |
