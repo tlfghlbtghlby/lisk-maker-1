@@ -259,6 +259,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [invoiceShowPiecePrice, setInvoiceShowPiecePrice] = useState<boolean>(settings.invoiceShowPiecePrice === true);
   const [giftCostCounted, setGiftCostCounted] = useState<boolean>(settings.giftCostCounted !== false);
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
+  const [promoDiscountDisplay, setPromoDiscountDisplay] = useState<'column' | 'hidden'>(settings.promoDiscountDisplay === 'hidden' ? 'hidden' : 'column');
+  const [promoOfferDisplay, setPromoOfferDisplay] = useState<'gift_column' | 'listed' | 'hidden'>(settings.promoOfferDisplay || 'gift_column');
   const [allowMultiDeviceShifts, setAllowMultiDeviceShifts] = useState<boolean>(settings.allowMultiDeviceShifts !== false);
   const [enableSalesReps, setEnableSalesReps] = useState<boolean>(settings.enableSalesReps ?? false);
   const [defaultShowRepOnInvoice, setDefaultShowRepOnInvoice] = useState<boolean>(settings.defaultShowRepOnInvoice ?? true);
@@ -414,6 +416,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setInvoiceShowPiecePrice(settings.invoiceShowPiecePrice === true);
       setQuickQuantityEntry(settings.quickQuantityEntry === true);
       setAllowMultiDeviceShifts(settings.allowMultiDeviceShifts !== false);
+      setPromoDiscountDisplay(settings.promoDiscountDisplay === 'hidden' ? 'hidden' : 'column');
+      setPromoOfferDisplay(settings.promoOfferDisplay || 'gift_column');
       setGiftCostCounted(settings.giftCostCounted !== false);
       if (settings.defaultShowRepOnInvoice !== undefined) setDefaultShowRepOnInvoice(settings.defaultShowRepOnInvoice);
       if (settings.repCommissionDefaultType !== undefined) setRepCommissionDefaultType(settings.repCommissionDefaultType);
@@ -497,6 +501,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       invoiceShowPiecePrice,
       quickQuantityEntry,
       allowMultiDeviceShifts,
+      promoDiscountDisplay,
+      promoOfferDisplay,
       giftCostCounted,
       enableSalesReps,
       defaultShowRepOnInvoice,
@@ -1622,6 +1628,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>
+            <div className="p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 space-y-3">
+              <div className="text-xs font-black text-fuchsia-700 dark:text-fuchsia-300">🏷️ طريقة ذكر العروض والخصومات في القائمة</div>
+              <div>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">الخصم</label>
+                <select
+                  value={promoDiscountDisplay}
+                  onChange={(e) => setPromoDiscountDisplay(e.target.value as 'column' | 'hidden')}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-lg"
+                >
+                  <option value="column">يُذكر في عمود خاص اسمه «الخصم»</option>
+                  <option value="hidden">يُطبق مباشرة على السعر دون ذكره</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">العرض (الهدية المجانية)</label>
+                <select
+                  value={promoOfferDisplay}
+                  onChange={(e) => setPromoOfferDisplay(e.target.value as 'gift_column' | 'listed' | 'hidden')}
+                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-lg"
+                >
+                  <option value="gift_column">يُذكر في عمود جديد اسمه «هدية» بعدد الهدايا لكل مادة</option>
+                  <option value="listed">يظهر سطر هدية مجانية ظاهراً في القائمة</option>
+                  <option value="hidden">لا يُذكر إطلاقاً (تُضاف الهدية مجاناً ويُخصم مخزونها فقط)</option>
+                </select>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                في العرض من نوع «2 والتالي مجاني» عند اختيار عدم الذكر يظهر السعر والكمية كما هما والمبلغ النهائي مخفّضاً فقط (مثلاً 3 × 500 = 1000).
+                يسري الاختيار على القوائم الجديدة، ولا يغيّر القوائم المحفوظة سابقاً.
+              </p>
+            </div>
           </div>
 
           <div>

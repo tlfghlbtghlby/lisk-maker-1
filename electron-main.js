@@ -26,7 +26,7 @@ const TAB_TITLES_MAP = {
   settings: 'الإعدادات والنسخ الاحتياطي',
   'sales-reps': 'مندوبو المبيعات',
   quick_add: 'الإضافة السريعة',
-  offers: 'العروض الترويجية'
+  offers: 'العروض والخصومات'
 };
 
 // أيقونة النوافذ (تُنسخ من public إلى dist عند البناء)
@@ -84,6 +84,7 @@ function createSectionWindow(route = 'pos', title = '') {
     reports: 'التقارير المالية',
     settings: 'الإعدادات العامة',
     'sales-reps': 'المندوبين',
+    'offers': 'العروض',
     quick_add: 'إضافة مواد سريعة'
   };
 

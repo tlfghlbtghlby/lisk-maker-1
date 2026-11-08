@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product, SaleType, PriceType, InvoiceItem, Invoice } from '../types';
 import { getPiecePrice, hasOwnPrice, PRICE_TYPE_LABELS } from '../utils/pricing';
+import { applyPromotions } from '../utils/promotions';
 import { 
   Search, 
   ShoppingCart, 
@@ -749,13 +750,23 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     }
   };
 
+  // تطبيق العروض والخصومات الفعالة على السلة (لا تُعدّل السلة نفسها، تُحسب عند العرض والحفظ)
+  const promoResult = useMemo(
+    () => applyPromotions(cartItems, settings.promotions, products, settings),
+    [cartItems, settings.promotions, settings.promoDiscountDisplay, settings.promoOfferDisplay, products]
+  );
+
   const subtotal = useMemo(() => {
-    return cartItems.reduce((sum, item) => sum + item.total, 0);
-  }, [cartItems]);
+    return promoResult.items.reduce((sum, item) => sum + item.total, 0);
+  }, [promoResult]);
 
   const totalCost = useMemo(() => {
-    return cartItems.reduce((sum, item) => sum + item.costPrice * item.quantity, 0);
-  }, [cartItems]);
+    const giftCounted = settings.giftCostCounted !== false;
+    return promoResult.items.reduce(
+      (sum, item) => sum + (item.isGift && !giftCounted ? 0 : item.costPrice * item.quantity),
+      0
+    );
+  }, [promoResult, settings.giftCostCounted]);
 
   const finalTotal = subtotal;
   const estimatedProfit = finalTotal - totalCost;
@@ -829,7 +840,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       customerId: finalCustomerId,
       customerName: finalCustomerName,
       customerPhone: finalCustomerPhone,
-      items: cartItems,
+      items: promoResult.items,
+      showDiscountColumn: promoResult.showDiscountColumn,
+      showGiftColumn: promoResult.showGiftColumn,
       discount: 0,
       paidAmount: actualPaidAmount,
       paymentDueDate: saleType === 'credit' ? dueDate : undefined,
@@ -1880,6 +1893,14 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               </div>
 
               <div className="p-2 sm:p-2.5 bg-slate-50 border-t border-slate-200 flex flex-col gap-1.5 shrink-0 text-right">
+                {promoResult.notes.length > 0 && (
+                  <div className="rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-2 py-1 text-[11px] text-fuchsia-900 space-y-0.5">
+                    <div className="font-black">🏷️ عروض وخصومات مطبقة</div>
+                    {promoResult.notes.map((n, i) => (
+                      <div key={i} className="font-semibold leading-snug">• {n}</div>
+                    ))}
+                  </div>
+                )}
                 <div className="space-y-1 text-[11px] text-slate-700">
                   <div className="flex justify-between items-center text-xs sm:text-sm font-black text-slate-900">
                     <span>المبلغ المطلوب:</span>

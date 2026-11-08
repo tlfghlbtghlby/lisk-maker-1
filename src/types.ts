@@ -87,6 +87,12 @@ export interface InvoiceItem {
   isCustomPrice?: boolean;
   notes?: string;
   isGift?: boolean;
+  // ---- العروض والخصومات ----
+  discount?: number;          // مبلغ الخصم الإجمالي على هذا السطر (دينار)
+  discountIsOffer?: boolean;  // الخصم ناتج عن عرض (مثل 2+1 داخل الكمية) وليس خصماً عادياً
+  giftQty?: number;           // عدد القطع المجانية المذكورة في عمود «هدية»
+  hiddenFromPrint?: boolean;  // سطر هدية لا يُطبع (يُخصم من المخزن فقط)
+  promoLabel?: string;        // وصف العرض/الخصم المطبق
 }
 
 export interface ReturnedItemRecord {
@@ -153,6 +159,8 @@ export interface SalesRep {
 
 export interface Invoice {
   id: string;
+  showDiscountColumn?: boolean;
+  showGiftColumn?: boolean;
   storeCode?: string;
   seal?: string;
   ownerUid?: string;
@@ -308,7 +316,29 @@ export interface StoreSupervisor {
   createdAt: string;
 }
 
+export type PromotionKind = 'discount' | 'bonus_same' | 'bonus_other' | 'nth_free';
+
+export interface Promotion {
+  id: string;
+  kind: PromotionKind;
+  productId: string;
+  productName?: string;
+  active: boolean;             // تشغيل/إيقاف يدوي
+  startDate?: string;          // YYYY-MM-DD (فارغ = من الآن)
+  endDate?: string;            // YYYY-MM-DD (فارغ = حتى الإيقاف أو الحذف)
+  discountType?: 'percent' | 'amount';
+  discountValue?: number;      // نسبة مئوية، أو مبلغ لكل قطعة (لكل كغم للمواد الموزونة)
+  buyQty?: number;             // اشترِ N
+  getQty?: number;             // احصل على M مجاناً
+  rewardProductId?: string;    // للعرض من مادة أخرى
+  rewardProductName?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CreateInvoiceInput {
+  showDiscountColumn?: boolean;
+  showGiftColumn?: boolean;
   type: SaleType;
   customerId?: string;
   customerName: string;
@@ -416,6 +446,11 @@ export interface StoreSettings {
   invoiceShowCartonColumns?: boolean;
   invoiceShowPiecePrice?: boolean;
   quickQuantityEntry?: boolean;
+  promotions?: Promotion[];
+  // طريقة ذكر الخصم في القائمة: عمود «الخصم» أو تطبيق مباشر على السعر دون ذكره
+  promoDiscountDisplay?: 'column' | 'hidden';
+  // طريقة ذكر العرض: عمود «هدية» | سطر هدية ظاهر | غير مذكور إطلاقاً
+  promoOfferDisplay?: 'gift_column' | 'listed' | 'hidden';
   // السماح بشفت مستقل ومتزامن على كل جهاز (الافتراضي: مفعّل)
   allowMultiDeviceShifts?: boolean;
   giftCostCounted?: boolean;
