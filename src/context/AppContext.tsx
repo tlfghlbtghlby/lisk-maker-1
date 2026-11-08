@@ -42,6 +42,7 @@ import {
   formatProductEvent, diffProduct, formatSimple, esc as tgEsc, FmtCtx,
 } from '../utils/telegram';
 import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/invoiceSeal';
+import { netUnitPrice } from '../utils/promotions';
 
 export const CURRENT_APP_VERSION = (pkg as any)?.version || '2.0.0';
 
@@ -1820,9 +1821,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const giftCostCounted = settings.giftCostCounted !== false;
     const items = data.items.map((i: InvoiceItem) => {
       const cost = i.isGift && !giftCostCounted ? 0 : i.costPrice;
-      subtotal += i.unitPrice * i.quantity;
+      const lineNet = Math.max(0, i.unitPrice * i.quantity - (i.discount || 0));
+      subtotal += lineNet;
       totalCost += cost * i.quantity;
-      return { ...i, costPrice: cost, subtotal: i.unitPrice * i.quantity };
+      return { ...i, costPrice: cost, subtotal: lineNet };
     });
 
     const total = Math.max(0, subtotal - (data.discount || 0));
@@ -1910,6 +1912,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerName: data.customerName || (data.type === 'direct' ? 'زبون نقدي مباشر' : 'عميل غير مسجل'),
       customerPhone: data.customerPhone || '',
       items,
+      showDiscountColumn: data.showDiscountColumn === true,
+      showGiftColumn: data.showGiftColumn === true,
       subtotal,
       discount: data.discount || 0,
       total,
@@ -2161,7 +2165,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updatedInvoiceItems = inv.items.map(item => {
       const returnTarget = validItemsToReturn.find(r => r.productId === item.productId);
-      if (!returnTarget) return item;
+      // هدايا العروض لا تُسترجع (وإلا تتكرر الكمية مع سطر المادة نفسها)
+      if (!returnTarget || (item.isGift && item.promoLabel)) return item;
 
       const currentReturned = item.returnedQuantity || 0;
       const maxReturnable = Math.max(0, item.quantity - currentReturned);
@@ -2169,7 +2174,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (qtyToReturn <= 0) return item;
 
-      const lineRefund = qtyToReturn * item.unitPrice;
+      const lineRefund = Math.round(qtyToReturn * netUnitPrice(item));
       const lineCost = qtyToReturn * (item.costPrice || 0);
 
       totalRefundAmount += lineRefund;

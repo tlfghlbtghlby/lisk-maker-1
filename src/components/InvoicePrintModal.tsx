@@ -68,13 +68,14 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
 
   const displayedItems = useMemo(() => {
     if (!invoice?.items) return [];
+    const printable = invoice.items.filter((it) => !it.hiddenFromPrint);
     return sortByAlphabet
-      ? [...invoice.items].sort((a, b) => {
+      ? [...printable].sort((a, b) => {
           const nameA = a.name || a.productName || '';
           const nameB = b.name || b.productName || '';
           return nameA.localeCompare(nameB, 'ar');
         })
-      : invoice.items;
+      : printable;
   }, [invoice?.items, sortByAlphabet]);
 
   const ITEMS_PER_FIRST_PAGE = printLayout === 'a5' ? 20 : 36;
@@ -151,6 +152,22 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
     if (item.isGift) return 0;
     const n = Number(item.piecesPerCarton) || 0;
     return item.unitType === 'carton' && n > 1 ? Math.round((item.unitPrice / n) * 100) / 100 : item.unitPrice;
+  };
+  // أعمدة العروض والخصومات (تُحدَّد وقت إنشاء القائمة فلا تتغير بتبديل الإعدادات لاحقاً)
+  const showDiscountCol = !isThermal && invoice.showDiscountColumn === true;
+  const showGiftCol = !isThermal && invoice.showGiftColumn === true;
+  const rowNetQty = (item: any) => Math.max(0, item.quantity - (item.returnedQuantity || 0));
+  const rowDiscount = (item: any) =>
+    item.discount && item.quantity ? Math.round(item.discount * (rowNetQty(item) / item.quantity)) : 0;
+  const rowAmount = (item: any) =>
+    item.isGift ? 0 : Math.max(0, Math.round(rowNetQty(item) * item.unitPrice - rowDiscount(item)));
+  // عند عدم ذكر الخصم بعمود مستقل يظهر السعر مخفّضاً مباشرة (للخصم العادي فقط)
+  const rowShownPrice = (item: any) => {
+    if (item.isGift) return 0;
+    if (item.discount && !item.discountIsOffer && !showDiscountCol && item.quantity) {
+      return Math.round((item.unitPrice * item.quantity - item.discount) / item.quantity);
+    }
+    return item.unitPrice;
   };
   const fmtQty = (n: number | null) => (n === null || n === 0 ? '-' : n.toLocaleString());
 
@@ -637,6 +654,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                           </>
                         )}
                         <th className="py-1 px-1 border-l border-black text-center w-16">السعر</th>
+                        {showDiscountCol && (
+                          <th className="py-1 px-1 border-l border-black text-center w-14">الخصم</th>
+                        )}
+                        {showGiftCol && (
+                          <th className="py-1 px-1 border-l border-black text-center w-12">هدية</th>
+                        )}
                         {showPiecePrice && (
                           <th className="py-1 px-1 border-l border-black text-center w-16">سعر القطعة</th>
                         )}
@@ -661,6 +684,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                                   </span>
                                 )}
                               </div>
+                              {isThermal && (item.giftQty || 0) > 0 && (
+                                <div className="text-[8px] font-normal text-slate-700">هدية: {item.giftQty}</div>
+                              )}
                               {isThermal && getPacking(item) !== null && (
                                 <div className="text-[8px] font-normal text-slate-700">
                                   كراتين: {fmtQty(getQtyBreakdown(item).cartons)} · قطع: {fmtQty(getQtyBreakdown(item).pieces)} · تعبئة: {getPacking(item)}
@@ -691,15 +717,25 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                               </>
                             )}
                             <td className="py-0.5 px-1 border-l border-black text-center font-mono">
-                              {item.isGift ? '0' : item.unitPrice.toLocaleString()}
+                              {item.isGift ? '0' : rowShownPrice(item).toLocaleString()}
                             </td>
+                            {showDiscountCol && (
+                              <td className="py-0.5 px-1 border-l border-black text-center font-mono">
+                                {!item.isGift && !item.discountIsOffer && rowDiscount(item) > 0 ? rowDiscount(item).toLocaleString() : '-'}
+                              </td>
+                            )}
+                            {showGiftCol && (
+                              <td className="py-0.5 px-1 border-l border-black text-center font-mono">
+                                {item.giftQty ? item.giftQty.toLocaleString() : '-'}
+                              </td>
+                            )}
                             {showPiecePrice && (
                               <td className="py-0.5 px-1 border-l border-black text-center font-mono">
                                 {item.isWeighted ? '-' : getPiecePriceOfItem(item).toLocaleString()}
                               </td>
                             )}
                             <td className="py-0.5 px-1 text-center font-mono font-bold">
-                              {item.isGift ? '0' : Math.round(netQty * item.unitPrice).toLocaleString()}
+                              {rowAmount(item).toLocaleString()}
                             </td>
                           </tr>
                         );

@@ -76,7 +76,7 @@ export function formatItems(items: InvoiceItem[], cur: string): string {
     .map((it, i) => {
       const gift = it.isGift ? ' 🎁 هدية' : '';
       const returned = it.returnedQuantity ? ` (مُرجَع: ${num(it.returnedQuantity)})` : '';
-      return `${i + 1}. <b>${esc(it.productName || (it as any).name)}</b>${gift}\n    ${qtyText(it)}${returned} × ${num(it.unitPrice)} = <b>${money(it.unitPrice * it.quantity, cur)}</b>${
+      return `${i + 1}. <b>${esc(it.productName || (it as any).name)}</b>${gift}\n    ${qtyText(it)}${returned} × ${num(it.unitPrice)} = <b>${money(it.isGift ? 0 : Math.max(0, it.unitPrice * it.quantity - ((it as any).discount || 0)), cur)}</b>${((it as any).discount && !it.isGift ? ` (خصم ${money((it as any).discount, cur)})` : '')}${
         it.notes && !it.isGift ? `\n    📝 ${esc(it.notes)}` : ''
       }`;
     })

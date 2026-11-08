@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock } from 'lucide-react';
+import { ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock, Tag } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ContextMenuWrapper } from './ContextMenuWrapper';
 
-export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'shifts' | 'settings';
+export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'offers' | 'shifts' | 'settings';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -81,6 +81,14 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
       badge: invoices.length,
       badgeColor: 'text-slate-600 bg-slate-100',
       permitted: hasPermission('canViewInvoices'),
+    },
+    {
+      id: 'offers',
+      label: 'العروض والخصومات',
+      icon: <Tag className="w-4 h-4" />,
+      badge: (settings.promotions || []).filter((p: any) => p.active).length || undefined,
+      badgeColor: 'text-fuchsia-700 bg-fuchsia-50 font-bold',
+      permitted: hasPermission('canAccessInventory'),
     },
     {
       id: 'sales-reps',

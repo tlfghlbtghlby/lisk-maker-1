@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Invoice, InvoiceItem } from '../types';
+import { netUnitPrice } from '../utils/promotions';
 import { 
   X, 
   RotateCcw, 
@@ -62,7 +63,7 @@ export const PartialReturnModal: React.FC<PartialReturnModalProps> = ({
   if (!isOpen || !invoice) return null;
 
   // Calculate returnable items
-  const itemsWithReturnable = invoice.items.map(item => {
+  const itemsWithReturnable = invoice.items.filter(it => !(it.isGift && it.promoLabel)).map(item => {
     const alreadyReturned = item.returnedQuantity || 0;
     const maxReturnable = Math.max(0, item.quantity - alreadyReturned);
     const currentSelected = returnQuantities[item.productId] || 0;
@@ -71,7 +72,7 @@ export const PartialReturnModal: React.FC<PartialReturnModalProps> = ({
       alreadyReturned,
       maxReturnable,
       currentSelected,
-      lineRefund: currentSelected * item.unitPrice,
+      lineRefund: Math.round(currentSelected * netUnitPrice(item)),
     };
   });
 
