@@ -1,0 +1,19 @@
+name: Deploy Telegram Function (manual)
+
+# تشغيل يدوي فقط. يتطلب سرّين في GitHub → Settings → Secrets → Actions:
+#   SUPABASE_ACCESS_TOKEN  (من Supabase → Account → Access Tokens)
+# التوكن الخاص بالبوت يُضبط داخل Supabase وليس هنا.
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase functions deploy telegram-bot --no-verify-jwt --project-ref obodoxxzolgcwvzkkoua
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

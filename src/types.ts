@@ -62,6 +62,9 @@ export interface Customer {
   totalDebt: number;
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
+  telegramCode?: string;
+  telegramLinked?: boolean;
 }
 
 export interface InvoiceItem {
@@ -102,16 +105,50 @@ export interface ReturnedItemRecord {
   returnedBy?: string;
 }
 
+export type TelegramEventKey =
+  | 'invoiceSold'
+  | 'creditSale'
+  | 'debtPayment'
+  | 'invoiceDeleted'
+  | 'invoiceReturnedFull'
+  | 'invoiceReturnedPartial'
+  | 'productAdded'
+  | 'productEdited'
+  | 'productDeleted'
+  | 'customerAdded'
+  | 'customerDeleted'
+  | 'shiftStarted'
+  | 'shiftEnded'
+  | 'repChanges'
+  | 'trashRestored';
+
+export interface TelegramSettings {
+  enabled: boolean;
+  /** رمز ربط المتجر الذي يرسله صاحب المتجر إلى البوت (ST-XXXXXXXX) */
+  code: string;
+  /** سرّ المتجر لمصادقة الطلبات على دالة التليجرام */
+  secret: string;
+  linked: boolean;
+  linkedChats?: number;
+  linkedAt?: string;
+  botUsername?: string;
+  events: Partial<Record<TelegramEventKey, boolean>>;
+  includeItems: boolean;
+  includeProfit: boolean;
+  customerNotifications: boolean;
+}
+
 export interface SalesRep {
   id: string;
   name: string;
   phone: string;
   commissionRate: number;
-  commissionType: 'percentage_profit' | 'percentage_sales';
+  commissionType: 'percentage_profit' | 'percentage_sales' | 'fixed_per_invoice' | 'fixed_per_piece';
   showOnInvoice: boolean;
   notes?: string;
   isActive: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Invoice {
@@ -380,6 +417,7 @@ export interface StoreSettings {
   invoiceShowPiecePrice?: boolean;
   quickQuantityEntry?: boolean;
   giftCostCounted?: boolean;
+  telegram?: TelegramSettings;
   invoiceSecret?: string;
   deviceMode: DeviceMode;
   desktopLayout: DesktopLayoutMode;
@@ -396,7 +434,7 @@ export interface StoreSettings {
   enableSalesReps?: boolean;
   salesReps?: SalesRep[];
   defaultShowRepOnInvoice?: boolean;
-  repCommissionDefaultType?: 'percentage_profit' | 'percentage_sales';
+  repCommissionDefaultType?: 'percentage_profit' | 'percentage_sales' | 'fixed_per_invoice' | 'fixed_per_piece';
   theme?: 'light' | 'dark';
   enableShifts?: boolean;
   enableCustomerPriceChecker?: boolean;

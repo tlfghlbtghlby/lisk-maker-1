@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import TrashPanel from './TrashPanel';
 import { Product } from '../types';
 import { 
   Plus, 
@@ -186,6 +187,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <TrashPanel sections={['products']} title="سلة محذوفات المواد والمخزون" />
+      </div>
       
       {/* Top Valuation Summary Cards */}
       {canViewCost ? (

@@ -10,8 +10,10 @@ import {
   InvoiceTemplateType,
   ModernInvoiceHeaderConfig,
   PresetShift, 
-  StoreSupervisor 
+  StoreSupervisor,
+  StoreSettings,
 } from '../types';
+import TelegramSettingsCard from './TelegramSettingsCard';
 import { changeAccountPassword, getActiveLocalSession } from '../supabase';
 import { 
   Settings, 
@@ -86,7 +88,7 @@ const COMMON_CURRENCIES = [
 ];
 
 interface SettingsViewProps {
-  initialTab?: 'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'customer-qr' | 'all';
+  initialTab?: 'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'customer-qr' | 'telegram' | 'all';
   onSaved?: () => void;
 }
 
@@ -259,7 +261,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
   const [enableSalesReps, setEnableSalesReps] = useState<boolean>(settings.enableSalesReps ?? false);
   const [defaultShowRepOnInvoice, setDefaultShowRepOnInvoice] = useState<boolean>(settings.defaultShowRepOnInvoice ?? true);
-  const [repCommissionDefaultType, setRepCommissionDefaultType] = useState<'percentage_profit' | 'percentage_sales'>(
+  const [repCommissionDefaultType, setRepCommissionDefaultType] = useState<NonNullable<StoreSettings['repCommissionDefaultType']>>(
     settings.repCommissionDefaultType || 'percentage_profit'
   );
   const [desktopLayout, setDesktopLayout] = useState<'full' | 'partial'>(settings.desktopLayout || 'full');
@@ -294,7 +296,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [isApplyingBulkPrices, setIsApplyingBulkPrices] = useState(false);
   const [bulkPriceSuccess, setBulkPriceSuccess] = useState<string | null>(null);
 
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'customer-qr' | 'all'>(initialTab);
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'customer-qr' | 'telegram' | 'all'>(initialTab);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -859,6 +861,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
 
         <button
           type="button"
+          onClick={() => setActiveSettingsTab('telegram')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+            activeSettingsTab === 'telegram'
+              ? 'bg-sky-600 text-white shadow-xs'
+              : 'text-sky-800 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-500/30'
+          }`}
+        >
+          <span>✈️</span>
+          <span>بوت التليجرام</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveSettingsTab('all')}
           className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 whitespace-nowrap cursor-pointer mr-auto ${
             activeSettingsTab === 'all'
@@ -869,6 +884,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <span>عرض الكل</span>
         </button>
       </div>
+
+      {(activeSettingsTab === 'telegram' || activeSettingsTab === 'all') && <TelegramSettingsCard />}
 
       {/* قسم قارئ أسعار الزبائن QR أونلاين وأوفلاين */}
       {(activeSettingsTab === 'customer-qr' || activeSettingsTab === 'all') && (
