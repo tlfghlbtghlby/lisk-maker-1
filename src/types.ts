@@ -48,8 +48,20 @@ export interface Product {
   itemCount?: number;
   notes?: string;
   ownerUid?: string;
+  /** سجل الإضافات على المخزون (شراء/تعديل) لعرض تاريخ حركة المادة */
+  purchaseLog?: StockLogEntry[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StockLogEntry {
+  id: string;
+  date: string;
+  /** عدد القطع (موجب دائماً) */
+  qty: number;
+  /** purchase: شراء/إضافة مخزون، adjust: تنقيص يدوي */
+  type: 'purchase' | 'adjust';
+  note?: string;
 }
 
 export type Item = Product;

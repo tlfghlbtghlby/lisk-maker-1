@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
+import ProductMovementModal from './ProductMovementModal';
 import { 
   Plus, 
   Search, 
   Edit3, 
+  History,
   Trash2, 
   AlertTriangle, 
   CheckCircle, 
@@ -47,6 +49,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     setIsDuplicatesModalOpen
   } = useApp();
 
+  const [movementProduct, setMovementProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -534,14 +537,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                 <div className="flex items-center gap-1 text-[11px] whitespace-nowrap">
                                   <button
                                     type="button"
-                                    onClick={() => adjustStock(prod.id, -1)}
+                                    onClick={() => adjustStock(prod.id, -1, { log: true })}
                                     className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition"
                                   >
                                     -1 كغم
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => adjustStock(prod.id, 1)}
+                                    onClick={() => adjustStock(prod.id, 1, { log: true })}
                                     className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition"
                                   >
                                     +1 كغم
@@ -549,7 +552,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                   <span className="text-slate-300">|</span>
                                   <button
                                     type="button"
-                                    onClick={() => adjustStock(prod.id, 5)}
+                                    onClick={() => adjustStock(prod.id, 5, { log: true })}
                                     className="px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold border border-emerald-200 transition"
                                   >
                                     +5 كغم
@@ -576,14 +579,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                               <div className="flex items-center gap-1 text-[11px] whitespace-nowrap">
                                 <button
                                   type="button"
-                                  onClick={() => adjustStock(prod.id, -1)}
+                                  onClick={() => adjustStock(prod.id, -1, { log: true })}
                                   className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition"
                                 >
                                   -1 ق
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => adjustStock(prod.id, 1)}
+                                  onClick={() => adjustStock(prod.id, 1, { log: true })}
                                   className="px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition"
                                 >
                                   +1 ق
@@ -593,14 +596,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                     <span className="text-slate-300">|</span>
                                     <button
                                       type="button"
-                                      onClick={() => adjustStock(prod.id, -ppc)}
+                                      onClick={() => adjustStock(prod.id, -ppc, { log: true })}
                                       className="px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold border border-amber-200 transition"
                                     >
                                       -1 كارتون
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => adjustStock(prod.id, ppc)}
+                                      onClick={() => adjustStock(prod.id, ppc, { log: true })}
                                       className="px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold border border-emerald-200 transition"
                                     >
                                       +1 كارتون
@@ -616,6 +619,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       {/* Actions */}
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => setMovementProduct(prod)}
+                            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-bold text-indigo-600 hover:bg-indigo-50 transition whitespace-nowrap"
+                            title="تاريخ حركة المادة (المشتريات والمبيعات)"
+                          >
+                            <History className="w-4 h-4" /> تاريخ حركة المادة
+                          </button>
                           <button
                             onClick={() => onEditProduct(prod)}
                             className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition"
@@ -727,6 +737,12 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         isOpen={isDuplicatesModalOpen}
         onClose={() => setIsDuplicatesModalOpen(false)}
       />
+      {movementProduct && (
+        <ProductMovementModal
+          product={products.find(p => p.id === movementProduct.id) || movementProduct}
+          onClose={() => setMovementProduct(null)}
+        />
+      )}
     </div>
   );
 };
