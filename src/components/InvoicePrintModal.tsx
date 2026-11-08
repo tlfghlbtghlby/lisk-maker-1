@@ -582,8 +582,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     <div className="border border-black rounded px-2 py-1 flex items-center justify-between text-[10px] sm:text-[10.5px] font-bold text-black flex-wrap gap-1">
                       <div><span>رقم القائمة: </span><span className="font-mono underline">{invoice.invoiceNumber}</span></div>
                       {invoice.seal && (
-                        <div className="text-[9px] font-mono" dir="ltr">
-                          <span dir="rtl">بصمة التحقق: </span>{invoice.storeCode ? `${invoice.storeCode}·` : ''}{invoice.seal}
+                        <div className="text-[10px]">
+                          <span>بصمة التحقق: </span>
+                          <bdi className="font-mono underline">{invoice.seal.replace(/-/g, '').slice(0, 6)}</bdi>
                         </div>
                       )}
                       <div><span>التاريخ: </span><span>{dayName} </span><span className="font-mono">{dateFormatted}</span></div>

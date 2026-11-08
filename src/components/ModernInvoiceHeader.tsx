@@ -151,9 +151,11 @@ export const ModernInvoiceHeader: React.FC<ModernInvoiceHeaderProps> = ({
               </h1>
 
               {/* Owner / Management Subtitle */}
-              <div className="text-[10px] sm:text-[11px] text-white/95 font-bold mt-1">
-                {settings.managerLabel || 'بإدارة'}: {settings.ownerName || settings.storeName}
-              </div>
+              {settings.ownerName?.trim() && (
+                <div className="text-[10px] sm:text-[11px] text-white/95 font-bold mt-1">
+                  {settings.managerLabel || 'بإدارة'}: {settings.ownerName}
+                </div>
+              )}
             </div>
 
             {/* CENTER IMAGE (الصورة الوسطية بين الاسمين في نفس مستوى الشريط) */}
