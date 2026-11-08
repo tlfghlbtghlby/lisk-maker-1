@@ -29,7 +29,11 @@ import {
 } from '../types';
 import { getOrCreateDeviceId, getOrCreateSessionId, detectSystemInfo } from '../utils/deviceSession';
 import { findDuplicateGroups } from '../utils/duplicateCleaner';
-import { mergeProducts, mergeInvoices, mergeShifts } from '../utils/syncEngine';
+import {
+  mergeProducts, mergeInvoices, mergeShifts,
+  mergeCollection, mergeTombstones, mergeTrash, makeTrashEntry, purgeTrash,
+  TrashEntry, Tombstones, SyncSection,
+} from '../utils/syncEngine';
 import { broadcastSync, subscribeSync, SyncMessage } from '../utils/syncChannel';
 import pkg from '../../package.json';
 import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/invoiceSeal';
@@ -142,6 +146,10 @@ interface AppContextType {
   ) => Promise<{ success: boolean; error?: string }>;
   applyBulkPriceAdjustment: (percentage: number, priceTargets: { retail: boolean; wholesale: boolean; cost: boolean }, roundToHundreds?: boolean) => Promise<{ updatedCount: number }>;
   recordPayment: (customerId: string, amount: number, notes?: string) => PaymentRecord;
+  trash: TrashEntry[];
+  restoreTrashEntry: (id: string) => boolean;
+  purgeTrashEntry: (id: string) => void;
+  emptyTrash: (sections?: SyncSection[]) => void;
   getUnappliedDebts: () => { customerId: string; customerName: string; amount: number; invoices: number }[];
   reconcileCustomerDebts: () => number;
   updateSettings: (newSettings: Partial<StoreSettings>) => void;
@@ -273,6 +281,15 @@ const defaultEmptySettings: StoreSettings = {
   theme: 'dark',
 };
 
+const readLastSyncMs = (): number => {
+  try {
+    const v = parseInt(localStorage.getItem('last_sync_ms') || '', 10);
+    return isNaN(v) ? Date.now() : v;
+  } catch {
+    return Date.now();
+  }
+};
+
 export const sanitizePayload = <T = any>(obj: T): T => {
   if (obj === null || obj === undefined) return null as any;
   if (obj instanceof Date) return obj.toISOString() as any;
@@ -388,6 +405,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
+    }
+  });
+
+  // سلة المحذوفات وشواهد الحذف (لمنع عودة المحذوف عند المزامنة)
+  const [trash, setTrash] = useState<TrashEntry[]>(() => {
+    try {
+      const raw = localStorage.getItem('cached_pos_trash');
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? purgeTrash(parsed) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [tombstones, setTombstones] = useState<Tombstones>(() => {
+    try {
+      const raw = localStorage.getItem('cached_pos_tombstones');
+      const parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
     }
   });
 
@@ -1074,56 +1111,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const storeData = await getDocument('stores', storeDocId);
         if (storeData) {
-          if (Array.isArray(storeData.products)) {
-            setProducts(prevProducts => {
-              const merged = mergeProducts(prevProducts, storeData.products || []);
-              try {
-                localStorage.setItem('cached_pos_products', JSON.stringify(merged));
-              } catch {}
-              return merged;
-            });
-          }
-          if (Array.isArray(storeData.customers)) {
-            setCustomers(storeData.customers);
-            localStorage.setItem('cached_pos_customers', JSON.stringify(storeData.customers));
-          }
-          if (Array.isArray(storeData.payments)) {
-            setPayments(storeData.payments);
-            try { localStorage.setItem('cached_pos_payments', JSON.stringify(storeData.payments)); } catch {}
-          }
-          if (Array.isArray(storeData.invoices)) {
-            setInvoices(prevInvoices => {
-              const merged = mergeInvoices(prevInvoices, storeData.invoices || []);
-              try {
-                localStorage.setItem('cached_pos_invoices', JSON.stringify(merged));
-              } catch {}
-              return merged;
-            });
-          }
-          if (Array.isArray(storeData.shifts)) {
-            // عزل صارم: تصفية أي شفتات تابعة لمتجر آخر وتخصيصها لمتجر المستخدم الحالي فقط
-            const cleanCloudShifts = (storeData.shifts as Shift[]).filter(s => {
-              if (s.storeUid && s.storeUid !== currentUid) return false;
-              if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUid) {
-                return false;
-              }
-              return true;
-            }).map(s => ({
-              ...s,
-              storeUid: currentUid,
-              storeId: currentUid
-            }));
-
-            setShifts(cleanCloudShifts);
-            try {
-              localStorage.setItem(`cached_pos_shifts_${currentUid}`, JSON.stringify(cleanCloudShifts));
-              localStorage.setItem('cached_pos_shifts', JSON.stringify(cleanCloudShifts));
-            } catch {}
-          }
-          if (storeData.settings) {
-            setSettings(prev => ({ ...prev, ...storeData.settings }));
-            localStorage.setItem('cached_pos_settings', JSON.stringify(storeData.settings));
-          }
+          applyCloudData(storeData);
           if (storeData.features || storeData.settings?.features) {
             const rawFeats = storeData.features || storeData.settings?.features;
             const mergedFeats: StoreFeatures = {
@@ -1155,57 +1143,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
-      if (Array.isArray(newData.products)) {
-        setProducts(prevProducts => {
-          const merged = mergeProducts(prevProducts, newData.products || []);
-          try {
-            localStorage.setItem('cached_pos_products', JSON.stringify(merged));
-          } catch {}
-          return merged;
-        });
-      }
-      if (Array.isArray(newData.payments)) {
-        setPayments(newData.payments);
-        try { localStorage.setItem('cached_pos_payments', JSON.stringify(newData.payments)); } catch {}
-      }
-      if (Array.isArray(newData.customers)) {
-        setCustomers(newData.customers);
-        try {
-          localStorage.setItem('cached_pos_customers', JSON.stringify(newData.customers));
-        } catch {}
-      }
-      if (Array.isArray(newData.invoices)) {
-        setInvoices(prevInvoices => {
-          const merged = mergeInvoices(prevInvoices, newData.invoices || []);
-          try {
-            localStorage.setItem('cached_pos_invoices', JSON.stringify(merged));
-          } catch {}
-          return merged;
-        });
-      }
-      if (Array.isArray(newData.shifts)) {
-        const cleanIncoming = (newData.shifts as Shift[]).filter(s => {
-          if (s.storeUid && s.storeUid !== currentUid) return false;
-          if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUid) return false;
-          return true;
-        }).map(s => ({ ...s, storeUid: currentUid, storeId: currentUid }));
-
-        setShifts(prevShifts => {
-          const currentStoreShifts = prevShifts.filter(s => !s.storeUid || s.storeUid === currentUid);
-          const merged = mergeShifts(currentStoreShifts, cleanIncoming);
-          try {
-            localStorage.setItem(`cached_pos_shifts_${currentUid}`, JSON.stringify(merged));
-            localStorage.setItem('cached_pos_shifts', JSON.stringify(merged));
-          } catch {}
-          return merged;
-        });
-      }
-      if (newData.settings) {
-        setSettings(prev => ({ ...prev, ...newData.settings }));
-        try {
-          localStorage.setItem('cached_pos_settings', JSON.stringify(newData.settings));
-        } catch {}
-      }
+      applyCloudData(newData);
       if (newData.features || newData.settings?.features) {
         const rawFeats = newData.features || newData.settings?.features;
         const mergedFeats: StoreFeatures = {
@@ -1228,6 +1166,107 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser, currentSessionId]);
 
+  // آخر حالة محدّثة (لتجنب القيم القديمة داخل المؤقتات)
+  const stateRef = useRef<any>({});
+  stateRef.current = { ...stateRef.current, products, customers, invoices, shifts, payments, settings, trash, tombstones };
+
+  const lastSyncMsRef = useRef<number>(readLastSyncMs());
+  const markSynced = () => {
+    lastSyncMsRef.current = Date.now();
+    try { localStorage.setItem('last_sync_ms', String(lastSyncMsRef.current)); } catch {}
+  };
+
+  const getActorLabel = (): string => {
+    const who = activeShift?.openedBy;
+    if (who?.name) return `${who.name}${who.role ? ` (${who.role})` : ''}`;
+    return currentUser?.email || 'المستخدم';
+  };
+
+  // دمج النسخة المحلية مع السحابية: الأحدث يفوز عند التعارض، وغير المتعارض يُدمج،
+  // والنسخة الخاسرة تُحفظ في سلة المحذوفات للاستعادة.
+  const computeMerge = (snap: any, cloud: any) => {
+    const since = lastSyncMsRef.current || 0;
+    const tombs = mergeTombstones(snap.tombstones, cloud?.tombstones);
+    const conflicts: TrashEntry[] = [];
+    const track = (section: SyncSection, label: (x: any) => string, losers: any[]) =>
+      losers.forEach(l => conflicts.push(makeTrashEntry(section, l, label(l), 'conflict', 'مزامنة', 'نسخة قديمة استُبدلت عند المزامنة')));
+
+    const prod = mergeCollection<any>(snap.products, cloud?.products || [], tombs.products || {}, since);
+    track('products', x => x.name || 'مادة', prod.losers);
+    const cust = mergeCollection<any>(snap.customers, cloud?.customers || [], tombs.customers || {}, since);
+    track('customers', x => x.name || 'زبون', cust.losers);
+    const inv = mergeCollection<any>(snap.invoices, cloud?.invoices || [], tombs.invoices || {}, since);
+    track('invoices', x => `${x.invoiceNumber || ''} - ${x.customerName || ''}`, inv.losers);
+    inv.merged.sort((x: any, y: any) => new Date(y.date || 0).getTime() - new Date(x.date || 0).getTime());
+    const reps = mergeCollection<any>(snap.settings?.salesReps || [], cloud?.settings?.salesReps || [], tombs.reps || {}, since);
+    track('reps', x => x.name || 'مندوب', reps.losers);
+
+    // الدفعات: إضافة فقط (دمج بالاتحاد)
+    const payMap = new Map<string, any>();
+    (cloud?.payments || []).forEach((x: any) => x?.id && payMap.set(String(x.id), x));
+    (snap.payments || []).forEach((x: any) => x?.id && payMap.set(String(x.id), x));
+    const payments = Array.from(payMap.values()).sort(
+      (x: any, y: any) => new Date(y.date || 0).getTime() - new Date(x.date || 0).getTime()
+    );
+
+    // الشفتات
+    const uid = currentUser?.uid;
+    const cleanCloudShifts = (cloud?.shifts || [])
+      .filter((sh: any) => {
+        if (sh.storeUid && sh.storeUid !== uid) return false;
+        if (sh.openedBy?.uid && sh.openedBy.uid.startsWith('user_') && sh.openedBy.uid !== uid) return false;
+        return true;
+      })
+      .map((sh: any) => ({ ...sh, storeUid: uid, storeId: uid }));
+    const localShifts = (snap.shifts || []).filter((sh: any) => !sh.storeUid || sh.storeUid === uid);
+    const shiftTomb = tombs.shifts || {};
+    const shifts = mergeShifts(localShifts, cleanCloudShifts).filter((sh: any) => !shiftTomb[String(sh.id)]);
+
+    const trashMerged = mergeTrash(snap.trash, cloud?.trash, conflicts);
+    return { products: prod.merged, customers: cust.merged, invoices: inv.merged, reps: reps.merged, payments, shifts, trash: trashMerged, tombstones: tombs };
+  };
+
+  // تطبيق نتيجة الدمج على الحالة والتخزين المحلي
+  const applyMergeResult = (r: ReturnType<typeof computeMerge>, takeSettings?: any) => {
+    setProducts(r.products);
+    setCustomers(r.customers);
+    setInvoices(r.invoices as any);
+    setPayments(r.payments);
+    setShifts(r.shifts);
+    setTrash(r.trash);
+    setTombstones(r.tombstones);
+    setSettings(prev => ({
+      ...prev,
+      ...(takeSettings || {}),
+      salesReps: r.reps,
+      invoiceSecret: (takeSettings?.invoiceSecret as string) || prev.invoiceSecret,
+    }));
+    stateRef.current = {
+      ...stateRef.current,
+      products: r.products, customers: r.customers, invoices: r.invoices, payments: r.payments,
+      shifts: r.shifts, trash: r.trash, tombstones: r.tombstones,
+      settings: { ...stateRef.current.settings, ...(takeSettings || {}), salesReps: r.reps },
+    };
+    try {
+      localStorage.setItem('cached_pos_products', JSON.stringify(r.products));
+      localStorage.setItem('cached_pos_customers', JSON.stringify(r.customers));
+      localStorage.setItem('cached_pos_invoices', JSON.stringify(r.invoices));
+      localStorage.setItem('cached_pos_payments', JSON.stringify(r.payments));
+      localStorage.setItem('cached_pos_trash', JSON.stringify(r.trash));
+      localStorage.setItem('cached_pos_tombstones', JSON.stringify(r.tombstones));
+      if (currentUser?.uid) localStorage.setItem(`cached_pos_shifts_${currentUser.uid}`, JSON.stringify(r.shifts));
+      localStorage.setItem('cached_pos_shifts', JSON.stringify(r.shifts));
+    } catch {}
+  };
+
+  const applyCloudData = (cloud: any) => {
+    if (!cloud) return;
+    const r = computeMerge(stateRef.current, cloud);
+    applyMergeResult(r, cloud.settings);
+    markSynced();
+    return r;
+  };
+
   const pendingCloudSyncRef = useRef<{
     timer: any;
     override: Partial<{
@@ -1236,6 +1275,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoices: Invoice[];
       shifts: Shift[];
       settings: StoreSettings;
+      payments: PaymentRecord[];
+      __replace: boolean;
     }>;
   }>({ timer: null, override: {} });
 
@@ -1247,6 +1288,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       shifts: Shift[];
       settings: StoreSettings;
       payments: PaymentRecord[];
+      __replace?: boolean;
     }>,
     immediate: boolean = false
   ) => {
@@ -1263,18 +1305,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       pendingCloudSyncRef.current.override = {};
 
       try {
-        const rawShifts = (merged.shifts ?? shifts);
+        const forceReplace = Boolean((merged as any).__replace);
+        const snap: any = { ...stateRef.current };
+        (['products', 'customers', 'invoices', 'shifts', 'payments', 'settings'] as const).forEach(k => {
+          if ((merged as any)[k] !== undefined) snap[k] = (merged as any)[k];
+        });
+
+        // اقرأ النسخة السحابية الحالية وادمجها قبل الكتابة حتى لا نمحو تعديلات الأجهزة الأخرى
+        let result: ReturnType<typeof computeMerge>;
+        if (forceReplace) {
+          result = {
+            products: snap.products, customers: snap.customers, invoices: snap.invoices,
+            reps: snap.settings?.salesReps || [], payments: snap.payments, shifts: snap.shifts,
+            trash: snap.trash, tombstones: snap.tombstones,
+          } as any;
+        } else {
+          let cloudNow: any = null;
+          try {
+            cloudNow = await getDocument('stores', storeDocId);
+          } catch {}
+          result = computeMerge(snap, cloudNow);
+          applyMergeResult(result);
+        }
+
+        const rawShifts = result.shifts;
         const storeShifts = rawShifts
-          .filter(s => !s.storeUid || s.storeUid === currentUser.uid)
-          .map(s => ({ ...s, storeUid: currentUser.uid, storeId: currentUser.uid }));
+          .filter((s: any) => !s.storeUid || s.storeUid === currentUser.uid)
+          .map((s: any) => ({ ...s, storeUid: currentUser.uid, storeId: currentUser.uid }));
 
         const payload = sanitizePayload({
-          products: merged.products ?? products,
-          customers: merged.customers ?? customers,
-          invoices: merged.invoices ?? invoices,
+          products: result.products,
+          customers: result.customers,
+          invoices: result.invoices,
           shifts: storeShifts,
-          payments: merged.payments ?? payments,
-          settings: merged.settings ?? settings,
+          payments: result.payments,
+          settings: { ...snap.settings, salesReps: result.reps },
+          trash: result.trash,
+          tombstones: result.tombstones,
           offers: [],
           features: storeFeatures,
           lastSavedByClient: currentSessionId,
@@ -1282,6 +1349,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
 
         await setDocument('stores', storeDocId, payload);
+        markSynced();
         setIsCloudConnected(true);
         setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
       } catch (err) {
@@ -1314,24 +1382,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const storeDocId = `store_${currentUser.uid}`;
       const cloudData = await getDocument('stores', storeDocId);
       if (cloudData) {
-        const mergedProds = mergeProducts(products, cloudData.products || []);
-        const mergedInvs = mergeInvoices(invoices, cloudData.invoices || []);
-        
-        const cleanCloudShifts = (cloudData.shifts || []).filter((s: Shift) => {
-          if (s.storeUid && s.storeUid !== currentUser.uid) return false;
-          if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUser.uid) return false;
-          return true;
-        }).map((s: Shift) => ({ ...s, storeUid: currentUser.uid, storeId: currentUser.uid }));
-        const currentStoreShifts = shifts.filter(s => !s.storeUid || s.storeUid === currentUser.uid);
-        const mergedShs = mergeShifts(currentStoreShifts, cleanCloudShifts);
-
-        const mergedCusts = cloudData.customers || customers;
-
-        setProducts(mergedProds);
-        setInvoices(mergedInvs);
-        setShifts(mergedShs);
-        setCustomers(mergedCusts);
-        if (Array.isArray(cloudData.payments)) setPayments(cloudData.payments);
+        applyCloudData(cloudData);
 
         if (cloudData.features || cloudData.settings?.features) {
           const rawFeats = cloudData.features || cloudData.settings?.features;
@@ -1346,20 +1397,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch {}
         }
 
-        try {
-          localStorage.setItem('cached_pos_products', JSON.stringify(mergedProds));
-          localStorage.setItem('cached_pos_invoices', JSON.stringify(mergedInvs));
-          localStorage.setItem(`cached_pos_shifts_${currentUser.uid}`, JSON.stringify(mergedShs));
-          localStorage.setItem('cached_pos_shifts', JSON.stringify(mergedShs));
-          localStorage.setItem('cached_pos_customers', JSON.stringify(mergedCusts));
-        } catch (e) {}
-
-        await saveStoreToCloud({
-          products: mergedProds,
-          invoices: mergedInvs,
-          shifts: mergedShs,
-          customers: mergedCusts,
-        }, true);
+        await saveStoreToCloud(undefined, true);
       } else {
         await saveStoreToCloud(undefined, true);
       }
@@ -1439,7 +1477,140 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     broadcastSyncEvent('PRODUCT_SAVED', { product: finalUpdates, allProducts: updated }, currentSessionId, currentUser?.uid);
   };
 
+  // ============ سلة المحذوفات ============
+  const persistTrash = (nextTrash: TrashEntry[], nextTombs: Tombstones) => {
+    setTrash(nextTrash);
+    setTombstones(nextTombs);
+    stateRef.current = { ...stateRef.current, trash: nextTrash, tombstones: nextTombs };
+    try {
+      localStorage.setItem('cached_pos_trash', JSON.stringify(nextTrash));
+      localStorage.setItem('cached_pos_tombstones', JSON.stringify(nextTombs));
+    } catch {}
+  };
+
+  const moveToTrash = (section: SyncSection, items: any[], labelOf: (x: any) => string, details?: string) => {
+    if (!items || items.length === 0) return;
+    const nowIso = new Date().toISOString();
+    const actor = getActorLabel();
+    const entries = items.map(it => makeTrashEntry(section, it, labelOf(it), 'deleted', actor, details));
+    const tombs: Tombstones = { ...stateRef.current.tombstones };
+    const secMap = { ...(tombs[section] || {}) };
+    items.forEach(it => { secMap[String(it.id)] = nowIso; });
+    tombs[section] = secMap;
+    persistTrash(mergeTrash(entries, stateRef.current.trash), tombs);
+  };
+
+  const cleanTombstone = (section: SyncSection, id: string, tombs: Tombstones): Tombstones => {
+    const sec = { ...(tombs[section] || {}) };
+    delete sec[id];
+    return { ...tombs, [section]: sec };
+  };
+
+  const restoreTrashEntry = (entryId: string): boolean => {
+    const entry: TrashEntry | undefined = stateRef.current.trash.find((e: TrashEntry) => e.id === entryId);
+    if (!entry) return false;
+    const now = new Date().toISOString();
+    const data = { ...entry.data, updatedAt: now };
+    let tombs = cleanTombstone(entry.section, entry.entityId, stateRef.current.tombstones);
+    let nextTrash = stateRef.current.trash.filter((e: TrashEntry) => e.id !== entryId);
+    const swapOut = (existing: any, label: string) => {
+      if (existing) {
+        nextTrash = mergeTrash(
+          [makeTrashEntry(entry.section, existing, label, 'conflict', getActorLabel(), 'نسخة حالية استُبدلت عند الاستعادة')],
+          nextTrash
+        );
+      }
+    };
+
+    if (entry.section === 'products') {
+      const existing = products.find(p => p.id === entry.entityId);
+      swapOut(existing, entry.label);
+      const updated = [data as Product, ...products.filter(p => p.id !== entry.entityId)];
+      setProducts(updated);
+      try { localStorage.setItem('cached_pos_products', JSON.stringify(updated)); } catch {}
+      persistTrash(nextTrash, tombs);
+      saveStoreToCloud({ products: updated });
+    } else if (entry.section === 'customers') {
+      const existing = customers.find(c => c.id === entry.entityId);
+      swapOut(existing, entry.label);
+      const updated = [data as Customer, ...customers.filter(c => c.id !== entry.entityId)];
+      setCustomers(updated);
+      try { localStorage.setItem('cached_pos_customers', JSON.stringify(updated)); } catch {}
+      persistTrash(nextTrash, tombs);
+      saveStoreToCloud({ customers: updated });
+    } else if (entry.section === 'invoices') {
+      const existing = invoices.find(i => i.id === entry.entityId);
+      swapOut(existing, entry.label);
+      const inv: any = data;
+      // استعادة قائمة محذوفة: إعادة خصم المخزون وإعادة الدين الذي أضافته
+      if (entry.reason === 'deleted' && !existing) {
+        (inv.items || []).forEach((it: any) => {
+          if (inv.status !== 'returned') adjustStock(it.productId, -(it.deductedPieces ?? it.quantity));
+        });
+        if (inv.debtApplied && inv.customerId && inv.status !== 'returned' && inv.remainingAmount > 0) {
+          const custs = customers.map(c =>
+            c.id === inv.customerId ? { ...c, updatedAt: now, totalDebt: (Number(c.totalDebt) || 0) + inv.remainingAmount } : c
+          );
+          setCustomers(custs);
+          try { localStorage.setItem('cached_pos_customers', JSON.stringify(custs)); } catch {}
+          saveStoreToCloud({ customers: custs });
+        }
+      }
+      const updated = [inv as Invoice, ...invoices.filter(i => i.id !== entry.entityId)];
+      setInvoices(updated);
+      try { localStorage.setItem('cached_pos_invoices', JSON.stringify(updated)); } catch {}
+      persistTrash(nextTrash, tombs);
+      saveStoreToCloud({ invoices: updated });
+    } else if (entry.section === 'shifts') {
+      const updated = [data as any as Shift, ...shifts.filter(sh => sh.id !== entry.entityId)];
+      setShifts(updated);
+      try {
+        if (currentUser?.uid) localStorage.setItem(`cached_pos_shifts_${currentUser.uid}`, JSON.stringify(updated));
+        localStorage.setItem('cached_pos_shifts', JSON.stringify(updated));
+      } catch {}
+      persistTrash(nextTrash, tombs);
+      saveStoreToCloud({ shifts: updated });
+    } else if (entry.section === 'reps') {
+      const reps = settings.salesReps || [];
+      swapOut(reps.find(r => r.id === entry.entityId), entry.label);
+      persistTrash(nextTrash, tombs);
+      updateSettings({ salesReps: [data as any, ...reps.filter(r => r.id !== entry.entityId)] });
+    } else {
+      persistTrash(nextTrash, tombs);
+    }
+    saveStoreToCloud(undefined);
+    return true;
+  };
+
+  const purgeTrashEntry = (entryId: string) => {
+    persistTrash(stateRef.current.trash.filter((e: TrashEntry) => e.id !== entryId), stateRef.current.tombstones);
+    saveStoreToCloud(undefined);
+  };
+
+  const emptyTrash = (sections?: SyncSection[]) => {
+    const keep = stateRef.current.trash.filter((e: TrashEntry) => sections && !sections.includes(e.section));
+    persistTrash(keep, stateRef.current.tombstones);
+    saveStoreToCloud(undefined);
+  };
+
+  // تنظيف تلقائي: حذف ما مضى عليه أكثر من 3 أيام
+  useEffect(() => {
+    const run = () => {
+      const cur: TrashEntry[] = stateRef.current.trash || [];
+      const cleaned = purgeTrash(cur);
+      if (cleaned.length !== cur.length) {
+        persistTrash(cleaned, stateRef.current.tombstones);
+        saveStoreToCloud(undefined);
+      }
+    };
+    run();
+    const t = setInterval(run, 60 * 60 * 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.uid]);
+
   const deleteProduct = (id: string) => {
+    moveToTrash('products', products.filter(p => p.id === id), x => x.name || 'مادة');
     const updated = products.filter(p => p.id !== id);
     setProducts(updated);
     try {
@@ -1460,6 +1631,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const deleteSet = new Set(productIdsToDelete);
       const increments = stockIncrements || {};
+      moveToTrash('products', products.filter(p => deleteSet.has(p.id)), x => x.name || 'مادة');
 
       const updatedProducts = products
         .filter(p => !deleteSet.has(p.id))
@@ -1516,6 +1688,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       totalDebt: data.initialDebt || 0,
       notes: data.notes?.trim() || '',
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     const updated = [newCust, ...customers];
     setCustomers(updated);
@@ -1528,7 +1701,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateCustomer = (id: string, updates: Partial<Customer>) => {
-    const updated = customers.map(c => c.id === id ? { ...c, ...updates } : c);
+    const updated = customers.map(c => c.id === id ? { ...c, ...updates, updatedAt: new Date().toISOString() } : c);
     setCustomers(updated);
     try {
       localStorage.setItem('cached_pos_customers', JSON.stringify(updated));
@@ -1538,6 +1711,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteCustomer = (id: string) => {
+    moveToTrash('customers', customers.filter(c => c.id === id), x => x.name || 'زبون', 'يشمل رصيد الدين وقت الحذف');
     const updated = customers.filter(c => c.id !== id);
     setCustomers(updated);
     try {
@@ -1591,6 +1765,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const type = rep.commissionType || settings.repCommissionDefaultType || 'percentage_profit';
         if (type === 'percentage_sales') {
           salesRepCommission = Math.round((total * (rep.commissionRate || 0)) / 100);
+        } else if (type === 'fixed_per_invoice') {
+          salesRepCommission = Math.round(Math.max(0, rep.commissionRate || 0));
+        } else if (type === 'fixed_per_piece') {
+          const pieces = items.reduce((sum: number, it: any) => sum + (it.isGift ? 0 : (it.deductedPieces ?? it.quantity ?? 0)), 0);
+          salesRepCommission = Math.round(Math.max(0, pieces * (rep.commissionRate || 0)));
         } else {
           salesRepCommission = Math.round(Math.max(0, (rawNetProfit * (rep.commissionRate || 0)) / 100));
         }
@@ -1717,7 +1896,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let updatedCustomersList = customers;
     if (debtCustomer && remainingAmount > 0) {
       updatedCustomersList = customers.map(c =>
-        c.id === debtCustomer.id ? { ...c, totalDebt: previousDebt + remainingAmount } : c
+        c.id === debtCustomer.id ? { ...c, updatedAt: new Date().toISOString(), totalDebt: previousDebt + remainingAmount } : c
       );
       setCustomers(updatedCustomersList);
       try {
@@ -1753,6 +1932,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const inv = invoices.find(i => i.id === id);
     if (!inv) return;
+    moveToTrash('invoices', [inv], x => `${x.invoiceNumber || ''} - ${x.customerName || ''}`);
     inv.items.forEach(i => adjustStock(i.productId, i.deductedPieces ?? i.quantity));
     const updated = invoices.filter(i => i.id !== id);
     setInvoices(updated);
@@ -1764,7 +1944,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let customersAfterDelete = customers;
     if ((inv as any).debtApplied && inv.customerId && inv.status !== 'returned' && inv.remainingAmount > 0) {
       customersAfterDelete = customers.map(c =>
-        c.id === inv.customerId ? { ...c, totalDebt: Math.max(0, (c.totalDebt || 0) - inv.remainingAmount) } : c
+        c.id === inv.customerId ? { ...c, updatedAt: new Date().toISOString(), totalDebt: Math.max(0, (c.totalDebt || 0) - inv.remainingAmount) } : c
       );
       setCustomers(customersAfterDelete);
       try {
@@ -1795,7 +1975,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let updatedCustomers = customers;
     if (inv.customerId && inv.remainingAmount > 0) {
-      updatedCustomers = customers.map(c => c.id === inv.customerId ? { ...c, totalDebt: Math.max(0, c.totalDebt - inv.remainingAmount) } : c);
+      updatedCustomers = customers.map(c => c.id === inv.customerId ? { ...c, updatedAt: new Date().toISOString(), totalDebt: Math.max(0, c.totalDebt - inv.remainingAmount) } : c);
       setCustomers(updatedCustomers);
       try {
         localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers));
@@ -1904,7 +2084,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let updatedCustomers = customers;
     if (debtReduction > 0 && inv.customerId) {
-      updatedCustomers = customers.map(c => c.id === inv.customerId ? { ...c, totalDebt: Math.max(0, c.totalDebt - debtReduction) } : c);
+      updatedCustomers = customers.map(c => c.id === inv.customerId ? { ...c, updatedAt: new Date().toISOString(), totalDebt: Math.max(0, c.totalDebt - debtReduction) } : c);
       setCustomers(updatedCustomers);
       try {
         localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers));
@@ -1961,7 +2141,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // تخفيض دين الزبون بمقدار الدفعة (لا يقل عن صفر)
     const updatedCustomers = customers.map(c =>
       c.id === customerId
-        ? { ...c, totalDebt: Math.max(0, (Number(c.totalDebt) || 0) - paid) }
+        ? { ...c, updatedAt: new Date().toISOString(), totalDebt: Math.max(0, (Number(c.totalDebt) || 0) - paid) }
         : c
     );
     setCustomers(updatedCustomers);
@@ -1999,7 +2179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (unapplied.length === 0) return 0;
     const byCust = new Map(unapplied.map(u => [u.customerId, u.amount]));
     const updatedCustomers = customers.map(c =>
-      byCust.has(c.id) ? { ...c, totalDebt: (Number(c.totalDebt) || 0) + (byCust.get(c.id) || 0) } : c
+      byCust.has(c.id) ? { ...c, updatedAt: new Date().toISOString(), totalDebt: (Number(c.totalDebt) || 0) + (byCust.get(c.id) || 0) } : c
     );
     const updatedInvoices = invoices.map((inv: any) =>
       inv.customerId && byCust.has(inv.customerId) && !inv.debtApplied && inv.status !== 'returned' && (Number(inv.remainingAmount) || 0) > 0
@@ -2041,7 +2221,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem('cached_pos_customers');
       localStorage.removeItem('cached_pos_invoices');
     } catch {}
-    saveStoreToCloud({ products: [], customers: [], invoices: [] });
+    saveStoreToCloud({ products: [], customers: [], invoices: [], payments: [], __replace: true } as any);
   };
 
   const exportDataJSON = () => JSON.stringify({ products, customers, invoices, payments, settings }, null, 2);
@@ -2473,6 +2653,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteShift = async (shiftId: string) => {
     const currentUid = currentUser?.uid;
+    moveToTrash('shifts', shifts.filter(s => s.id === shiftId), x => `شفت رقم ${x.shiftNumber ?? ''}`);
     const updated = shifts.filter(s => s.id !== shiftId);
     setShifts(updated);
     try {
@@ -2524,18 +2705,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...repData,
       id: 'rep_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       createdAt: new Date().toISOString(),
-    };
+      updatedAt: new Date().toISOString(),
+    } as SalesRep;
     const updated = [...(settings.salesReps || []), newRep];
     updateSettings({ salesReps: updated });
     return newRep;
   };
 
   const updateSalesRep = async (id: string, updates: Partial<SalesRep>) => {
-    const updated = (settings.salesReps || []).map(r => r.id === id ? { ...r, ...updates } : r);
+    const updated = (settings.salesReps || []).map(r => r.id === id ? { ...r, ...updates, updatedAt: new Date().toISOString() } : r);
     updateSettings({ salesReps: updated });
   };
 
   const deleteSalesRep = async (id: string) => {
+    moveToTrash('reps', (settings.salesReps || []).filter(r => r.id === id), x => x.name || 'مندوب');
     const updated = (settings.salesReps || []).filter(r => r.id !== id);
     updateSettings({ salesReps: updated });
   };
@@ -2601,6 +2784,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         returnPartialInvoice,
         applyBulkPriceAdjustment,
         recordPayment,
+        trash,
+        restoreTrashEntry,
+        purgeTrashEntry,
+        emptyTrash,
         getUnappliedDebts,
         reconcileCustomerDebts,
         updateSettings,

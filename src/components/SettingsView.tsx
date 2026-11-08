@@ -10,7 +10,8 @@ import {
   InvoiceTemplateType,
   ModernInvoiceHeaderConfig,
   PresetShift, 
-  StoreSupervisor 
+  StoreSupervisor,
+  StoreSettings,
 } from '../types';
 import { changeAccountPassword, getActiveLocalSession } from '../supabase';
 import { 
@@ -259,7 +260,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
   const [enableSalesReps, setEnableSalesReps] = useState<boolean>(settings.enableSalesReps ?? false);
   const [defaultShowRepOnInvoice, setDefaultShowRepOnInvoice] = useState<boolean>(settings.defaultShowRepOnInvoice ?? true);
-  const [repCommissionDefaultType, setRepCommissionDefaultType] = useState<'percentage_profit' | 'percentage_sales'>(
+  const [repCommissionDefaultType, setRepCommissionDefaultType] = useState<NonNullable<StoreSettings['repCommissionDefaultType']>>(
     settings.repCommissionDefaultType || 'percentage_profit'
   );
   const [desktopLayout, setDesktopLayout] = useState<'full' | 'partial'>(settings.desktopLayout || 'full');

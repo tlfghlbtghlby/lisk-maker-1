@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import TrashPanel from './TrashPanel';
 import { Invoice, SaleType } from '../types';
 import { 
   Search, 
@@ -129,6 +130,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <TrashPanel sections={['invoices']} title="سلة محذوفات القوائم" />
+      </div>
       
       {/* Top Financial Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

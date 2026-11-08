@@ -62,6 +62,9 @@ export interface Customer {
   totalDebt: number;
   notes?: string;
   createdAt: string;
+  updatedAt?: string;
+  telegramCode?: string;
+  telegramLinked?: boolean;
 }
 
 export interface InvoiceItem {
@@ -107,11 +110,12 @@ export interface SalesRep {
   name: string;
   phone: string;
   commissionRate: number;
-  commissionType: 'percentage_profit' | 'percentage_sales';
+  commissionType: 'percentage_profit' | 'percentage_sales' | 'fixed_per_invoice' | 'fixed_per_piece';
   showOnInvoice: boolean;
   notes?: string;
   isActive: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Invoice {
@@ -396,7 +400,7 @@ export interface StoreSettings {
   enableSalesReps?: boolean;
   salesReps?: SalesRep[];
   defaultShowRepOnInvoice?: boolean;
-  repCommissionDefaultType?: 'percentage_profit' | 'percentage_sales';
+  repCommissionDefaultType?: 'percentage_profit' | 'percentage_sales' | 'fixed_per_invoice' | 'fixed_per_piece';
   theme?: 'light' | 'dark';
   enableShifts?: boolean;
   enableCustomerPriceChecker?: boolean;

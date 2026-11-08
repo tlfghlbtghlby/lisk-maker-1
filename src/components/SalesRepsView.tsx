@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import TrashPanel from './TrashPanel';
 import { SalesRep, Invoice } from '../types';
 import { 
   Users, 
@@ -33,6 +34,17 @@ interface SalesRepsViewProps {
   onViewInvoice?: (invoice: Invoice) => void;
 }
 
+const isFixedType = (t?: string) => t === 'fixed_per_invoice' || t === 'fixed_per_piece';
+const commissionValueLabel = (r: { commissionRate: number; commissionType?: string }, currency: string) =>
+  isFixedType(r.commissionType)
+    ? `${Number(r.commissionRate).toLocaleString()} ${currency}${r.commissionType === 'fixed_per_piece' ? ' للقطعة' : ' للقائمة'}`
+    : `${r.commissionRate}%`;
+const commissionBasisLabel = (t?: string) =>
+  t === 'percentage_sales' ? 'من المبيعات'
+  : t === 'fixed_per_invoice' ? 'مبلغ ثابت لكل قائمة'
+  : t === 'fixed_per_piece' ? 'مبلغ ثابت لكل قطعة'
+  : 'من صافي الربح';
+
 export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) => {
   const { 
     settings, 
@@ -62,7 +74,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
     name: '',
     phone: '',
     commissionRate: 5,
-    commissionType: (settings.repCommissionDefaultType || 'percentage_profit') as 'percentage_profit' | 'percentage_sales',
+    commissionType: (settings.repCommissionDefaultType || 'percentage_profit') as SalesRep['commissionType'],
     showOnInvoice: settings.defaultShowRepOnInvoice ?? true,
     notes: '',
     isActive: true,
@@ -107,8 +119,9 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
       setFormError('يرجى إدخال اسم المندوب');
       return;
     }
-    if (formData.commissionRate < 0 || formData.commissionRate > 100) {
-      setFormError('نسبة المندوب يجب أن تكون بين 0% و 100%');
+    const isFixed = formData.commissionType === 'fixed_per_invoice' || formData.commissionType === 'fixed_per_piece';
+    if (formData.commissionRate < 0 || (!isFixed && formData.commissionRate > 100)) {
+      setFormError(isFixed ? 'مبلغ المندوب يجب ألا يكون سالباً' : 'نسبة المندوب يجب أن تكون بين 0% و 100%');
       return;
     }
 
@@ -265,7 +278,12 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
 
         let lineRepComm = 0;
         if (repRate > 0) {
-          if (repType === 'percentage_sales') {
+          if (repType === 'fixed_per_piece') {
+            lineRepComm = Math.round(netQty * repRate);
+          } else if (repType === 'fixed_per_invoice') {
+            // العمولة الثابتة لكل قائمة لا تُوزَّع على المواد
+            lineRepComm = 0;
+          } else if (repType === 'percentage_sales') {
             lineRepComm = Math.round((lineSales * repRate) / 100);
           } else {
             lineRepComm = Math.round((lineGrossProfit * repRate) / 100);
@@ -363,6 +381,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <TrashPanel sections={['reps']} title="سلة محذوفات المندوبين" />
           <button
             type="button"
             onClick={handleExportCSV}
@@ -400,7 +419,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                 <option value="all">جميع المندوبين ({reps.length})</option>
                 {reps.map(r => (
                   <option key={r.id} value={r.id}>
-                    {r.name} ({r.commissionRate}% {r.commissionType === 'percentage_sales' ? 'مبيعات' : 'أرباح'}) {r.isActive === false ? '[معطل]' : ''}
+                    {r.name} ({commissionValueLabel(r, settings.currency || 'د.ع')} · {commissionBasisLabel(r.commissionType)}) {r.isActive === false ? '[معطل]' : ''}
                   </option>
                 ))}
               </select>
@@ -413,7 +432,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                 <span>{selectedRepObj.phone || 'بدون هاتف'}</span>
                 <span className="mx-1 text-slate-300">|</span>
                 <Percent className="w-3.5 h-3.5 text-indigo-600" />
-                <span>النسبة: {selectedRepObj.commissionRate}%</span>
+                <span>العمولة: {commissionValueLabel(selectedRepObj, settings.currency || 'د.ع')}</span>
                 <span className="mx-1 text-slate-300">|</span>
                 <span>{selectedRepObj.showOnInvoice ? 'يظهر بالقائمة' : 'مخفي بالقائمة'}</span>
               </div>
@@ -599,7 +618,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
               <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                 <span>الهاتف: {selectedRepObj.phone || 'بدون'}</span>
                 <span>
-                  العمولة: {selectedRepObj.commissionRate}% {selectedRepObj.commissionType === 'percentage_sales' ? 'من المبيعات' : 'من صافي الربح'}
+                  العمولة: {commissionValueLabel(selectedRepObj, settings.currency || 'د.ع')} · {commissionBasisLabel(selectedRepObj.commissionType)}
                 </span>
                 <span>{selectedRepObj.isActive === false ? 'الحالة: معطل' : 'الحالة: فعّال'}</span>
               </div>
@@ -933,10 +952,10 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                           <div className="bg-slate-50 p-2 rounded-xl">
                             <span className="text-[10px] text-slate-500 block">نسبة العمولة:</span>
                             <span className="font-black text-indigo-700 text-sm">
-                              {rep.commissionRate}%
+                              {commissionValueLabel(rep, settings.currency || 'د.ع')}
                             </span>
                             <span className="text-[10px] text-slate-500 block">
-                              {rep.commissionType === 'percentage_sales' ? 'من المبيعات' : 'من صافي الربح'}
+                              {commissionBasisLabel(rep.commissionType)}
                             </span>
                           </div>
 
@@ -1075,20 +1094,22 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    نسبة المندوب (%) <span className="text-rose-600">*</span>
+                    {isFixedType(formData.commissionType) ? `مبلغ المندوب (${settings.currency || 'د.ع'})` : 'نسبة المندوب (%)'} <span className="text-rose-600">*</span>
                   </label>
                   <div className="relative">
                     <input
                       type="number"
                       min={0}
-                      max={100}
-                      step={0.5}
+                      max={isFixedType(formData.commissionType) ? undefined : 100}
+                      step={isFixedType(formData.commissionType) ? 1 : 0.5}
                       required
                       value={formData.commissionRate}
                       onChange={(e) => setFormData({ ...formData, commissionRate: parseFloat(e.target.value) || 0 })}
                       className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono font-bold"
                     />
-                    <Percent className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    {!isFixedType(formData.commissionType) && (
+                      <Percent className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -1096,7 +1117,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
               {/* Commission Calculation Mode */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  طريقة احتساب النسبة
+                  طريقة احتساب عمولة المندوب (نسبة مئوية أو مبلغ بالدينار)
                 </label>
                 <div className="grid grid-cols-2 gap-2 text-xs font-bold">
                   <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${
@@ -1132,6 +1153,42 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                     <div>
                       <div>من إجمالي المبيعات</div>
                       <div className="text-[10px] text-slate-500 font-normal">تقتطع النسبة من إجمالي الفاتورة</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${
+                    formData.commissionType === 'fixed_per_invoice'
+                      ? 'bg-indigo-50 border-indigo-500 text-indigo-900 ring-1 ring-indigo-500/30'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="commissionType"
+                      checked={formData.commissionType === 'fixed_per_invoice'}
+                      onChange={() => setFormData({ ...formData, commissionType: 'fixed_per_invoice' })}
+                      className="accent-indigo-600"
+                    />
+                    <div>
+                      <div>مبلغ ثابت لكل قائمة</div>
+                      <div className="text-[10px] text-slate-500 font-normal">يستلم المندوب مبلغاً محدداً عن كل قائمة يبيعها</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition ${
+                    formData.commissionType === 'fixed_per_piece'
+                      ? 'bg-indigo-50 border-indigo-500 text-indigo-900 ring-1 ring-indigo-500/30'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="commissionType"
+                      checked={formData.commissionType === 'fixed_per_piece'}
+                      onChange={() => setFormData({ ...formData, commissionType: 'fixed_per_piece' })}
+                      className="accent-indigo-600"
+                    />
+                    <div>
+                      <div>مبلغ ثابت لكل قطعة</div>
+                      <div className="text-[10px] text-slate-500 font-normal">يستلم المندوب مبلغاً محدداً عن كل قطعة مباعة (عدا الهدايا)</div>
                     </div>
                   </label>
                 </div>

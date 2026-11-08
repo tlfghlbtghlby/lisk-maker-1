@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
+import TrashPanel from './TrashPanel';
 import { Customer, Invoice, PaymentRecord } from '../types';
 import { 
   Users, 
@@ -247,6 +248,8 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
               <span>احتساب الديون القديمة</span>
             </button>
           )}
+
+          <TrashPanel sections={['customers']} title="سلة محذوفات الزبائن والديون" />
 
           <button
             onClick={() => setIsAddCustomerOpen(true)}

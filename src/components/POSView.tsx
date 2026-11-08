@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import TrashPanel from './TrashPanel';
 import { Product, SaleType, PriceType, InvoiceItem, Invoice } from '../types';
 import { getPiecePrice, hasOwnPrice, PRICE_TYPE_LABELS } from '../utils/pricing';
 import { 
@@ -871,6 +872,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <TrashPanel sections={['products', 'invoices']} title="سلة محذوفات نقطة البيع (مواد وقوائم)" />
+      </div>
       {sessionRole === 'employee' && !activeShift && (
         <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-950 shadow-xs animate-in fade-in">
           <div className="flex items-center gap-3">
