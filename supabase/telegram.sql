@@ -30,6 +30,13 @@ create table if not exists public.tg_chats (
 
 create index if not exists tg_chats_lookup on public.tg_chats (store_uid, kind, customer_id);
 
+-- إعدادات البوت (التوكن وسرّ الـ webhook). مقفلة بـ RLS بلا سياسات: لا يقرؤها إلا الدالة.
+create table if not exists public.tg_config (
+  key   text primary key,
+  value text not null
+);
+
+alter table public.tg_config enable row level security;
 alter table public.tg_stores enable row level security;
 alter table public.tg_codes  enable row level security;
 alter table public.tg_chats  enable row level security;

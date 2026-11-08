@@ -11,11 +11,24 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
-const TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
-const WEBHOOK_SECRET = Deno.env.get('TELEGRAM_WEBHOOK_SECRET') ?? '';
 const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },
 });
+
+// التوكن وسرّ الـ webhook: من أسرار Supabase إن وُجدت، وإلا من جدول tg_config (service role فقط)
+let TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN') ?? '';
+let WEBHOOK_SECRET = Deno.env.get('TELEGRAM_WEBHOOK_SECRET') ?? '';
+let configLoadedAt = 0;
+async function loadConfig() {
+  if (TOKEN && WEBHOOK_SECRET) return;
+  if (Date.now() - configLoadedAt < 60_000 && TOKEN) return;
+  configLoadedAt = Date.now();
+  const { data } = await sb.from('tg_config').select('key, value');
+  for (const row of data || []) {
+    if (row.key === 'bot_token' && !Deno.env.get('TELEGRAM_BOT_TOKEN')) TOKEN = row.value;
+    if (row.key === 'webhook_secret' && !Deno.env.get('TELEGRAM_WEBHOOK_SECRET')) WEBHOOK_SECRET = row.value;
+  }
+}
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -148,6 +161,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+  await loadConfig();
   if (!TOKEN) return json({ error: 'bot_token_not_configured' }, 500);
 
   // ويب هوك التليجرام
