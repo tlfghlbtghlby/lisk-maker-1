@@ -77,10 +77,16 @@ jobs:
       - name: Make Gradle Executable
         run: chmod +x android/gradlew
 
+      - name: Raise Gradle download timeout
+        run: |
+          f=android/gradle/wrapper/gradle-wrapper.properties
+          if grep -q '^networkTimeout' "$f"; then sed -i 's/^networkTimeout=.*/networkTimeout=120000/' "$f"; else echo 'networkTimeout=120000' >> "$f"; fi
+
       - name: Build Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug --stacktrace
+          for i in 1 2 3; do ./gradlew assembleDebug --stacktrace && break; echo "retry $i"; sleep 20; done
+          ls app/build/outputs/apk/debug/*.apk
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
