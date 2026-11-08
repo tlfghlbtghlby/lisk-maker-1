@@ -171,7 +171,7 @@ const MainContent: React.FC = () => {
   const [directInvoice, setDirectInvoice] = useState<Invoice | null>(null);
   const isPrintingRef = useRef(false);
 
-  const [settingsInitialTab, setSettingsInitialTab] = useState<'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'all'>('store');
+  const [settingsInitialTab, setSettingsInitialTab] = useState<'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'telegram' | 'all'>('store');
 
   const handleOpenNewProduct = (initialBarcode?: string) => {
     setProductToEdit(null);

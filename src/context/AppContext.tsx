@@ -36,6 +36,11 @@ import {
 } from '../utils/syncEngine';
 import { broadcastSync, subscribeSync, SyncMessage } from '../utils/syncChannel';
 import pkg from '../../package.json';
+import type { TelegramEventKey } from '../types';
+import {
+  tgNotify, formatInvoice, formatPayment, formatReturnFull, formatReturnPartial, formatDeletedInvoice,
+  formatProductEvent, diffProduct, formatSimple, esc as tgEsc, FmtCtx,
+} from '../utils/telegram';
 import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/invoiceSeal';
 
 export const CURRENT_APP_VERSION = (pkg as any)?.version || '2.0.0';
@@ -137,7 +142,7 @@ interface AppContextType {
   deleteCustomer: (id: string) => void;
   createInvoice: (data: CreateInvoiceInput) => Invoice;
   deleteInvoice: (id: string) => void;
-  returnInvoice: (id: string) => Promise<boolean>;
+  returnInvoice: (id: string, reason?: string) => Promise<boolean>;
   returnPartialInvoice: (
     invoiceId: string,
     itemsToReturn: { productId: string; quantity: number }[],
@@ -1182,6 +1187,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return currentUser?.email || 'المستخدم';
   };
 
+  // ============ إشعارات التليجرام (تُرسل عبر دالة Supabase، والتوكن محفوظ هناك) ============
+  const emitTelegram = (
+    event: TelegramEventKey,
+    build: (ctx: FmtCtx) => { store?: string; customerId?: string; customer?: string }
+  ) => {
+    try {
+      const tgs = stateRef.current.settings?.telegram;
+      if (!tgs || !tgs.enabled || !tgs.secret || !currentUser?.uid) return;
+      const ctx: FmtCtx = {
+        currency: stateRef.current.settings?.currency || 'د.ع',
+        storeName: currentUser?.storeName || currentUser?.displayName || '',
+        actor: getActorLabel(),
+        includeItems: tgs.includeItems !== false,
+        includeProfit: tgs.includeProfit !== false,
+      };
+      const m = build(ctx);
+      const text = tgs.events?.[event] !== false ? m.store : undefined;
+      const customerText = tgs.customerNotifications !== false ? m.customer : undefined;
+      if (!text && !customerText) return;
+      tgNotify({
+        storeUid: currentUser.uid,
+        secret: tgs.secret,
+        text,
+        customerId: m.customerId,
+        customerText,
+      }).catch(() => {});
+    } catch {}
+  };
+
   // دمج النسخة المحلية مع السحابية: الأحدث يفوز عند التعارض، وغير المتعارض يُدمج،
   // والنسخة الخاسرة تُحفظ في سلة المحذوفات للاستعادة.
   const computeMerge = (snap: any, cloud: any) => {
@@ -1435,6 +1469,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
     saveStoreToCloud({ products: updated });
     broadcastSyncEvent('PRODUCT_SAVED', { product: newProduct, allProducts: updated }, currentSessionId, currentUser?.uid);
+    emitTelegram('productAdded', ctx => ({ store: formatProductEvent('added', newProduct, ctx) }));
     return newProduct;
   };
 
@@ -1467,6 +1502,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
+    const beforeProduct = products.find(p => p.id === id);
     const finalUpdates = { ...updates, updatedAt: new Date().toISOString() };
     const updated = products.map(p => p.id === id ? { ...p, ...finalUpdates } : p);
     setProducts(updated);
@@ -1475,6 +1511,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
     saveStoreToCloud({ products: updated });
     broadcastSyncEvent('PRODUCT_SAVED', { product: finalUpdates, allProducts: updated }, currentSessionId, currentUser?.uid);
+    if (beforeProduct) {
+      const afterProduct = { ...beforeProduct, ...finalUpdates };
+      const includeCost = stateRef.current.settings?.telegram?.includeProfit !== false;
+      const changes = diffProduct(beforeProduct, afterProduct, includeCost);
+      if (changes.length > 0) {
+        emitTelegram('productEdited', ctx => ({ store: formatProductEvent('edited', afterProduct, ctx, changes) }));
+      }
+    }
   };
 
   // ============ سلة المحذوفات ============
@@ -1579,6 +1623,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       persistTrash(nextTrash, tombs);
     }
     saveStoreToCloud(undefined);
+    emitTelegram('trashRestored', ctx => ({
+      store: formatSimple('♻️ <b>استعادة من سلة المحذوفات</b>', [
+        `العنصر: ${tgEsc(entry.label)}`,
+        `القسم: ${tgEsc(entry.section)}`,
+        `🧑‍💼 المنفذ: ${tgEsc(ctx.actor || '')}`,
+      ], ctx),
+    }));
     return true;
   };
 
@@ -1611,6 +1662,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteProduct = (id: string) => {
     moveToTrash('products', products.filter(p => p.id === id), x => x.name || 'مادة');
+    products.filter(p => p.id === id).forEach(dp => emitTelegram('productDeleted', ctx => ({ store: formatProductEvent('deleted', dp, ctx) })));
     const updated = products.filter(p => p.id !== id);
     setProducts(updated);
     try {
@@ -1632,6 +1684,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const deleteSet = new Set(productIdsToDelete);
       const increments = stockIncrements || {};
       moveToTrash('products', products.filter(p => deleteSet.has(p.id)), x => x.name || 'مادة');
+      const deletedList = products.filter(p => deleteSet.has(p.id));
+      if (deletedList.length === 1) {
+        emitTelegram('productDeleted', ctx => ({ store: formatProductEvent('deleted', deletedList[0], ctx) }));
+      } else if (deletedList.length > 1) {
+        emitTelegram('productDeleted', ctx => ({
+          store: formatSimple('🗑️ <b>حذف مواد</b>', [
+            `🧑‍💼 المنفذ: ${tgEsc(ctx.actor || '')}`,
+            `العدد: ${deletedList.length}`,
+            ...deletedList.slice(0, 40).map(d => `• ${tgEsc(d.name)} (${tgEsc(d.code)})`),
+            deletedList.length > 40 ? `… و${deletedList.length - 40} أخرى` : '',
+            'ℹ️ نُقلت إلى سلة المحذوفات (3 أيام).',
+          ], ctx),
+        }));
+      }
 
       const updatedProducts = products
         .filter(p => !deleteSet.has(p.id))
@@ -1697,6 +1763,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
     saveStoreToCloud({ customers: updated });
     broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updated }, currentSessionId, currentUser?.uid);
+    emitTelegram('customerAdded', ctx => ({
+      store: formatSimple('👤 <b>إضافة زبون</b>', [
+        `الاسم: ${tgEsc(newCust.name)}${newCust.phone ? ` — ${tgEsc(newCust.phone)}` : ''}`,
+        newCust.address ? `العنوان: ${tgEsc(newCust.address)}` : '',
+        newCust.totalDebt ? `دين افتتاحي: ${newCust.totalDebt.toLocaleString()} ${tgEsc(ctx.currency)}` : '',
+        `🧑‍💼 المنفذ: ${tgEsc(ctx.actor || '')}`,
+      ], ctx),
+    }));
     return newCust;
   };
 
@@ -1712,6 +1786,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteCustomer = (id: string) => {
     moveToTrash('customers', customers.filter(c => c.id === id), x => x.name || 'زبون', 'يشمل رصيد الدين وقت الحذف');
+    customers.filter(c => c.id === id).forEach(dc => emitTelegram('customerDeleted', ctx => ({
+      store: formatSimple('🗑️ <b>حذف زبون</b>', [
+        `👤 ${tgEsc(dc.name)}${dc.phone ? ` — ${tgEsc(dc.phone)}` : ''}`,
+        `دينه وقت الحذف: ${Number(dc.totalDebt || 0).toLocaleString()} ${tgEsc(ctx.currency)}`,
+        `🧑‍💼 المنفذ: ${tgEsc(ctx.actor || '')}`,
+        'ℹ️ نُقل إلى سلة المحذوفات (3 أيام).',
+      ], ctx),
+    })));
     const updated = customers.filter(c => c.id !== id);
     setCustomers(updated);
     try {
@@ -1914,6 +1996,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomersList }, currentSessionId, currentUser?.uid);
     }
 
+    emitTelegram('invoiceSold', ctx => ({
+      store: formatInvoice(newInv, ctx, '🛒 <b>بيع قائمة</b>'),
+      customerId: newInv.customerId,
+      customer: newInv.customerId ? formatInvoice(newInv, ctx, '🧾 <b>قائمة جديدة على حسابك</b>', true) : undefined,
+    }));
+    if (newInv.customerId && newInv.remainingAmount > 0) {
+      emitTelegram('creditSale', ctx => ({
+        store: formatSimple('💳 <b>بيع بالدين</b>', [
+          `👤 الزبون: ${tgEsc(newInv.customerName)}`,
+          `🧾 القائمة: <code>${tgEsc(newInv.invoiceNumber)}</code>`,
+          `الدين القديم: ${newInv.previousDebt.toLocaleString()} ${tgEsc(ctx.currency)}`,
+          `أُضيف عليه: <b>${newInv.remainingAmount.toLocaleString()} ${tgEsc(ctx.currency)}</b>`,
+          `إجمالي دينه الآن: <b>${newInv.currentTotalDebt.toLocaleString()} ${tgEsc(ctx.currency)}</b>`,
+          newInv.paymentDueDate ? `📅 الاستحقاق: ${tgEsc(newInv.paymentDueDate)}` : '',
+          `🧑‍💼 المنفذ: ${tgEsc(ctx.actor || '')}`,
+        ], ctx),
+      }));
+    }
+
     // بث فوري في الذاكرة (<1ms) لتحديث كميات المخزن والقوائم والشفت في جميع النوافذ المفتوحة
     broadcastSyncEvent('INVOICE_CREATED', {
       invoice: newInv,
@@ -1933,6 +2034,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const inv = invoices.find(i => i.id === id);
     if (!inv) return;
     moveToTrash('invoices', [inv], x => `${x.invoiceNumber || ''} - ${x.customerName || ''}`);
+    emitTelegram('invoiceDeleted', ctx => ({ store: formatDeletedInvoice(inv, ctx) }));
     inv.items.forEach(i => adjustStock(i.productId, i.deductedPieces ?? i.quantity));
     const updated = invoices.filter(i => i.id !== id);
     setInvoices(updated);
@@ -1955,7 +2057,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     broadcastSyncEvent('INVOICE_DELETED', { invoiceId: id, updatedInvoices: updated }, currentSessionId, currentUser?.uid);
   };
 
-  const returnInvoice = async (id: string): Promise<boolean> => {
+  const returnInvoice = async (id: string, reason?: string): Promise<boolean> => {
     if (!hasPermission('canReturnInvoice')) {
       setSyncNotice('⚠️ لا تملك صلاحية استرجاع الفواتير.');
       setTimeout(() => setSyncNotice(null), 4000);
@@ -2002,6 +2104,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('cached_pos_invoices', JSON.stringify(updatedInvoices));
     } catch {}
     saveStoreToCloud({ invoices: updatedInvoices, customers: updatedCustomers });
+    const debtAfter = updatedCustomers.find(c => c.id === inv.customerId)?.totalDebt;
+    emitTelegram('invoiceReturnedFull', ctx => ({
+      store: formatReturnFull(inv, ctx, reason || ''),
+      customerId: inv.customerId,
+      customer: inv.customerId
+        ? formatSimple('↩️ <b>إرجاع كامل لقائمتك</b>', [
+            `🧾 القائمة: <code>${tgEsc(inv.invoiceNumber)}</code>`,
+            `📝 السبب: ${tgEsc(reason || 'غير مذكور')}`,
+            `إجمالي دينك الآن: <b>${Number(debtAfter || 0).toLocaleString()} ${tgEsc(ctx.currency)}</b>`,
+          ], ctx)
+        : undefined,
+    }));
     return true;
   };
 
@@ -2114,6 +2228,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
     saveStoreToCloud({ invoices: updatedInvoices, customers: updatedCustomers });
 
+    const debtAfterPartial = updatedCustomers.find(c => c.id === inv.customerId)?.totalDebt;
+    emitTelegram('invoiceReturnedPartial', ctx => ({
+      store: formatReturnPartial(
+        updatedInvoice,
+        newReturnedRecords,
+        ctx,
+        reason,
+        notes,
+        { total: totalRefundAmount, debtReduction, cashRefund }
+      ),
+      customerId: inv.customerId,
+      customer: inv.customerId
+        ? formatSimple('↩️ <b>إرجاع جزئي من قائمتك</b>', [
+            `🧾 القائمة: <code>${tgEsc(inv.invoiceNumber)}</code>`,
+            ...newReturnedRecords.map(r => `• ${tgEsc(r.productName)} × ${r.quantity} = ${r.refundAmount.toLocaleString()} ${tgEsc(ctx.currency)}`),
+            `📝 السبب: ${tgEsc(reason || 'غير مذكور')}`,
+            `إجمالي دينك الآن: <b>${Number(debtAfterPartial || 0).toLocaleString()} ${tgEsc(ctx.currency)}</b>`,
+          ], ctx)
+        : undefined,
+    }));
+
     return { success: true };
   };
 
@@ -2150,6 +2285,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
     saveStoreToCloud({ customers: updatedCustomers, payments: updatedPayments });
     broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomers }, currentSessionId, currentUser?.uid);
+    const remainingAfter = updatedCustomers.find(c => c.id === customerId)?.totalDebt || 0;
+    emitTelegram('debtPayment', ctx => ({
+      store: formatPayment(p, remainingAfter, ctx),
+      customerId,
+      customer: formatPayment(p, remainingAfter, ctx, true),
+    }));
     return p;
   };
 
@@ -2600,6 +2741,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     saveStoreToCloud({ shifts: updatedShifts });
     broadcastSyncEvent('SHIFT_UPDATED', { shift: newShift, allShifts: updatedShifts }, currentSessionId, currentUser?.uid);
+    emitTelegram('shiftStarted', ctx => ({
+      store: formatSimple('▶️ <b>بدء شفت</b>', [
+        `الشفت: ${tgEsc(newShift.presetShiftName || '')} (رقم ${tgEsc(String((newShift as any).shiftNumber ?? ''))})`,
+        `🧑‍💼 فتحه: ${tgEsc(newShift.openedBy?.name || '')} (${tgEsc(String(newShift.openedBy?.role || ''))})`,
+        `📱 الجهاز: ${tgEsc(newShift.deviceName || '')}`,
+        newShift.notes ? `📝 ${tgEsc(newShift.notes)}` : '',
+      ], ctx),
+    }));
     return { success: true, shift: newShift };
   };
 
@@ -2648,6 +2797,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     await saveStoreToCloud({ shifts: updatedShifts });
     broadcastSyncEvent('SHIFT_UPDATED', { shift: closedShift, allShifts: updatedShifts }, currentSessionId, currentUser?.uid);
+    emitTelegram('shiftEnded', ctx => ({
+      store: formatSimple('⏹️ <b>إنهاء شفت</b>', [
+        `الشفت: ${tgEsc(closedShift.presetShiftName || '')} (رقم ${tgEsc(String((closedShift as any).shiftNumber ?? ''))})`,
+        `🧑‍💼 فتحه: ${tgEsc(closedShift.openedBy?.name || '')} | أغلقه: ${tgEsc(closedShift.closedBy?.name || '')}`,
+        `🕒 من ${new Date(closedShift.startTime).toLocaleString('ar-IQ')} إلى ${new Date(closedShift.endTime || Date.now()).toLocaleString('ar-IQ')}`,
+        `عدد القوائم: ${closedShift.invoicesCount}`,
+        `إجمالي المبيعات: <b>${closedShift.totalSales.toLocaleString()} ${tgEsc(ctx.currency)}</b>`,
+        `الواصل: ${closedShift.totalPaid.toLocaleString()} | المتبقي (دين): ${closedShift.totalRemaining.toLocaleString()}`,
+        ctx.includeProfit ? `📈 الربح: ${closedShift.totalProfit.toLocaleString()} ${tgEsc(ctx.currency)}` : '',
+        closedShift.notes ? `📝 ${tgEsc(closedShift.notes)}` : '',
+      ], ctx),
+    }));
     return closedShift;
   };
 
@@ -2709,18 +2870,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } as SalesRep;
     const updated = [...(settings.salesReps || []), newRep];
     updateSettings({ salesReps: updated });
+    emitTelegram('repChanges', ctx => ({
+      store: formatSimple('🚚 <b>إضافة مندوب</b>', [
+        `الاسم: ${tgEsc(newRep.name)}${newRep.phone ? ` — ${tgEsc(newRep.phone)}` : ''}`,
+        `العمولة: ${newRep.commissionRate}${newRep.commissionType?.startsWith('fixed') ? ` ${tgEsc(ctx.currency)}` : '%'}`,
+        `🧑‍💼 المنفذ: ${tgEsc(ctx.actor || '')}`,
+      ], ctx),
+    }));
     return newRep;
   };
 
   const updateSalesRep = async (id: string, updates: Partial<SalesRep>) => {
     const updated = (settings.salesReps || []).map(r => r.id === id ? { ...r, ...updates, updatedAt: new Date().toISOString() } : r);
     updateSettings({ salesReps: updated });
+    const repAfter = updated.find(r => r.id === id);
+    if (repAfter) {
+      emitTelegram('repChanges', ctx => ({
+        store: formatSimple('🚚 <b>تعديل مندوب</b>', [
+          `الاسم: ${tgEsc(repAfter.name)}`,
+          `العمولة: ${repAfter.commissionRate}${repAfter.commissionType?.startsWith('fixed') ? ` ${tgEsc(ctx.currency)}` : '%'}`,
+          `🧑‍💼 المنفذ: ${tgEsc(ctx.actor || '')}`,
+        ], ctx),
+      }));
+    }
   };
 
   const deleteSalesRep = async (id: string) => {
     moveToTrash('reps', (settings.salesReps || []).filter(r => r.id === id), x => x.name || 'مندوب');
     const updated = (settings.salesReps || []).filter(r => r.id !== id);
     updateSettings({ salesReps: updated });
+    const goneRep = (settings.salesReps || []).find(r => r.id === id);
+    if (goneRep) {
+      emitTelegram('repChanges', ctx => ({
+        store: formatSimple('🗑️ <b>حذف مندوب</b>', [`الاسم: ${tgEsc(goneRep.name)}`, `🧑‍💼 المنفذ: ${tgEsc(ctx.actor || '')}`, 'ℹ️ نُقل إلى سلة المحذوفات (3 أيام).'], ctx),
+      }));
+    }
   };
 
   const loginUser = async (user: any): Promise<{ success: boolean; error?: string } | void> => {

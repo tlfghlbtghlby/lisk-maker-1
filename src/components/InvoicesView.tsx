@@ -99,9 +99,12 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
 
     if (!confirmed) return;
 
+    const returnReason = window.prompt('سبب الإرجاع (يُرسل ضمن إشعار التليجرام):', 'رغبة الزبون');
+    if (returnReason === null) return;
+
     setReturningId(inv.id);
     try {
-      const ok = await returnInvoice(inv.id);
+      const ok = await returnInvoice(inv.id, returnReason.trim() || 'غير مذكور');
       if (ok) {
         setFeedbackNotice(`تم إرجاع القائمة (${inv.invoiceNumber}) واسترداد كافة المواد إلى المخزن بنجاح!`);
         setTimeout(() => setFeedbackNotice(null), 5000);

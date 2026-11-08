@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import TrashPanel from './TrashPanel';
+import CustomerTelegramModal from './CustomerTelegramModal';
 import { Customer, Invoice, PaymentRecord } from '../types';
 import { 
   Users, 
@@ -45,6 +46,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
 
   // Modals state
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [telegramCustomer, setTelegramCustomer] = useState<Customer | null>(null);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
@@ -348,6 +350,19 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                           >
                             <FileText className="w-3.5 h-3.5" />
                             <span>كشف حساب</span>
+                          </button>
+
+                          <button
+                            onClick={() => setTelegramCustomer(cust)}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border flex items-center gap-1 transition ${
+                              cust.telegramLinked
+                                ? 'text-sky-800 bg-sky-50 border-sky-300'
+                                : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border-slate-200'
+                            }`}
+                            title="رمز ربط الزبون ببوت التليجرام"
+                          >
+                            <span>✈️</span>
+                            <span>{cust.telegramLinked ? 'مرتبط' : 'تليجرام'}</span>
                           </button>
                         </div>
                       </td>
@@ -760,6 +775,9 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
         </div>
       )}
 
+      {telegramCustomer && (
+        <CustomerTelegramModal customer={telegramCustomer} onClose={() => setTelegramCustomer(null)} />
+      )}
     </div>
   );
 };

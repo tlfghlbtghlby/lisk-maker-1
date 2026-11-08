@@ -105,6 +105,39 @@ export interface ReturnedItemRecord {
   returnedBy?: string;
 }
 
+export type TelegramEventKey =
+  | 'invoiceSold'
+  | 'creditSale'
+  | 'debtPayment'
+  | 'invoiceDeleted'
+  | 'invoiceReturnedFull'
+  | 'invoiceReturnedPartial'
+  | 'productAdded'
+  | 'productEdited'
+  | 'productDeleted'
+  | 'customerAdded'
+  | 'customerDeleted'
+  | 'shiftStarted'
+  | 'shiftEnded'
+  | 'repChanges'
+  | 'trashRestored';
+
+export interface TelegramSettings {
+  enabled: boolean;
+  /** رمز ربط المتجر الذي يرسله صاحب المتجر إلى البوت (ST-XXXXXXXX) */
+  code: string;
+  /** سرّ المتجر لمصادقة الطلبات على دالة التليجرام */
+  secret: string;
+  linked: boolean;
+  linkedChats?: number;
+  linkedAt?: string;
+  botUsername?: string;
+  events: Partial<Record<TelegramEventKey, boolean>>;
+  includeItems: boolean;
+  includeProfit: boolean;
+  customerNotifications: boolean;
+}
+
 export interface SalesRep {
   id: string;
   name: string;
@@ -384,6 +417,7 @@ export interface StoreSettings {
   invoiceShowPiecePrice?: boolean;
   quickQuantityEntry?: boolean;
   giftCostCounted?: boolean;
+  telegram?: TelegramSettings;
   invoiceSecret?: string;
   deviceMode: DeviceMode;
   desktopLayout: DesktopLayoutMode;
