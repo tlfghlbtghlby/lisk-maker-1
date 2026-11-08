@@ -87,9 +87,10 @@ const COMMON_CURRENCIES = [
 
 interface SettingsViewProps {
   initialTab?: 'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'customer-qr' | 'all';
+  onSaved?: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store' }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store', onSaved }) => {
   const { 
     settings, 
     updateSettings, 
@@ -254,6 +255,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [showSpecialPrice, setShowSpecialPrice] = useState<boolean>(settings.showSpecialPrice !== false);
   const [invoiceShowCartonColumns, setInvoiceShowCartonColumns] = useState<boolean>(settings.invoiceShowCartonColumns !== false);
   const [invoiceShowPiecePrice, setInvoiceShowPiecePrice] = useState<boolean>(settings.invoiceShowPiecePrice === true);
+  const [giftCostCounted, setGiftCostCounted] = useState<boolean>(settings.giftCostCounted !== false);
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
   const [enableSalesReps, setEnableSalesReps] = useState<boolean>(settings.enableSalesReps ?? false);
   const [defaultShowRepOnInvoice, setDefaultShowRepOnInvoice] = useState<boolean>(settings.defaultShowRepOnInvoice ?? true);
@@ -408,6 +410,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setInvoiceShowCartonColumns(settings.invoiceShowCartonColumns !== false);
       setInvoiceShowPiecePrice(settings.invoiceShowPiecePrice === true);
       setQuickQuantityEntry(settings.quickQuantityEntry === true);
+      setGiftCostCounted(settings.giftCostCounted !== false);
       if (settings.defaultShowRepOnInvoice !== undefined) setDefaultShowRepOnInvoice(settings.defaultShowRepOnInvoice);
       if (settings.repCommissionDefaultType !== undefined) setRepCommissionDefaultType(settings.repCommissionDefaultType);
       if (settings.desktopLayout) setDesktopLayout(settings.desktopLayout);
@@ -489,6 +492,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       invoiceShowCartonColumns,
       invoiceShowPiecePrice,
       quickQuantityEntry,
+      giftCostCounted,
       enableSalesReps,
       defaultShowRepOnInvoice,
       repCommissionDefaultType,
@@ -504,9 +508,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       invoiceTemplate,
       modernHeader: modernHeaderConfig,
     } as any);
+    // نافذة نجاح ثم العودة للنافذة الرئيسية دون أي أثر للحفظ في الإعدادات
     setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2500);
   };
+
+  const closeSavedModal = () => {
+    setSavedSuccess(false);
+    if (onSaved) onSaved();
+  };
+
+  useEffect(() => {
+    if (!savedSuccess) return;
+    const t = setTimeout(closeSavedModal, 2200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedSuccess]);
 
   const handleSaveSessionsOnly = () => {
     updateSettings({
@@ -963,13 +979,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               <h2 className="text-base font-bold text-slate-900 dark:text-white">بيانات المحل والقوائم والطباعة</h2>
             </div>
           </div>
-          {savedSuccess && (
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400 px-3 py-1 rounded-lg border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-1">
-              <Check className="w-3.5 h-3.5" />
-              تم حفظ التعديلات بنجاح!
-            </span>
-          )}
         </div>
+
+        {savedSuccess && (
+          <div
+            className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-md flex items-center justify-center p-4"
+            dir="rtl"
+            onClick={closeSavedModal}
+          >
+            <div
+              className="bg-white dark:bg-[#0b1728] border border-emerald-300 dark:border-emerald-500/40 rounded-2xl shadow-2xl px-8 py-7 text-center max-w-sm w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 dark:bg-emerald-950/60 flex items-center justify-center mb-3">
+                <Check className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <h3 className="text-base font-black text-slate-900 dark:text-white mb-1">تم حفظ الإعدادات بنجاح</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">سيتم الرجوع إلى النافذة الرئيسية</p>
+              <button
+                type="button"
+                onClick={closeSavedModal}
+                className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer transition"
+              >
+                حسناً
+              </button>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSaveSettings} className="p-6 space-y-5">
           <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 space-y-3">
@@ -1527,6 +1563,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="checkbox"
                 checked={invoiceShowPiecePrice}
                 onChange={(e) => setInvoiceShowPiecePrice(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">احتساب تكلفة الهدايا من الأرباح</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">مفعّل: تكلفة المادة المُهداة تُخصم من الربح. معطّل: لا تؤثر الهدية على الربح</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={giftCostCounted}
+                onChange={(e) => setGiftCostCounted(e.target.checked)}
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>

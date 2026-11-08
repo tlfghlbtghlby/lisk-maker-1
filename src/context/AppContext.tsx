@@ -32,6 +32,7 @@ import { findDuplicateGroups } from '../utils/duplicateCleaner';
 import { mergeProducts, mergeInvoices, mergeShifts } from '../utils/syncEngine';
 import { broadcastSync, subscribeSync, SyncMessage } from '../utils/syncChannel';
 import pkg from '../../package.json';
+import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/invoiceSeal';
 
 export const CURRENT_APP_VERSION = (pkg as any)?.version || '2.0.0';
 
@@ -235,6 +236,7 @@ const defaultEmptySettings: StoreSettings = {
   invoiceShowCartonColumns: true,
   invoiceShowPiecePrice: false,
   quickQuantityEntry: false,
+  giftCostCounted: true,
   deviceMode: typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
   desktopLayout: 'full',
   supervisorPin: '1122',
@@ -1552,10 +1554,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let subtotal = 0;
     let totalCost = 0;
 
+    // خيار: هل تُحسب تكلفة الهدايا ضمن الأرباح (الافتراضي: نعم)
+    const giftCostCounted = settings.giftCostCounted !== false;
     const items = data.items.map((i: InvoiceItem) => {
+      const cost = i.isGift && !giftCostCounted ? 0 : i.costPrice;
       subtotal += i.unitPrice * i.quantity;
-      totalCost += i.costPrice * i.quantity;
-      return { ...i, subtotal: i.unitPrice * i.quantity };
+      totalCost += cost * i.quantity;
+      return { ...i, costPrice: cost, subtotal: i.unitPrice * i.quantity };
     });
 
     const total = Math.max(0, subtotal - (data.discount || 0));
@@ -1598,10 +1603,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const previousDebt = debtCustomer ? Math.max(0, Number(debtCustomer.totalDebt) || 0) : 0;
     const currentTotalDebt = previousDebt + remainingAmount;
 
+    // بصمة التحقق الخاصة بالمتجر
+    let storeSecret = settings.invoiceSecret;
+    if (!storeSecret) {
+      storeSecret = generateStoreSecret();
+      updateSettings({ invoiceSecret: storeSecret });
+    }
+    const invoiceNumberNew = `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4, '0')}`;
+    const customerNameNew = data.customerName || (data.type === 'direct' ? 'زبون نقدي مباشر' : 'عميل غير مسجل');
+    const sealNew = computeInvoiceSeal(storeSecret, {
+      invoiceNumber: invoiceNumberNew,
+      total,
+      date: now,
+      customerName: customerNameNew,
+      itemsCount: items.length,
+    });
+
     const newInv: any = {
       id: newId,
+      storeCode: getStoreCode(storeSecret),
+      seal: sealNew,
       ownerUid: currentUser?.uid || '',
-      invoiceNumber: `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(4, '0')}`,
+      invoiceNumber: invoiceNumberNew,
       date: now,
       createdAt: now,
       updatedAt: now,

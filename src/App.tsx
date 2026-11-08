@@ -449,7 +449,7 @@ const MainContent: React.FC = () => {
         )}
 
         {activeTab === 'settings' && (
-          <SettingsView initialTab={settingsInitialTab} />
+          <SettingsView initialTab={settingsInitialTab} onSaved={() => setActiveTab('pos')} />
         )}
       </main>
 
