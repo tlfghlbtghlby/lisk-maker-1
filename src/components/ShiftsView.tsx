@@ -30,7 +30,6 @@ import {
   Users
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import TrashPanel from './TrashPanel';
 import { Shift, Invoice, PresetShift } from '../types';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
 
@@ -338,7 +337,6 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
 
         {/* Buttons: Sessions + Start/End Shift */}
         <div className="flex flex-wrap items-center gap-2">
-          <TrashPanel sections={['shifts']} title="سلة محذوفات الشفتات" />
           {sessionRole === 'admin' && (
             <button
               type="button"

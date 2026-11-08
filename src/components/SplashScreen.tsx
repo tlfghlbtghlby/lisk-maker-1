@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, ShieldCheck, Zap, ArrowLeft } from 'lucide-react';
+import { APP_ICON_URL } from '../utils/assetUrl';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -99,7 +100,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
           
           <div className="relative w-36 h-36 sm:w-44 sm:h-44 rounded-full p-1.5 bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 shadow-2xl shadow-amber-500/30 flex items-center justify-center">
             <img
-              src="/assets/aistudio/1792973910260_3946b0af.jpg"
+              src={APP_ICON_URL}
               alt="شعار برنامج المفكر المحاسبي"
               className="w-full h-full object-cover rounded-full shadow-inner ring-2 ring-slate-950"
             />

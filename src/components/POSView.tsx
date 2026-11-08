@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import TrashPanel from './TrashPanel';
 import { Product, SaleType, PriceType, InvoiceItem, Invoice } from '../types';
 import { getPiecePrice, hasOwnPrice, PRICE_TYPE_LABELS } from '../utils/pricing';
 import { 
@@ -873,7 +872,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
-        <TrashPanel sections={['products', 'invoices']} title="سلة محذوفات نقطة البيع (مواد وقوائم)" />
       </div>
       {sessionRole === 'employee' && !activeShift && (
         <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-3 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-950 shadow-xs animate-in fade-in">
@@ -1577,7 +1575,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     return (
                       <div
                         key={`${lineKeyOf(item)}_${index}`}
-                        className={`border rounded-lg p-2 flex flex-col gap-1.5 transition text-right ${
+                        className={`border rounded-lg px-2 py-1 flex flex-col gap-0.5 transition text-right ${
                           isStockZero 
                             ? 'bg-rose-50/50 border-rose-300' 
                             : 'bg-slate-50 border-slate-200'
@@ -1586,32 +1584,32 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         <div className="flex items-start justify-between gap-1.5">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1 flex-wrap">
-                              <span className="w-4 h-4 rounded font-mono text-[10px] font-bold flex items-center justify-center shrink-0 bg-slate-200 text-slate-700">
+                              <span className="w-5 h-5 rounded font-mono text-[12px] font-bold flex items-center justify-center shrink-0 bg-slate-200 text-slate-700">
                                 {index + 1}
                               </span>
-                              <span className="text-xs font-bold text-slate-900 leading-snug truncate">
-                                {item.productName}{item.isGift && <span className="mr-1 text-[10px] font-black text-pink-700 bg-pink-50 border border-pink-300 px-1 rounded">🎁 هدية</span>}
+                              <span className="text-[15px] font-bold text-slate-900 leading-tight line-clamp-2 break-words">
+                                {item.productName}{item.isGift && <span className="mr-1 text-[12px] font-black text-pink-700 bg-pink-50 border border-pink-300 px-1 rounded">🎁 هدية</span>}
                               </span>
 
                               {item.isWeighted && (
-                                <span className="text-[9px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-1 rounded flex items-center gap-0.5">
+                                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-1 rounded flex items-center gap-0.5">
                                   <Scale className="w-2.5 h-2.5 text-emerald-700" />
                                   <span>وزن</span>
                                 </span>
                               )}
                               {item.isCustomPrice && (
-                                <span className="px-1 py-0.2 rounded bg-blue-100 text-blue-800 text-[9px] font-bold border border-blue-200">
+                                <span className="px-1 py-0.2 rounded bg-blue-100 text-blue-800 text-[11px] font-bold border border-blue-200">
                                   سعر خاص
                                 </span>
                               )}
                               {isStockZero && (
-                                <span className="px-1 py-0.2 rounded bg-rose-600 text-white text-[9px] font-black">
+                                <span className="px-1 py-0.2 rounded bg-rose-600 text-white text-[11px] font-black">
                                   رصيد 0
                                 </span>
                               )}
                             </div>
 
-                            <div className="text-[9px] text-slate-500 flex items-center gap-1 mt-0.5 flex-wrap">
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 flex-wrap">
                               {item.isWeighted ? (
                                 <span>سعر الكيلو الواحد: <strong className="font-mono text-slate-700">{formatMoney(item.unitPrice)}</strong></span>
                               ) : (
@@ -1641,7 +1639,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </button>
 
                             {!item.isWeighted && (
-                              <div className="inline-flex items-center bg-slate-200/80 p-0.5 rounded border border-slate-300 text-[9px] font-bold">
+                              <div className="inline-flex items-center bg-slate-200/80 p-0.5 rounded border border-slate-300 text-[11px] font-bold">
                                 <button
                                   type="button"
                                   onClick={() => toggleItemUnitType(lineKeyOf(item), 'piece')}
@@ -1683,7 +1681,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
                         {editingPriceProductId === lineKeyOf(item) && (
                           <div className="bg-blue-50 border border-blue-300 rounded-lg p-2 my-0.5 flex flex-col gap-1.5 shadow-2xs">
-                            <div className="flex items-center justify-between text-[10px] font-bold text-blue-950">
+                            <div className="flex items-center justify-between text-[12px] font-bold text-blue-950">
                               <span>تعديل السعر للقائمة:</span>
                               {canViewCost && (
                                 <span className="text-slate-600 font-mono">تكلفة: {formatMoney(item.costPrice)}</span>
@@ -1710,14 +1708,14 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               <button
                                 type="button"
                                 onClick={() => handleSaveCartItemPrice(lineKeyOf(item))}
-                                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[10px] font-bold transition cursor-pointer"
+                                className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-[12px] font-bold transition cursor-pointer"
                               >
                                 حفظ
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setEditingPriceProductId(null)}
-                                className="px-1.5 py-1 bg-slate-200 text-slate-700 rounded text-[10px] font-bold"
+                                className="px-1.5 py-1 bg-slate-200 text-slate-700 rounded text-[12px] font-bold"
                               >
                                 إلغاء
                               </button>
@@ -1729,7 +1727,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-200/70 bg-emerald-50/40 p-2 rounded-xl border border-emerald-200/60 shadow-2xs">
                             <div className="grid grid-cols-2 gap-1.5 items-center">
                               <div className="flex items-center gap-1 bg-white border border-emerald-400 rounded-lg px-1.5 py-1 shadow-2xs">
-                                <span className="text-[10px] font-bold text-emerald-950 shrink-0">كغم:</span>
+                                <span className="text-[12px] font-bold text-emerald-950 shrink-0">كغم:</span>
                                 <button
                                   type="button"
                                   onClick={() => updateItemWeight(lineKeyOf(item), Math.max(0.005, item.quantity - 0.05))}
@@ -1747,7 +1745,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                     const val = parseFloat(e.target.value);
                                     if (!isNaN(val)) updateItemWeight(lineKeyOf(item), val);
                                   }}
-                                  className="w-full text-center text-xs font-black focus:outline-none font-mono bg-transparent"
+                                  className="w-full text-center text-[14px] font-black focus:outline-none font-mono bg-transparent"
                                 />
                                 <button
                                   type="button"
@@ -1760,7 +1758,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               </div>
 
                               <div className="flex items-center gap-1 bg-white border border-amber-400 rounded-lg px-2 py-1 shadow-2xs">
-                                <span className="text-[10px] font-bold text-amber-950 shrink-0">غرام:</span>
+                                <span className="text-[12px] font-bold text-amber-950 shrink-0">غرام:</span>
                                 <input
                                   type="number"
                                   min="1"
@@ -1771,15 +1769,15 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                     if (!isNaN(val)) updateItemWeightInGrams(lineKeyOf(item), val);
                                   }}
                                   placeholder="350"
-                                  className="w-full text-center text-xs font-black focus:outline-none font-mono bg-transparent text-amber-950"
+                                  className="w-full text-center text-[14px] font-black focus:outline-none font-mono bg-transparent text-amber-950"
                                 />
-                                <span className="text-[9px] font-bold text-amber-700">g</span>
+                                <span className="text-[11px] font-bold text-amber-700">g</span>
                               </div>
                             </div>
 
                             <div className="flex items-center justify-between gap-1 flex-wrap">
                               <div className="flex items-center gap-1 bg-white border border-blue-400 rounded-lg px-2 py-0.5 shadow-2xs" title="حدد المبلغ المطلوب وسيحسب النظام الوزن بدقة">
-                                <span className="text-[10px] font-black text-blue-950 shrink-0">بيع بمبلغ:</span>
+                                <span className="text-[12px] font-black text-blue-950 shrink-0">بيع بمبلغ:</span>
                                 <input
                                   type="number"
                                   min="0"
@@ -1789,9 +1787,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                     const val = parseFloat(e.target.value);
                                     if (!isNaN(val)) updateItemByTargetAmount(lineKeyOf(item), val);
                                   }}
-                                  className="w-16 text-center text-xs font-black text-blue-900 focus:outline-none font-mono bg-transparent"
+                                  className="w-16 text-center text-[14px] font-black text-blue-900 focus:outline-none font-mono bg-transparent"
                                 />
-                                <span className="text-[9px] font-bold text-blue-700">{settings.currency || 'د.ع'}</span>
+                                <span className="text-[11px] font-bold text-blue-700">{settings.currency || 'د.ع'}</span>
                               </div>
 
                               <div className="flex items-center gap-0.5 flex-wrap">
@@ -1806,7 +1804,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                     key={chip.label}
                                     type="button"
                                     onClick={() => updateItemWeight(lineKeyOf(item), chip.kg)}
-                                    className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold transition cursor-pointer ${
+                                    className={`px-1.5 py-0.5 rounded text-[11px] font-mono font-bold transition cursor-pointer ${
                                       Math.abs(item.quantity - chip.kg) < 0.001
                                         ? 'bg-emerald-600 text-white shadow-2xs'
                                         : 'bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-800 border border-slate-300'
@@ -1818,8 +1816,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               </div>
                             </div>
 
-                            <div className="flex items-center justify-between text-[10px] text-slate-600 pt-0.5 px-0.5">
-                              <span className="flex items-center gap-1 font-mono text-[10px]">
+                            <div className="flex items-center justify-between text-[12px] text-slate-600 pt-0.5 px-0.5">
+                              <span className="flex items-center gap-1 font-mono text-[12px]">
                                 <span className="font-bold text-slate-800">{item.quantity} كغم</span>
                                 <span className="text-slate-400">({item.weightGrams ?? Math.round(item.quantity * 1000)}g)</span>
                                 <span>×</span>
@@ -1831,7 +1829,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-xs">
+                          <div className="flex items-center justify-between pt-0.5 border-t border-slate-200/60 text-[13px]">
                             <div className="flex items-center gap-1">
                               <div className="flex items-center bg-white border border-slate-300 rounded overflow-hidden">
                                 <button
@@ -1849,7 +1847,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                     const parsed = parseFloat(e.target.value);
                                     if (!isNaN(parsed)) updateQuantity(lineKeyOf(item), parsed);
                                   }}
-                                  className="w-10 text-center text-xs font-bold py-0.5 border-x border-slate-200 focus:outline-none font-mono"
+                                  className="w-12 text-center text-[14px] font-bold py-0 border-x border-slate-200 focus:outline-none font-mono"
                                 />
                                 <button
                                   type="button"
@@ -1860,12 +1858,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                 </button>
                               </div>
 
-                              <span className="text-[10px] font-bold text-slate-600">
+                              <span className="text-[12px] font-bold text-slate-600">
                                 {isCarton ? 'كرتون' : item.unit || 'قطعة'}
                               </span>
                             </div>
 
-                            <div className="text-right flex items-center gap-1 text-[11px]">
+                            <div className="text-right flex items-center gap-1 text-[13px]">
                               <span className="font-mono text-slate-600 flex items-center gap-1">
                                 <span>{formatMoney(item.unitPrice)} × {item.quantity} =</span>
                               </span>

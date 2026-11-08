@@ -249,6 +249,7 @@ const defaultEmptySettings: StoreSettings = {
   invoiceShowCartonColumns: true,
   invoiceShowPiecePrice: false,
   quickQuantityEntry: false,
+  allowMultiDeviceShifts: true,
   giftCostCounted: true,
   deviceMode: typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
   desktopLayout: 'full',
@@ -521,36 +522,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  // مزامنة activeShift عند تبديل المستخدم أو الجلسة لضمان عزله التام لكل متجر ولكل حساب
-  useEffect(() => {
-    if (!currentUser) {
-      setActiveShift(null);
-      return;
-    }
-
-    const currentUid = currentUser.uid;
-    const myActive = shifts.find(s => {
-      if (s.status !== 'active') return false;
-      // لا يُعرض شفت لمتجر آخر إطلاقاً
-      if (s.storeUid && s.storeUid !== currentUid) return false;
-      if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUid) return false;
-
-      const shiftOpUid = (s as any).operatorId || s.openedBy?.uid;
-      const shiftSupId = (s as any).supervisorId;
-
-      if (sessionRole === 'supervisor' && activeSupervisorId) {
-        return shiftSupId === activeSupervisorId || shiftOpUid === currentAccountIdentifier;
-      }
-      return (
-        shiftOpUid === currentAccountIdentifier ||
-        shiftOpUid === currentUid ||
-        (s.openedBy?.role === sessionRole && s.deviceId === currentDeviceId)
-      );
-    });
-
-    setActiveShift(myActive || null);
-  }, [shifts, currentUser, sessionRole, activeSupervisorId, currentAccountIdentifier, currentDeviceId]);
-
   // دالة بث موحدة تستخدم قناة الذاكرة syncChannel
   const broadcastSyncEvent = (type: any, data: any, _sessionId?: string, storeUid?: string) => {
     broadcastSync(type, data, storeUid || currentUser?.uid);
@@ -726,6 +697,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return defaultEmptySettings;
     }
   });
+
+  // مزامنة activeShift عند تبديل المستخدم أو الجلسة لضمان عزله التام لكل متجر ولكل حساب
+  useEffect(() => {
+    if (!currentUser) {
+      setActiveShift(null);
+      return;
+    }
+
+    const currentUid = currentUser.uid;
+    const multiDevice = settings.allowMultiDeviceShifts !== false;
+    const candidates = shifts.filter(s => {
+      if (s.status !== 'active') return false;
+      // عند تفعيل الشفتات المتعددة: لا نتبنّى شفتاً فتحه جهاز آخر، لكل جهاز شفته المستقل
+      if (multiDevice && s.deviceId && s.deviceId !== currentDeviceId) return false;
+      // لا يُعرض شفت لمتجر آخر إطلاقاً
+      if (s.storeUid && s.storeUid !== currentUid) return false;
+      if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUid) return false;
+
+      const shiftOpUid = (s as any).operatorId || s.openedBy?.uid;
+      const shiftSupId = (s as any).supervisorId;
+
+      if (sessionRole === 'supervisor' && activeSupervisorId) {
+        return shiftSupId === activeSupervisorId || shiftOpUid === currentAccountIdentifier;
+      }
+      return (
+        shiftOpUid === currentAccountIdentifier ||
+        shiftOpUid === currentUid ||
+        (s.openedBy?.role === sessionRole && s.deviceId === currentDeviceId)
+      );
+    });
+
+    const myActive = candidates.find(s => s.deviceId === currentDeviceId) || candidates[0];
+    setActiveShift(myActive || null);
+  }, [shifts, currentUser, sessionRole, activeSupervisorId, currentAccountIdentifier, currentDeviceId, settings.allowMultiDeviceShifts]);
+
 
   const [storeFeatures, setStoreFeatures] = useState<StoreFeatures>(() => {
     try {

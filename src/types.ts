@@ -416,6 +416,8 @@ export interface StoreSettings {
   invoiceShowCartonColumns?: boolean;
   invoiceShowPiecePrice?: boolean;
   quickQuantityEntry?: boolean;
+  // السماح بشفت مستقل ومتزامن على كل جهاز (الافتراضي: مفعّل)
+  allowMultiDeviceShifts?: boolean;
   giftCostCounted?: boolean;
   telegram?: TelegramSettings;
   invoiceSecret?: string;

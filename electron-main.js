@@ -29,6 +29,10 @@ const TAB_TITLES_MAP = {
   offers: 'العروض الترويجية'
 };
 
+// أيقونة النوافذ (تُنسخ من public إلى dist عند البناء)
+const APP_ICON = path.join(__dirname, 'dist', 'icon.png');
+const windowIcon = () => (fs.existsSync(APP_ICON) ? APP_ICON : undefined);
+
 let catalogCachePath = '';
 function initCachePath() {
   try {
@@ -91,6 +95,7 @@ function createSectionWindow(route = 'pos', title = '') {
     minWidth: 850,
     minHeight: 550,
     title: `المفكر المحاسبي - ${windowTitle}`,
+    icon: windowIcon(),
     autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
@@ -131,6 +136,7 @@ function createMainWindow() {
     minWidth: 950,
     minHeight: 600,
     title: 'برنامج المفكر المحاسبي',
+    icon: windowIcon(),
     autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
@@ -252,6 +258,11 @@ function startLocalServer() {
     res.end('ListMaker Local Server Active');
   });
 
+  // منفذ مشغول (نسخة أخرى أو برنامج آخر) لا يجب أن يُسقط التطبيق بنافذة خطأ
+  server.on('error', (err) => {
+    console.warn('[Offline Server] could not start:', err && err.code);
+  });
+
   server.listen(LOCAL_PORT, '0.0.0.0', () => {
     console.log(`[Offline Server] active on http://${getLocalHotspotIP()}:${LOCAL_PORT}`);
   });
@@ -303,11 +314,33 @@ const handlePrint = async (event, options = {}) => {
 ipcMain.handle('print-silent', handlePrint);
 ipcMain.handle('print-direct', handlePrint);
 
-app.whenReady().then(() => {
-  initCachePath();
-  startLocalServer();
-  startApp();
-});
+// نسخة واحدة فقط من البرنامج: أي تشغيل ثانٍ (مثل اختصار قسم) يفتح نافذة جديدة داخل النسخة الأولى
+// بدل تشغيل عملية جديدة تتعارض على المنفذ وقاعدة البيانات المحلية فتظهر رسالة خطأ.
+const gotSingleLock = app.requestSingleInstanceLock();
+
+if (!gotSingleLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const route = parseOpenRoute(argv);
+    if (route) {
+      createSectionWindow(route, '');
+      return;
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    } else {
+      createMainWindow();
+    }
+  });
+
+  app.whenReady().then(() => {
+    initCachePath();
+    startLocalServer();
+    startApp();
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

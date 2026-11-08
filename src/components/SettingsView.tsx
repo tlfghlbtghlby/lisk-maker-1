@@ -259,6 +259,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [invoiceShowPiecePrice, setInvoiceShowPiecePrice] = useState<boolean>(settings.invoiceShowPiecePrice === true);
   const [giftCostCounted, setGiftCostCounted] = useState<boolean>(settings.giftCostCounted !== false);
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
+  const [allowMultiDeviceShifts, setAllowMultiDeviceShifts] = useState<boolean>(settings.allowMultiDeviceShifts !== false);
   const [enableSalesReps, setEnableSalesReps] = useState<boolean>(settings.enableSalesReps ?? false);
   const [defaultShowRepOnInvoice, setDefaultShowRepOnInvoice] = useState<boolean>(settings.defaultShowRepOnInvoice ?? true);
   const [repCommissionDefaultType, setRepCommissionDefaultType] = useState<NonNullable<StoreSettings['repCommissionDefaultType']>>(
@@ -412,6 +413,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setInvoiceShowCartonColumns(settings.invoiceShowCartonColumns !== false);
       setInvoiceShowPiecePrice(settings.invoiceShowPiecePrice === true);
       setQuickQuantityEntry(settings.quickQuantityEntry === true);
+      setAllowMultiDeviceShifts(settings.allowMultiDeviceShifts !== false);
       setGiftCostCounted(settings.giftCostCounted !== false);
       if (settings.defaultShowRepOnInvoice !== undefined) setDefaultShowRepOnInvoice(settings.defaultShowRepOnInvoice);
       if (settings.repCommissionDefaultType !== undefined) setRepCommissionDefaultType(settings.repCommissionDefaultType);
@@ -494,6 +496,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       invoiceShowCartonColumns,
       invoiceShowPiecePrice,
       quickQuantityEntry,
+      allowMultiDeviceShifts,
       giftCostCounted,
       enableSalesReps,
       defaultShowRepOnInvoice,
@@ -1604,6 +1607,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="checkbox"
                 checked={quickQuantityEntry}
                 onChange={(e) => setQuickQuantityEntry(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">شفت مستقل لكل جهاز (شفتات متزامنة)</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">عند التفعيل يفتح كل جهاز شفته الخاص ويظهر الشفتان جاريين معاً. عند الإيقاف يعمل المتجر بشفت واحد مشترك.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={allowMultiDeviceShifts}
+                onChange={(e) => setAllowMultiDeviceShifts(e.target.checked)}
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>

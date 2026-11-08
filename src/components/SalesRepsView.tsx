@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import TrashPanel from './TrashPanel';
 import { SalesRep, Invoice } from '../types';
 import { 
   Users, 
@@ -381,7 +380,6 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <TrashPanel sections={['reps']} title="سلة محذوفات المندوبين" />
           <button
             type="button"
             onClick={handleExportCSV}

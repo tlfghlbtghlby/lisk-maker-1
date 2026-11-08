@@ -24,6 +24,7 @@ import {
 import { SessionBadgeButton } from './SessionBadgeButton';
 import { ShiftHeaderButton } from './ShiftHeaderButton';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
+import { APP_ICON_URL } from '../utils/assetUrl';
 
 interface HeaderProps {
   onOpenSettings?: () => void;
@@ -78,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
             <div className="flex items-center gap-3">
               <div className="relative w-11 h-11 rounded-xl p-0.5 bg-gradient-to-tr from-amber-500 via-yellow-300 to-amber-600 shadow-md shadow-amber-500/20 shrink-0">
                 <img 
-                  src="/assets/aistudio/1792973910260_3946b0af.jpg" 
+                  src={APP_ICON_URL} 
                   alt="المفكر سمارت"
                   className="w-full h-full object-cover rounded-[10px]" 
                 />
