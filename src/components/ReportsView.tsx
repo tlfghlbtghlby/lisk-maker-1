@@ -25,7 +25,9 @@ export const ReportsView: React.FC = () => {
     openSessionModal
   } = useApp();
 
-  const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'all'>('all');
+  const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'all' | 'custom'>('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
 
   if (!hasPermission('canViewReports')) {
     return (
@@ -53,6 +55,18 @@ export const ReportsView: React.FC = () => {
     const now = new Date();
     return invoices.filter((inv) => {
       const invDate = new Date(inv.date);
+      if (timeFilter === 'custom') {
+        // من بداية يوم "من" إلى نهاية يوم "إلى" (بالتوقيت المحلي)، وأي طرف فارغ = مفتوح
+        if (fromDate) {
+          const [y, m, d] = fromDate.split('-').map(Number);
+          if (invDate < new Date(y, m - 1, d, 0, 0, 0, 0)) return false;
+        }
+        if (toDate) {
+          const [y, m, d] = toDate.split('-').map(Number);
+          if (invDate > new Date(y, m - 1, d, 23, 59, 59, 999)) return false;
+        }
+        return true;
+      }
       if (timeFilter === 'today') {
         return invDate.toDateString() === now.toDateString();
       }
@@ -69,7 +83,7 @@ export const ReportsView: React.FC = () => {
       }
       return true;
     });
-  }, [invoices, timeFilter]);
+  }, [invoices, timeFilter, fromDate, toDate]);
 
   // Financial aggregates
   const totalSales = filteredInvoices.reduce((sum, i) => sum + i.total, 0);
@@ -161,8 +175,53 @@ export const ReportsView: React.FC = () => {
           >
             كامل الفترة
           </button>
+          <button
+            onClick={() => setTimeFilter('custom')}
+            className={`px-3 py-1.5 rounded-md transition ${
+              timeFilter === 'custom' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+            }`}
+          >
+            فترة محددة
+          </button>
         </div>
       </div>
+
+      {timeFilter === 'custom' && (
+        <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-700">
+          <label className="flex items-center gap-2">
+            من تاريخ
+            <input
+              type="date"
+              value={fromDate}
+              max={toDate || undefined}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-900"
+            />
+          </label>
+          <label className="flex items-center gap-2">
+            إلى تاريخ
+            <input
+              type="date"
+              value={toDate}
+              min={fromDate || undefined}
+              onChange={(e) => setToDate(e.target.value)}
+              className="border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-900"
+            />
+          </label>
+          {(fromDate || toDate) && (
+            <button
+              type="button"
+              onClick={() => { setFromDate(''); setToDate(''); }}
+              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600"
+            >
+              مسح التواريخ
+            </button>
+          )}
+          <span className="text-slate-400 font-normal">
+            النتائج تشمل اليومين المحددين كاملين. اترك أحدهما فارغاً لفترة مفتوحة.
+          </span>
+        </div>
+      )}
 
       {/* Main KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

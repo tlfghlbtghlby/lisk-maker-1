@@ -109,7 +109,7 @@ async function handleUpdate(update: any) {
   if (text === '/START' || text === '/HELP') {
     await sendTo(
       chatId,
-      '👋 أهلاً بك!\n\nأرسل <b>رمز الربط</b> الذي ظهر لك في البرنامج:\n• رمز المتجر يبدأ بـ <code>ST-</code>\n• رمز الزبون يبدأ بـ <code>CU-</code>\n\nلإيقاف الإشعارات أرسل /stop'
+      '👋 أهلاً بك!\n\nأرسل الرمز للربط\n\nلإيقاف الإشعارات أرسل /stop'
     );
     return;
   }

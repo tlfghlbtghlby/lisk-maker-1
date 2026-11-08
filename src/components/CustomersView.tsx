@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import TrashPanel from './TrashPanel';
 import CustomerTelegramModal from './CustomerTelegramModal';
 import { Customer, Invoice, PaymentRecord } from '../types';
 import { 
@@ -251,7 +250,6 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
             </button>
           )}
 
-          <TrashPanel sections={['customers']} title="سلة محذوفات الزبائن والديون" />
 
           <button
             onClick={() => setIsAddCustomerOpen(true)}

@@ -134,7 +134,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <TrashPanel sections={['invoices']} title="سلة محذوفات القوائم" />
+        <TrashPanel sections={['invoices', 'products', 'customers', 'reps', 'shifts', 'payments']} title="سلة المحذوفات (كل الأقسام)" />
       </div>
       
       {/* Top Financial Summary Cards */}

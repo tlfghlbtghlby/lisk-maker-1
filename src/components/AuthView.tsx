@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { loginWithEmailOrUsername, setupAdminPassword, ADMIN_SETUP_REQUIRED } from '../supabase';
 import { useApp } from '../context/AppContext';
+import { APP_ICON_URL } from '../utils/assetUrl';
 import { 
   Lock, 
   User, 
@@ -125,7 +126,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onSuccess, onContinueAsGuest
         <div className="text-center space-y-2">
           <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-2xl p-0.5 bg-gradient-to-tr from-amber-500 via-yellow-300 to-amber-600 shadow-2xl shadow-amber-500/25 mb-1">
             <img 
-              src="/assets/aistudio/1792973910260_3946b0af.jpg" 
+              src={APP_ICON_URL} 
               alt="برنامج المفكر المحاسبي" 
               className="w-full h-full object-cover rounded-[14px]"
             />

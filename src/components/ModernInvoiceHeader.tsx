@@ -1,6 +1,7 @@
 import React from 'react';
 import { StoreSettings } from '../types';
 import { MapPin, Phone, Send, Facebook, MessageCircle, Instagram, QrCode, Truck } from 'lucide-react';
+import { APP_ICON_URL } from '../utils/assetUrl';
 
 interface ModernInvoiceHeaderProps {
   settings: StoreSettings;
@@ -14,7 +15,7 @@ const PresetCenterIllustration: React.FC<{ type?: string; className?: string }> 
     case 'mufakir':
       return (
         <img 
-          src="/assets/aistudio/1792973910260_3946b0af.jpg" 
+          src={APP_ICON_URL} 
           alt="شعار المفكر المحاسبي" 
           className={`${className} object-cover rounded-xl`}
         />
