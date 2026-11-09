@@ -24,15 +24,18 @@ const num = (n: number) => (Math.round(n * 1000) / 1000).toLocaleString('en-US')
 interface Row {
   key: string;
   date: string;
-  kind: 'purchase' | 'adjust' | 'sale' | 'gift' | 'return';
+  kind: 'purchase' | 'adjust' | 'price' | 'sale' | 'gift' | 'return';
   qty: number;
   label: string;
   note?: string;
+  cost?: number;
+  prevCost?: number;
   estimated?: boolean;
 }
 
 export default function ProductMovementModal({ product, onClose }: Props) {
-  const { invoices } = useApp();
+  const { invoices, hasPermission } = useApp();
+  const canViewCost = hasPermission('canViewCostPrice');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
@@ -64,14 +67,16 @@ export default function ProductMovementModal({ product, onClose }: Props) {
     let logPurchases = 0;
     let logAdjust = 0;
     log.forEach(e => {
-      if (e.type === 'purchase') logPurchases += e.qty; else logAdjust += e.qty;
+      if (e.type === 'purchase') logPurchases += e.qty; else if (e.type === 'adjust') logAdjust += e.qty;
       all.push({
         key: e.id,
         date: e.date,
         kind: e.type,
         qty: e.qty,
-        label: e.type === 'purchase' ? 'شراء / إضافة مخزون' : 'تنقيص يدوي',
+        label: e.type === 'purchase' ? 'شراء / إضافة مخزون' : e.type === 'price' ? 'تغيير سعر التكلفة' : 'تنقيص يدوي',
         note: e.note,
+        cost: e.costPrice,
+        prevCost: e.prevCostPrice,
       });
     });
 
@@ -166,18 +171,30 @@ export default function ProductMovementModal({ product, onClose }: Props) {
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             <table className="w-full text-xs">
               <thead className="bg-slate-50 text-slate-600">
-                <tr><th className="p-2 text-right">التاريخ</th><th className="p-2 text-right">الحركة</th><th className="p-2 text-right">ملاحظة</th><th className="p-2 text-center">الكمية</th></tr>
+                <tr><th className="p-2 text-right">التاريخ</th><th className="p-2 text-right">الحركة</th><th className="p-2 text-right">ملاحظة</th>{canViewCost && <th className="p-2 text-center">سعر التكلفة</th>}<th className="p-2 text-center">الكمية</th></tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
-                  <tr><td colSpan={4} className="p-4 text-center text-slate-400">لا توجد حركة في هذه الفترة</td></tr>
+                  <tr><td colSpan={canViewCost ? 5 : 4} className="p-4 text-center text-slate-400">لا توجد حركة في هذه الفترة</td></tr>
                 ) : rows.map(r => (
                   <tr key={r.key} className="border-t border-slate-100">
                     <td className="p-2 whitespace-nowrap">{r.estimated ? dayKey(r.date) : fmtDate(r.date)}</td>
                     <td className="p-2">{r.label}</td>
                     <td className="p-2 text-slate-600">{r.note || '-'}</td>
+                    {canViewCost && <td className="p-2 text-center whitespace-nowrap">
+                      {typeof r.cost === 'number' ? (
+                        <>
+                          <b>{num(r.cost)}</b>
+                          {typeof r.prevCost === 'number' && (
+                            <div className={`text-[10px] font-bold ${r.cost > r.prevCost ? 'text-rose-600' : 'text-emerald-600'}`}>
+                              {r.cost > r.prevCost ? '▲' : '▼'} كان {num(r.prevCost)}
+                            </div>
+                          )}
+                        </>
+                      ) : '-'}
+                    </td>}
                     <td className={`p-2 text-center font-bold ${r.kind === 'purchase' ? 'text-emerald-700' : r.kind === 'sale' ? 'text-indigo-700' : 'text-slate-600'}`}>
-                      {r.kind === 'purchase' ? '+' : '−'}{num(r.qty)}
+                      {r.kind === 'price' ? '-' : <>{r.kind === 'purchase' ? '+' : '−'}{num(r.qty)}</>}
                     </td>
                   </tr>
                 ))}
