@@ -1217,7 +1217,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
+                        <div className="flex flex-wrap items-start justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100 shrink-0">
                           {/* إخفاء سعر تكلفة الجملة عند عدم وجود الصلاحية */}
                           {canViewCost && (
                             <div className="bg-slate-100 border border-slate-300/80 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
@@ -1231,132 +1231,109 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           )}
 
                           {settings.enableWholesale && (
-                            <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
-                              <div className="text-[10px] text-amber-800 font-bold">
-                                سعر بيع الجملة:
+                            <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
+                              <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg px-2.5 py-1 text-right">
+                                <div className="text-[10px] text-amber-800 font-bold">
+                                  سعر بيع الجملة:
+                                </div>
+                                <div className="text-xs sm:text-sm font-black text-amber-950 font-mono">
+                                  {formatMoney(prod.wholesalePrice)}
+                                </div>
                               </div>
-                              <div className="text-xs sm:text-sm font-black text-amber-950 font-mono">
-                                {formatMoney(prod.wholesalePrice)}
-                              </div>
-                            </div>
-                          )}
-
-                          {settings.enableWholesale && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
-                            <div className="bg-orange-50/90 border border-orange-200/90 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
-                              <div className="text-[10px] text-orange-800 font-bold">
-                                جملة الجملة:
-                              </div>
-                              <div className="text-xs sm:text-sm font-black text-orange-950 font-mono">
-                                {formatMoney(prod.superWholesalePrice || 0)}
-                              </div>
-                            </div>
-                          )}
-
-                          {settings.enableWholesale && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
-                            <div className="bg-violet-50/90 border border-violet-200/90 rounded-lg px-2.5 py-1 text-right min-w-[95px] shrink-0">
-                              <div className="text-[10px] text-violet-800 font-bold">
-                                السعر الخاص:
-                              </div>
-                              <div className="text-xs sm:text-sm font-black text-violet-950 font-mono">
-                                {formatMoney(prod.specialPrice || 0)}
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-3 py-1.5 text-right min-w-[105px] shrink-0">
-                            <div className="text-[10px] text-emerald-800 font-bold">
-                              {settings.enableWholesale ? 'سعر بيع المفرد:' : 'سعر البيع:'}
-                            </div>
-                            <div className="text-xs sm:text-base font-black text-emerald-950 font-mono">
-                              {formatMoney(prod.retailPrice)}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-                            {settings.enableWholesale ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    addToCartWithPrice(prod, 'retail');
-                                  }}
-                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer shrink-0 ${
-                                    isOutOfStock
-                                      ? 'bg-rose-600 hover:bg-rose-700 text-white ring-2 ring-rose-300'
-                                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                  }`}
-                                  title={isOutOfStock ? "إضافة بسعر المفرد (تنبيه: الرصيد صفر في المخزن)" : "إضافة بسعر البيع المفرد"}
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>مفرد</span>
-                                </button>
-
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    addToCartWithPrice(prod, 'wholesale');
-                                  }}
-                                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer shrink-0 ${
-                                    isOutOfStock
-                                      ? 'bg-rose-700 hover:bg-rose-800 text-white ring-2 ring-rose-300'
-                                      : 'bg-amber-600 hover:bg-amber-700 text-white'
-                                  }`}
-                                  title={isOutOfStock ? "إضافة بسعر الجملة (تنبيه: الرصيد صفر في المخزن)" : "إضافة بسعر بيع الجملة"}
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>جملة</span>
-                                </button>
-
-                                {settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      addToCartWithPrice(prod, 'superWholesale');
-                                    }}
-                                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer shrink-0 bg-orange-600 hover:bg-orange-700 text-white"
-                                    title="إضافة بسعر جملة الجملة"
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>جملة الجملة</span>
-                                  </button>
-                                )}
-
-                                {settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      addToCartWithPrice(prod, 'special');
-                                    }}
-                                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer shrink-0 bg-violet-600 hover:bg-violet-700 text-white"
-                                    title="إضافة بالسعر الخاص"
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>خاص</span>
-                                  </button>
-                                )}
-                              </>
-                            ) : (
                               <button
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  addToCartWithPrice(prod, 'retail');
+                                  addToCartWithPrice(prod, 'wholesale');
                                 }}
-                                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer shrink-0 ${
+                                className={`w-full justify-center px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer ${
                                   isOutOfStock
-                                    ? 'bg-rose-600 hover:bg-rose-700 text-white ring-2 ring-rose-300'
-                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                    ? 'bg-rose-700 hover:bg-rose-800 text-white ring-2 ring-rose-300'
+                                    : 'bg-amber-600 hover:bg-amber-700 text-white'
                                 }`}
-                                title={isOutOfStock ? "إضافة للقائمة (تنبيه: الرصيد صفر في المخزن)" : "إضافة المادة للقائمة بسعر المفرد"}
+                                title={isOutOfStock ? "إضافة بسعر الجملة (تنبيه: الرصيد صفر في المخزن)" : "إضافة بسعر بيع الجملة"}
                               >
                                 <Plus className="w-3.5 h-3.5" />
-                                <span>{isOutOfStock ? 'بيع (رصيد 0)' : 'إضافة للقائمة'}</span>
+                                <span>جملة</span>
                               </button>
-                            )}
+                            </div>
+                          )}
+
+                          {settings.enableWholesale && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
+                            <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
+                              <div className="bg-orange-50/90 border border-orange-200/90 rounded-lg px-2.5 py-1 text-right">
+                                <div className="text-[10px] text-orange-800 font-bold">
+                                  جملة الجملة:
+                                </div>
+                                <div className="text-xs sm:text-sm font-black text-orange-950 font-mono">
+                                  {formatMoney(prod.superWholesalePrice || 0)}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addToCartWithPrice(prod, 'superWholesale');
+                                }}
+                                className="w-full justify-center px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer bg-orange-600 hover:bg-orange-700 text-white"
+                                title="إضافة بسعر جملة الجملة"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>جملة الجملة</span>
+                              </button>
+                            </div>
+                          )}
+
+                          {settings.enableWholesale && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
+                            <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
+                              <div className="bg-violet-50/90 border border-violet-200/90 rounded-lg px-2.5 py-1 text-right">
+                                <div className="text-[10px] text-violet-800 font-bold">
+                                  السعر الخاص:
+                                </div>
+                                <div className="text-xs sm:text-sm font-black text-violet-950 font-mono">
+                                  {formatMoney(prod.specialPrice || 0)}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addToCartWithPrice(prod, 'special');
+                                }}
+                                className="w-full justify-center px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer bg-violet-600 hover:bg-violet-700 text-white"
+                                title="إضافة بالسعر الخاص"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>خاص</span>
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="flex flex-col gap-1 min-w-[105px] shrink-0">
+                            <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-3 py-1.5 text-right">
+                              <div className="text-[10px] text-emerald-800 font-bold">
+                                {settings.enableWholesale ? 'سعر بيع المفرد:' : 'سعر البيع:'}
+                              </div>
+                              <div className="text-xs sm:text-base font-black text-emerald-950 font-mono">
+                                {formatMoney(prod.retailPrice)}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addToCartWithPrice(prod, 'retail');
+                              }}
+                              className={`w-full justify-center px-2.5 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shadow-xs cursor-pointer ${
+                                isOutOfStock
+                                  ? 'bg-rose-600 hover:bg-rose-700 text-white ring-2 ring-rose-300'
+                                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                              }`}
+                              title={isOutOfStock ? "إضافة بسعر المفرد (تنبيه: الرصيد صفر في المخزن)" : "إضافة بسعر البيع المفرد"}
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>{settings.enableWholesale ? 'مفرد' : (isOutOfStock ? 'بيع (رصيد 0)' : 'إضافة للقائمة')}</span>
+                            </button>
                           </div>
                         </div>
                       </div>
