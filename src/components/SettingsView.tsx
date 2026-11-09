@@ -2618,7 +2618,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   { key: 'canViewCustomers' as const, label: 'الدخول لسجل الزبائن وحسابات الديون', desc: 'رؤية كشوفات الديون (محظور افتراضياً)' },
                   { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال (محظور افتراضياً)' },
                   { key: 'canAccessShifts' as const, label: 'الدخول لسجل وتبويب الشفتات', desc: 'معاينة شفتات العمل ومبيعاتها وقوائمها' },
-                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات والورديات', desc: 'تشغيل مؤقت الشفت وإنهائه' },
+                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات', desc: 'تشغيل مؤقت الشفت وإنهائه' },
                   { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي (محظور افتراضياً)' },
                 ].map((item) => (
                   <label
@@ -2678,7 +2678,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   { key: 'canViewCustomers' as const, label: 'الدخول لسجل الزبائن وحسابات الديون', desc: 'متابعة حسابات الزبائن' },
                   { key: 'canAccessInventory' as const, label: 'الدخول لقسم المواد والمخزون', desc: 'معاينة المخزن وجرد الأصناف' },
                   { key: 'canAccessShifts' as const, label: 'الدخول لسجل وتبويب الشفتات', desc: 'معاينة شفتات العمل ومبيعاتها وقوائمها' },
-                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات والورديات', desc: 'تشغيل مؤقت الشفت وإنهائه' },
+                  { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات', desc: 'تشغيل مؤقت الشفت وإنهائه' },
                   { key: 'canDeleteInvoice' as const, label: 'حذف القوائم نهائياً', desc: 'حذف سجلات الفواتير نهائياً' },
                   { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال' },
                   { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي' },

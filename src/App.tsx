@@ -277,7 +277,7 @@ const MainContent: React.FC = () => {
     switch (activeTab) {
       case 'inventory': return 'جدول المخزون الكامل';
       case 'invoices': return 'سجل الفواتير والقوائم';
-      case 'shifts': return 'إدارة وسجل الشفتات والورديات';
+      case 'shifts': return 'إدارة وسجل الشفتات';
       case 'customers': return 'حسابات الديون والعملاء';
       case 'reports': return 'الأرباح والتقارير المالية';
       case 'sales-reps': return 'مبيعات وأرباح المندوبين';

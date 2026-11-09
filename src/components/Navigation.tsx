@@ -100,7 +100,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
     },
     {
       id: 'shifts',
-      label: 'الشفتات والورديات',
+      label: 'الشفتات',
       icon: <Clock className="w-4 h-4" />,
       badge: activeShift ? '🟢 شفت جارٍ' : (accountShiftsCount > 0 ? accountShiftsCount : undefined),
       badgeColor: activeShift ? 'text-emerald-700 bg-emerald-100 animate-pulse font-bold' : 'text-slate-600 bg-slate-100',

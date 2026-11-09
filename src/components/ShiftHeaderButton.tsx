@@ -106,6 +106,12 @@ export const ShiftHeaderButton: React.FC<ShiftHeaderButtonProps> = ({ onOpenShif
         </span>
       )}
 
+      {activeShift.openedBy?.name && (
+        <span className="text-[10px] text-amber-200 hidden md:inline font-bold bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+          الكاشير: {activeShift.openedBy.name}
+        </span>
+      )}
+
       {hasPermission('canManageShifts') ? (
         <span className="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-bold border border-amber-500/30">
           إنهاء الشفت

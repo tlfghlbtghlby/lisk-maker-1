@@ -318,6 +318,8 @@ export interface PresetShift {
   id: string;
   name: string;
   code: string;
+  /** اسم الكاشير الذي يعمل على هذا الشفت (يظهر في القوائم وشريط الشفت) */
+  cashierName?: string;
   notes?: string;
   createdAt: string;
   createdBy?: string;

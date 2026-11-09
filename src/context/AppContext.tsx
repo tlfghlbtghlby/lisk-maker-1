@@ -2836,7 +2836,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const nextNum = shifts.length > 0 ? Math.max(...shifts.map(s => s.shiftNumber || 0)) + 1 : 1;
     const newId = 'shift_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
 
-    const cashierName = sessionRole === 'supervisor' && activeSupervisorName
+    const cashierName = selectedPreset.cashierName?.trim()
+      ? selectedPreset.cashierName.trim()
+      : sessionRole === 'supervisor' && activeSupervisorName
       ? `المشرف: ${activeSupervisorName}`
       : currentUser?.displayName || currentUser?.storeName || (
           sessionRole === 'admin' ? 'المدير العام' : sessionRole === 'supervisor' ? 'المشرف' : 'الكاشير'
