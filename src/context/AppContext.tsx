@@ -38,7 +38,7 @@ import { broadcastSync, subscribeSync, SyncMessage } from '../utils/syncChannel'
 import pkg from '../../package.json';
 import type { TelegramEventKey, StockLogEntry } from '../types';
 import {
-  tgNotify, formatInvoice, formatPayment, formatReturnFull, formatReturnPartial, formatDeletedInvoice,
+  tgNotify, formatDebtReminder, formatInvoice, formatPayment, formatReturnFull, formatReturnPartial, formatDeletedInvoice,
   formatProductEvent, diffProduct, formatSimple, esc as tgEsc, FmtCtx,
 } from '../utils/telegram';
 import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/invoiceSeal';
@@ -138,6 +138,8 @@ interface AppContextType {
   deleteProduct: (id: string) => void;
   batchDeleteProducts: (productIdsToDelete: string[], stockIncrements?: Record<string, number>) => Promise<{ success: boolean; deletedCount: number; error?: string }>;
   adjustStock: (id: string, delta: number, opts?: { log?: boolean }) => void;
+  sendDebtReminder: (customerId: string) => Promise<{ ok: boolean; sent: number; error?: string }>;
+  sendDebtRemindersToAll: (onProgress?: (done: number, total: number) => void) => Promise<{ total: number; sent: number; notLinked: number; failed: number; error?: string }>;
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'totalDebt'> & { initialDebt?: number }) => Customer;
   updateCustomer: (id: string, updates: Partial<Customer>) => void;
   deleteCustomer: (id: string) => void;
@@ -1221,6 +1223,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         customerText,
       }).catch(() => {});
     } catch {}
+  };
+
+  // ============ إشعار الدين للزبون عبر التليجرام (يدوي) ============
+  const buildDebtReminderText = (customerId: string): string | null => {
+    const st = stateRef.current;
+    const cust = (st.customers || []).find((c: any) => c.id === customerId);
+    if (!cust) return null;
+    const tgs = st.settings?.telegram;
+    const ctx: FmtCtx = {
+      currency: st.settings?.currency || 'د.ع',
+      storeName: currentUser?.storeName || currentUser?.displayName || '',
+      includeItems: false,
+      includeProfit: false,
+    };
+    const custInvoices = (st.invoices || [])
+      .filter((i: any) => i.customerId === customerId && i.status !== 'returned' && (Number(i.remainingAmount) || 0) > 0)
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const lastInv = custInvoices[0];
+    const lastPay = (st.payments || [])
+      .filter((p: any) => p.customerId === customerId)
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+    return formatDebtReminder(
+      cust.name,
+      Number(cust.totalDebt) || 0,
+      lastInv ? { amount: Number(lastInv.remainingAmount) || 0, date: lastInv.date } : null,
+      lastPay ? { amount: Number(lastPay.amount) || 0, date: lastPay.date } : null,
+      ctx
+    );
+  };
+
+  const sendDebtReminder = async (customerId: string): Promise<{ ok: boolean; sent: number; error?: string }> => {
+    const tgs = stateRef.current.settings?.telegram;
+    if (!tgs || !tgs.secret || !currentUser?.uid) return { ok: false, sent: 0, error: 'التليجرام غير مفعّل أو غير مربوط للمتجر.' };
+    const text = buildDebtReminderText(customerId);
+    if (!text) return { ok: false, sent: 0, error: 'الزبون غير موجود.' };
+    try {
+      const r: any = await tgNotify({ storeUid: currentUser.uid, secret: tgs.secret, customerId, customerText: text });
+      return { ok: true, sent: Number(r?.sent) || 0 };
+    } catch (e: any) {
+      return { ok: false, sent: 0, error: String(e?.message || 'فشل الإرسال') };
+    }
+  };
+
+  const sendDebtRemindersToAll = async (onProgress?: (done: number, total: number) => void) => {
+    const list = [...(stateRef.current.customers || [])];
+    const tgs = stateRef.current.settings?.telegram;
+    if (!tgs || !tgs.secret || !currentUser?.uid) {
+      return { total: list.length, sent: 0, notLinked: 0, failed: 0, error: 'التليجرام غير مفعّل أو غير مربوط للمتجر.' };
+    }
+    let sent = 0, notLinked = 0, failed = 0;
+    for (let i = 0; i < list.length; i++) {
+      const r = await sendDebtReminder(list[i].id);
+      if (!r.ok) failed++;
+      else if (r.sent > 0) sent++;
+      else notLinked++;
+      onProgress?.(i + 1, list.length);
+      await new Promise(res => setTimeout(res, 60));
+    }
+    return { total: list.length, sent, notLinked, failed };
   };
 
   // دمج النسخة المحلية مع السحابية: الأحدث يفوز عند التعارض، وغير المتعارض يُدمج،
@@ -3030,6 +3091,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteProduct,
         batchDeleteProducts,
         adjustStock,
+        sendDebtReminder,
+        sendDebtRemindersToAll,
         addCustomer,
         updateCustomer,
         deleteCustomer,

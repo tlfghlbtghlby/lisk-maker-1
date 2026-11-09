@@ -37,8 +37,18 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
     formatMoney,
     settings,
     hasPermission,
-    openSessionModal
+    openSessionModal,
+    sendDebtReminder
   } = useApp();
+
+  const [reminderState, setReminderState] = useState<Record<string, string>>({});
+  const handleSendReminder = async (id: string) => {
+    setReminderState(p => ({ ...p, [id]: 'جاري الإرسال...' }));
+    const r = await sendDebtReminder(id);
+    const msg = !r.ok ? (r.error || 'فشل الإرسال') : r.sent > 0 ? 'تم الإرسال ✅' : 'غير مرتبط بالتليجرام';
+    setReminderState(p => ({ ...p, [id]: msg }));
+    setTimeout(() => setReminderState(p => { const n = { ...p }; delete n[id]; return n; }), 4000);
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDebtOnly, setFilterDebtOnly] = useState(false);
@@ -291,7 +301,24 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                     <tr key={cust.id} className="hover:bg-slate-50/70 transition">
                       {/* Name */}
                       <td className="py-3 px-4 font-bold text-slate-900">
-                        <div>{cust.name}</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span>{cust.name}</span>
+                          {hasDebt && (
+                            <button
+                              type="button"
+                              onClick={() => handleSendReminder(cust.id)}
+                              disabled={reminderState[cust.id] === 'جاري الإرسال...'}
+                              className="px-2 py-0.5 text-[11px] font-bold text-sky-800 bg-sky-50 hover:bg-sky-100 rounded-md border border-sky-200 flex items-center gap-1 transition disabled:opacity-60"
+                              title="إرسال إشعار للزبون عبر التليجرام بآخر دين وآخر تسديد والمتبقي عليه"
+                            >
+                              <span>🔔</span>
+                              <span>إشعار</span>
+                            </button>
+                          )}
+                          {reminderState[cust.id] && (
+                            <span className="text-[11px] font-bold text-slate-500">{reminderState[cust.id]}</span>
+                          )}
+                        </div>
                         {cust.notes && (
                           <div className="text-[11px] text-slate-400 font-normal">{cust.notes}</div>
                         )}

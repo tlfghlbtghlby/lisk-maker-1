@@ -16,7 +16,7 @@ import {
 } from '../utils/telegram';
 
 export const TelegramSettingsCard: React.FC = () => {
-  const { settings, updateSettings, currentUser } = useApp();
+  const { settings, updateSettings, currentUser, sendDebtRemindersToAll, customers } = useApp();
   const tg: TelegramSettings = { ...DEFAULT_TELEGRAM_SETTINGS, ...(settings.telegram || {}) };
   const storeUid = currentUser?.uid || '';
   const storeName = currentUser?.storeName || currentUser?.displayName || '';
@@ -24,6 +24,18 @@ export const TelegramSettingsCard: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const sendAllDebts = async () => {
+    if (!window.confirm(`إرسال إشعار بالدين لكل الزبائن (${customers.length} زبون) عبر التليجرام، بمن فيهم من دينه صفر؟ يصل فقط للمرتبطين بالبوت.`)) return;
+    setBulkBusy(true);
+    setBulkMsg(null);
+    const r = await sendDebtRemindersToAll((d, t) => setBulkMsg({ ok: true, text: `جاري الإرسال... ${d}/${t}` }));
+    setBulkBusy(false);
+    setBulkMsg(r.error
+      ? { ok: false, text: r.error }
+      : { ok: true, text: `تم: وصل الإشعار إلى ${r.sent} زبون، و${r.notLinked} غير مرتبطين بالتليجرام${r.failed ? `، وفشل ${r.failed}` : ''}.` });
+  };
   const registeredRef = useRef<string>('');
 
   const save = (patch: Partial<TelegramSettings>) =>
@@ -219,6 +231,29 @@ export const TelegramSettingsCard: React.FC = () => {
         <Toggle label="إرسال مواد القوائم بالتفصيل" hint="كل مادة بكميتها وسعرها ومجموعها" checked={tg.includeItems} onChange={v => save({ includeItems: v })} />
         <Toggle label="إظهار الأرباح والتكلفة" hint="ربح القائمة وعمولة المندوب وتكلفة المواد" checked={tg.includeProfit} onChange={v => save({ includeProfit: v })} />
         <Toggle label="إشعارات الزبائن المرتبطين" hint="إرسال قوائم الزبون ودينه ودفعاته لمن ربط رمزه بالبوت" checked={tg.customerNotifications} onChange={v => save({ customerNotifications: v })} />
+      </div>
+
+      {/* إشعار الديون لكل الزبائن */}
+      <div className="bg-sky-50/60 dark:bg-[#070e1b] border border-sky-200 dark:border-slate-700 rounded-xl p-4 space-y-2">
+        <h4 className="text-xs font-black text-slate-900 dark:text-white">إشعار الزبائن بحساباتهم</h4>
+        <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+          يرسل لكل زبون مرتبط بالبوت: آخر مبلغ أخذه بالدين، وآخر مبلغ سدّده، والمتبقي عليه. يشمل من دينه صفر أيضاً.
+        </p>
+        <button
+          type="button"
+          disabled={bulkBusy || !tg.linked || customers.length === 0}
+          onClick={sendAllDebts}
+          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+        >
+          <Bell className="w-4 h-4" />
+          {bulkBusy ? 'جاري الإرسال...' : 'إرسال إشعار الدين لكل الزبائن'}
+        </button>
+        {!tg.linked && <div className="text-[11px] text-amber-700">اربط التليجرام بالمتجر أولاً.</div>}
+        {bulkMsg && (
+          <div className={`text-xs font-bold rounded-lg px-3 py-2 border ${bulkMsg.ok ? 'text-emerald-800 bg-emerald-50 border-emerald-300' : 'text-rose-800 bg-rose-50 border-rose-300'}`}>
+            {bulkMsg.text}
+          </div>
+        )}
       </div>
 
       {/* الأحداث */}
