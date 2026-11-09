@@ -89,5 +89,34 @@ if ((versionCode || versionName) && fs.existsSync(gradlePath)) {
   }
 }
 
+// ---------- توقيع ثابت لنسخة debug ----------
+// بدون هذا يولّد كل بناء على GitHub مفتاح توقيع جديداً، فيرفض الأندرويد تثبيت التحديث فوق القديم (تعارض التوقيع).
+// نستخدم مفتاحاً ثابتاً محفوظاً في المستودع (android-signing/debug.keystore) فتُوقَّع كل النسخ بالتوقيع نفسه.
+if (fs.existsSync(gradlePath)) {
+  let gradle = fs.readFileSync(gradlePath, 'utf8');
+  const ksFile = path.join(root, 'android-signing/debug.keystore');
+  if (!fs.existsSync(ksFile)) {
+    warn('android-signing/debug.keystore غير موجود؛ سيستعمل البناء مفتاحاً عشوائياً وقد يحدث تعارض عند التحديث.');
+  } else if (!gradle.includes('android-signing/debug.keystore')) {
+    const block = `    signingConfigs {
+        debug {
+            storeFile file("../../android-signing/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+
+`;
+    if (/^\s*buildTypes\s*\{/m.test(gradle)) {
+      gradle = gradle.replace(/^(\s*)buildTypes\s*\{/m, (m) => block + m);
+      fs.writeFileSync(gradlePath, gradle);
+      log('ضُبط توقيع ثابت لنسخة debug.');
+    } else {
+      warn('لم أجد buildTypes في build.gradle؛ لم يُضبط التوقيع الثابت.');
+    }
+  }
+}
+
 if (failed) process.exit(1);
 log('اكتمل إعداد مشروع الأندرويد.');
