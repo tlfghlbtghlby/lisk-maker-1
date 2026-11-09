@@ -469,6 +469,12 @@ export interface StoreSettings {
   promoOfferDisplay?: 'gift_column' | 'listed' | 'hidden';
   // السماح بشفت مستقل ومتزامن على كل جهاز (الافتراضي: مفعّل)
   allowMultiDeviceShifts?: boolean;
+  /** إظهار الكمية المتوفرة للزبون في فاحص الأسعار: none=مخفية، count=الرقم، colors=ألوان */
+  checkerStockMode?: 'none' | 'count' | 'colors';
+  /** آخر عدد يظهر باللون الأحمر (من 1 إلى هذا الرقم) */
+  checkerRedMax?: number;
+  /** آخر عدد يظهر باللون الأصفر (بعد الأحمر حتى هذا الرقم)، وما فوقه أخضر */
+  checkerYellowMax?: number;
   giftCostCounted?: boolean;
   telegram?: TelegramSettings;
   invoiceSecret?: string;

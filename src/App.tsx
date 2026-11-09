@@ -529,7 +529,7 @@ export default function App() {
   // إذا كان الـ hash يمثل قسماً مستقلاً، لا يُعامل كرمز متجر لفحص الأسعار
   const storeHash = knownSectionRoutes.includes(rawHash) ? '' : rawHash;
   let storeId: string | null = null;
-  const rawToken = storeHash || searchParams.get('k') || searchParams.get('store');
+  const rawToken = (storeHash || searchParams.get('k') || searchParams.get('store') || '').replace(/~(w|sw|sp)$/i, '') || null;
   if (rawToken) {
     try {
       if (rawToken.startsWith('store_') || rawToken.startsWith('user_')) {
