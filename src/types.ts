@@ -414,6 +414,8 @@ export interface UserProfile {
   enableSupervisor?: boolean;
   enableEmployee?: boolean;
   enableCustomerPriceChecker?: boolean;
+  enableTelegram?: boolean;
+  enableModernDesign?: boolean;
 }
 
 export type PrintFormatType = 'a4' | 'a5' | 'thermal' | 'thermal80' | 'thermal58';
@@ -503,6 +505,8 @@ export interface StoreSettings {
   enableCustomerPriceChecker?: boolean;
   enableSupervisor?: boolean;
   enableEmployee?: boolean;
+  enableTelegram?: boolean;
+  enableModernDesign?: boolean;
   features?: StoreFeatures;
 }
 

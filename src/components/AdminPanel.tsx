@@ -71,6 +71,8 @@ export const AdminPanel: React.FC = () => {
   const [editEnableSupervisor, setEditEnableSupervisor] = useState(true);
   const [editEnableEmployee, setEditEnableEmployee] = useState(true);
   const [editEnableCustomerPriceChecker, setEditEnableCustomerPriceChecker] = useState(true);
+  const [editEnableTelegram, setEditEnableTelegram] = useState(true);
+  const [editEnableModernDesign, setEditEnableModernDesign] = useState(true);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [actionLoadingUid, setActionLoadingUid] = useState<string | null>(null);
 
@@ -215,6 +217,8 @@ export const AdminPanel: React.FC = () => {
     setEditEnableSupervisor(client.enableSupervisor !== false);
     setEditEnableEmployee(client.enableEmployee !== false);
     setEditEnableCustomerPriceChecker(client.enableCustomerPriceChecker !== false);
+    setEditEnableTelegram(client.enableTelegram !== false);
+    setEditEnableModernDesign(client.enableModernDesign !== false);
     
     if (client.trialExpiresAt) {
       try {
@@ -250,6 +254,8 @@ export const AdminPanel: React.FC = () => {
         enableSupervisor: editEnableSupervisor,
         enableEmployee: editEnableEmployee,
         enableCustomerPriceChecker: editEnableCustomerPriceChecker,
+        enableTelegram: editEnableTelegram,
+        enableModernDesign: editEnableModernDesign,
       };
 
       if (editPassword && editPassword.trim().length >= 6) {
@@ -271,6 +277,8 @@ export const AdminPanel: React.FC = () => {
             enableSupervisor: editEnableSupervisor,
             enableEmployee: editEnableEmployee,
             enableCustomerPriceChecker: editEnableCustomerPriceChecker,
+            enableTelegram: editEnableTelegram,
+            enableModernDesign: editEnableModernDesign,
             settings: {
               ...currentSettings,
               enableShifts: editEnableShifts,
@@ -278,6 +286,8 @@ export const AdminPanel: React.FC = () => {
               enableSupervisor: editEnableSupervisor,
               enableEmployee: editEnableEmployee,
               enableCustomerPriceChecker: editEnableCustomerPriceChecker,
+              enableTelegram: editEnableTelegram,
+              enableModernDesign: editEnableModernDesign,
             }
           });
         }
@@ -1116,6 +1126,26 @@ export const AdminPanel: React.FC = () => {
                       className="accent-amber-500 w-3.5 h-3.5"
                     />
                     <span className="font-bold text-amber-300">قارئ أسعار المواد للزبائن (QR وبحث الأسعار)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 cursor-pointer hover:border-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={editEnableTelegram}
+                      onChange={(e) => setEditEnableTelegram(e.target.checked)}
+                      className="accent-sky-500 w-3.5 h-3.5"
+                    />
+                    <span className="font-bold text-sky-300">بوت التليجرام (كل أنواع الإشعارات)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 cursor-pointer hover:border-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={editEnableModernDesign}
+                      onChange={(e) => setEditEnableModernDesign(e.target.checked)}
+                      className="accent-violet-500 w-3.5 h-3.5"
+                    />
+                    <span className="font-bold text-violet-300">الطباعة العصرية الملونة</span>
                   </label>
                 </div>
               </div>

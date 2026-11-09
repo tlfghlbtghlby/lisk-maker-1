@@ -237,6 +237,8 @@ export interface UpdateClientInput {
   enableSupervisor?: boolean;
   enableEmployee?: boolean;
   enableCustomerPriceChecker?: boolean;
+  enableTelegram?: boolean;
+  enableModernDesign?: boolean;
 }
 
 async function loadAllRawAccounts(): Promise<any[]> {
