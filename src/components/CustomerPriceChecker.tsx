@@ -20,6 +20,10 @@ interface StockConfig {
   mode: 'none' | 'count' | 'colors';
   redMax: number;
   yellowMax: number;
+  fallbackSuper?: 'wholesale' | 'retail' | 'none';
+  fallbackSpecial?: 'wholesale' | 'retail' | 'none';
+  /** مستويات الأسعار المفعّلة لدى المتجر (المفرد دائماً مفعّل) */
+  levels?: { wholesale: boolean; superWholesale: boolean; special: boolean };
 }
 const DEFAULT_STOCK_CONFIG: StockConfig = { mode: 'none', ...STOCK_COLOR_DEFAULTS };
 
@@ -211,6 +215,13 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
           yellowMax: Number(st.checkerYellowMax) > 0 ? Number(st.checkerYellowMax) : STOCK_COLOR_DEFAULTS.yellowMax,
         };
         if (cfg.yellowMax <= cfg.redMax) cfg.yellowMax = cfg.redMax + 1;
+        cfg.fallbackSuper = st.checkerFallbackSuper;
+        cfg.fallbackSpecial = st.checkerFallbackSpecial;
+        cfg.levels = {
+          wholesale: !!st.enableWholesale,
+          superWholesale: !!st.enableWholesale && st.showSuperWholesale !== false,
+          special: !!st.enableWholesale && st.showSpecialPrice !== false,
+        };
         setStockCfg(cfg);
         try { localStorage.setItem(`cache_checker_cfg_${resolvedStoreId}`, JSON.stringify(cfg)); } catch {}
 
@@ -378,13 +389,20 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
     setScannerActive(false);
   };
 
-  const priceOf = (p: ProductItem): number =>
+  const levelDisabled = priceLevel !== 'retail' && !!stockCfg.levels && !stockCfg.levels[priceLevel];
+
+  const priceOf = (p: ProductItem): number | null =>
     priceLevel === 'retail'
       ? p.price
       : priceForLevel(
           { retailPrice: p.price, wholesalePrice: p.wholesalePrice, superWholesalePrice: p.superWholesalePrice, specialPrice: p.specialPrice },
-          priceLevel
+          priceLevel,
+          { super: stockCfg.fallbackSuper, special: stockCfg.fallbackSpecial }
         );
+  const priceText = (p: ProductItem): string => {
+    const v = priceOf(p);
+    return v === null ? 'السعر غير متاح' : `${v.toLocaleString()} دينار`;
+  };
 
   const renderStock = (p: ProductItem, big = false) => {
     if (stockCfg.mode === 'none' || typeof p.stock !== 'number') return null;
@@ -449,6 +467,18 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
               برنامج المفكر المحاسبي • نظام إدارة التراخيص
             </span>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (levelDisabled) {
+    return (
+      <div className="min-h-screen bg-[#060b13] text-white flex flex-col items-center justify-center p-6 text-center select-none" dir="rtl">
+        <div className="w-full max-w-sm bg-[#0b1424] border border-slate-700 rounded-3xl p-8 shadow-2xl space-y-3">
+          <h2 className="text-xl font-black">{storeName && storeName !== 'جاري التحميل...' ? storeName : 'فاحص أسعار المواد'}</h2>
+          <div className="inline-block px-3 py-1 rounded-full bg-slate-800 border border-slate-600 text-slate-200 text-xs font-bold">غير مفعّل</div>
+          <p className="text-sm text-slate-300 leading-relaxed">رابط سعر {CHECKER_LEVEL_LABELS[priceLevel]} غير مفعّل لدى هذا المتجر.</p>
         </div>
       </div>
     );
@@ -585,7 +615,7 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
                 {priceLevel === 'retail' ? 'السعر المعتمد' : `السعر المعتمد (${CHECKER_LEVEL_LABELS[priceLevel]})`}
               </div>
               <div className="text-3xl font-black text-amber-400">
-                {priceOf(scannedProduct).toLocaleString()} <span className="text-sm font-normal text-slate-300">دينار</span>
+                {priceOf(scannedProduct) === null ? <span className="text-xl">السعر غير متاح</span> : <>{priceOf(scannedProduct)!.toLocaleString()} <span className="text-sm font-normal text-slate-300">دينار</span></>}
               </div>
               {renderStock(scannedProduct, true) && <div className="mt-4">{renderStock(scannedProduct, true)}</div>}
             </div>
@@ -611,7 +641,7 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <div className="text-sm font-black text-emerald-400 whitespace-nowrap">
-                      {priceOf(item).toLocaleString()} دينار
+                      {priceText(item)}
                     </div>
                     {renderStock(item)}
                   </div>

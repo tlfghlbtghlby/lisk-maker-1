@@ -34,14 +34,24 @@ const pos = (n: unknown): number | undefined => {
   const v = Number(n);
   return Number.isFinite(v) && v > 0 ? v : undefined;
 };
-/** نفس منطق التسعير داخل البرنامج (مع البدائل الاحتياطية) */
-export function priceForLevel(p: Partial<PricedProduct>, level: PriceType): number {
+export type FallbackChoice = 'wholesale' | 'retail' | 'none';
+
+/** سعر المستوى المطلوب؛ إن لم يكن للمادة سعر لهذا المستوى يُستعمل البديل الذي حدّده صاحب المتجر (أو null = غير متاح) */
+export function priceForLevel(
+  p: Partial<PricedProduct>,
+  level: PriceType,
+  fallbacks: { super?: FallbackChoice; special?: FallbackChoice } = {}
+): number | null {
   const retail = Number(p.retailPrice) || 0;
   const wholesale = pos(p.wholesalePrice) ?? retail;
+  const pick = (c: FallbackChoice | undefined, def: FallbackChoice): number | null => {
+    const choice = c || def;
+    return choice === 'none' ? null : choice === 'wholesale' ? wholesale : retail;
+  };
   switch (level) {
     case 'wholesale': return wholesale;
-    case 'superWholesale': return pos(p.superWholesalePrice) ?? wholesale;
-    case 'special': return pos(p.specialPrice) ?? retail;
+    case 'superWholesale': return pos(p.superWholesalePrice) ?? pick(fallbacks.super, 'wholesale');
+    case 'special': return pos(p.specialPrice) ?? pick(fallbacks.special, 'retail');
     default: return retail;
   }
 }

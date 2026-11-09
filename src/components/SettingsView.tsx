@@ -143,7 +143,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     || (currentUser as any)?.username 
     || (settings.storeName ? settings.storeName.trim() : 'azarstore');
 
-  const [checkerLevel, setCheckerLevel] = useState<'retail' | 'wholesale' | 'superWholesale' | 'special'>('retail');
+  const [copiedLevel, setCopiedLevel] = useState<string>('');
   const encodedStoreToken = (function() {
     try {
       return btoa(unescape(encodeURIComponent(String(realStoreId))));
@@ -151,13 +151,33 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       return btoa(String(realStoreId));
     }
   })();
-  const customerPriceCheckerUrl = buildCheckerUrl('https://ckeckprice.vercel.app/', encodedStoreToken, checkerLevel);
-  const checkerLevels = (['retail', 'wholesale', 'superWholesale', 'special'] as const).filter(l =>
-    l === 'retail' ||
-    (settings.enableWholesale && (l === 'wholesale' ||
-      (l === 'superWholesale' && settings.showSuperWholesale !== false) ||
-      (l === 'special' && settings.showSpecialPrice !== false)))
-  );
+  const customerPriceCheckerUrl = buildCheckerUrl('https://ckeckprice.vercel.app/', encodedStoreToken, 'retail');
+  const extraLinks = ([
+    { level: 'wholesale' as const, enabled: !!settings.enableWholesale },
+    { level: 'superWholesale' as const, enabled: !!settings.enableWholesale && settings.showSuperWholesale !== false },
+    { level: 'special' as const, enabled: !!settings.enableWholesale && settings.showSpecialPrice !== false },
+  ]).map(x => ({ ...x, url: buildCheckerUrl('https://ckeckprice.vercel.app/', encodedStoreToken, x.level) }));
+  const copyLevelLink = (level: string, url: string) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url);
+      else {
+        const ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      }
+    } catch {}
+    setCopiedLevel(level);
+    setTimeout(() => setCopiedLevel(''), 2000);
+  };
+  const downloadLevelQr = (level: string, url: string) => {
+    QRCode.toDataURL(url, { width: 400, margin: 2 }, (err, dataUrl) => {
+      if (err || !dataUrl) return;
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = `QR-PriceChecker-${level}.png`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    });
+  };
+  const fallbackSuper = settings.checkerFallbackSuper || 'wholesale';
+  const fallbackSpecial = settings.checkerFallbackSpecial || 'retail';
   const stockMode = settings.checkerStockMode || 'none';
   const redMax = Number(settings.checkerRedMax) > 0 ? Number(settings.checkerRedMax) : STOCK_COLOR_DEFAULTS.redMax;
   const yellowMax = Number(settings.checkerYellowMax) > redMax ? Number(settings.checkerYellowMax) : Math.max(STOCK_COLOR_DEFAULTS.yellowMax, redMax + 1);
@@ -224,7 +244,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       const a = document.createElement('a');
       a.href = dataUrl;
       const cleanStoreName = (settings.storeName || 'Store').trim().replace(/[\s/\\?%*:|"<>]/g, '_');
-      a.download = `QR-PriceChecker-${cleanStoreName}${checkerLevel === 'retail' ? '' : '-' + checkerLevel}.png`;
+      a.download = `QR-PriceChecker-${cleanStoreName}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -918,22 +938,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </h3>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 bg-slate-900/60 border border-slate-800 rounded-xl p-2">
-            <span className="text-xs font-bold text-slate-300 px-1">نوع السعر الذي يظهر للزبون في هذا الرابط:</span>
-            {checkerLevels.map(l => (
-              <button
-                key={l}
-                type="button"
-                onClick={() => setCheckerLevel(l)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  checkerLevel === l ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
-              >
-                {CHECKER_LEVEL_LABELS[l]}
-              </button>
-            ))}
-          </div>
-
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3">
             <div className="text-xs font-bold text-slate-200">إظهار الكمية المتوفرة للزبون</div>
             <div className="flex flex-wrap gap-2">
@@ -1032,6 +1036,47 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3">
+            <div className="text-xs font-bold text-slate-200">روابط الأسعار الأخرى (الرابط الأعلى هو رابط المفرد)</div>
+            {extraLinks.map(({ level, enabled, url }) => (
+              <div key={level} className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-300 w-24 shrink-0">رابط {CHECKER_LEVEL_LABELS[level]}</span>
+                  {enabled ? (
+                    <>
+                      <input type="text" readOnly value={url} dir="ltr" className="flex-1 min-w-0 bg-slate-900 border border-slate-800 text-slate-200 text-[11px] rounded-lg px-2.5 py-2 font-mono text-left select-all" />
+                      <button type="button" onClick={() => copyLevelLink(level, url)} className="px-3 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer whitespace-nowrap">
+                        {copiedLevel === level ? 'تم النسخ!' : 'نسخ'}
+                      </button>
+                      <button type="button" onClick={() => downloadLevelQr(level, url)} className="px-3 py-2 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer whitespace-nowrap">
+                        QR
+                      </button>
+                    </>
+                  ) : (
+                    <span className="flex-1 text-xs font-bold text-slate-400 bg-slate-900 border border-dashed border-slate-700 rounded-lg px-3 py-2">
+                      غير مفعّل {level === 'wholesale' ? '(فعّل البيع بالجملة من الإعدادات)' : '(فعّله من إعدادات الأسعار)'}
+                    </span>
+                  )}
+                </div>
+                {enabled && level !== 'wholesale' && (
+                  <div className="flex items-center gap-2 pr-[104px] text-[11px] text-slate-400">
+                    <span>إذا لم يكن للمادة سعر {CHECKER_LEVEL_LABELS[level]} اعرض:</span>
+                    <select
+                      value={level === 'superWholesale' ? fallbackSuper : fallbackSpecial}
+                      onChange={(e) => updateSettings(level === 'superWholesale' ? { checkerFallbackSuper: e.target.value as any } : { checkerFallbackSpecial: e.target.value as any })}
+                      className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-white font-bold"
+                    >
+                      {level === 'superWholesale' && <option value="wholesale">سعر الجملة</option>}
+                      {level === 'special' && <option value="wholesale">سعر الجملة</option>}
+                      <option value="retail">سعر المفرد</option>
+                      <option value="none">لا شيء (السعر غير متاح)</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
 
           <div className="bg-[#0b1728] border-2 border-emerald-500/40 rounded-2xl p-6 shadow-2xl mt-6">
