@@ -219,3 +219,27 @@ export function diffProduct(before: any, after: any, includeCost: boolean): stri
 export function formatSimple(title: string, rows: (string | undefined | false)[], ctx: FmtCtx): string {
   return [`${title}${ctx.storeName ? ` — ${esc(ctx.storeName)}` : ''}`, `🕒 ${when()}`, ...rows.filter(Boolean) as string[]].join('\n');
 }
+
+
+/** رسالة تذكير بالدين لزبون: آخر دين أُخذ، آخر دفعة، والمتبقي */
+export function formatDebtReminder(
+  customerName: string,
+  totalDebt: number,
+  lastDebt: { amount: number; date: string } | null,
+  lastPayment: { amount: number; date: string } | null,
+  ctx: FmtCtx
+): string {
+  const cur = ctx.currency;
+  const day = (iso: string) => new Date(iso).toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
+  const lines: string[] = [
+    `🔔 <b>إشعار بحسابك</b>${ctx.storeName ? ` — ${esc(ctx.storeName)}` : ''}`,
+    `👤 ${esc(customerName)}`,
+    '',
+  ];
+  lines.push(lastDebt ? `📌 آخر مبلغ أُخذ بالدين: <b>${money(lastDebt.amount, cur)}</b> (${day(lastDebt.date)})` : '📌 آخر مبلغ أُخذ بالدين: لا يوجد');
+  lines.push(lastPayment ? `💵 آخر مبلغ سُدّد: <b>${money(lastPayment.amount, cur)}</b> (${day(lastPayment.date)})` : '💵 آخر مبلغ سُدّد: لا توجد دفعات');
+  lines.push('');
+  lines.push(totalDebt > 0 ? `⚠️ المتبقي عليك: <b>${money(totalDebt, cur)}</b>` : `✅ لا يوجد دين عليك. المتبقي: <b>${money(0, cur)}</b>`);
+  lines.push('', '🕒 ' + when());
+  return lines.join('\n');
+}
