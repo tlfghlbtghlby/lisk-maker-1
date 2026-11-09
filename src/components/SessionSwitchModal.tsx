@@ -165,7 +165,7 @@ export const SessionSwitchModal: React.FC = () => {
         <div className="p-4 sm:p-5 flex flex-col gap-4">
           
           {/* Session Selection Cards */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className={`grid gap-2 ${[isAdminEnabled, isSupervisorEnabled, isEmployeeEnabled].filter(Boolean).length === 1 ? 'grid-cols-1' : [isAdminEnabled, isSupervisorEnabled, isEmployeeEnabled].filter(Boolean).length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
             
             {/* 1. Admin */}
             {isAdminEnabled ? (
@@ -187,18 +187,7 @@ export const SessionSwitchModal: React.FC = () => {
                   كامل الصلاحيات
                 </div>
               </button>
-            ) : (
-              <div
-                className="p-3 rounded-xl border border-dashed border-slate-200 bg-slate-100/50 text-slate-400 text-center flex flex-col items-center justify-center gap-1 opacity-60 cursor-not-allowed select-none"
-                title="تم إلغاء تفعيل جلسة الأدمن من قبل إدارة النظام"
-              >
-                <ShieldCheck className="w-5 h-5 text-slate-400" />
-                <div className="text-xs font-bold line-through">جلسة الأدمن</div>
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 font-bold">
-                  معطل من الإدارة
-                </span>
-              </div>
-            )}
+            ) : null}
 
             {/* 2. Supervisor */}
             {isSupervisorEnabled ? (
@@ -223,18 +212,7 @@ export const SessionSwitchModal: React.FC = () => {
                   {supervisors.length > 1 ? `${supervisors.length} مشرفين` : 'صلاحيات وسطية'}
                 </div>
               </button>
-            ) : (
-              <div
-                className="p-3 rounded-xl border border-dashed border-slate-200 bg-slate-100/50 text-slate-400 text-center flex flex-col items-center justify-center gap-1 opacity-60 cursor-not-allowed select-none"
-                title="تم إلغاء تفعيل جلسة المشرف من قبل إدارة النظام"
-              >
-                <UserCheck className="w-5 h-5 text-slate-400" />
-                <div className="text-xs font-bold line-through">جلسة المشرف</div>
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 font-bold">
-                  معطل من الإدارة
-                </span>
-              </div>
-            )}
+            ) : null}
 
             {/* 3. Employee */}
             {isEmployeeEnabled ? (
@@ -256,18 +234,7 @@ export const SessionSwitchModal: React.FC = () => {
                   بيع وإضافة مواد
                 </div>
               </button>
-            ) : (
-              <div
-                className="p-3 rounded-xl border border-dashed border-slate-200 bg-slate-100/50 text-slate-400 text-center flex flex-col items-center justify-center gap-1 opacity-60 cursor-not-allowed select-none"
-                title="تم إلغاء تفعيل جلسة الموظف من قبل إدارة النظام"
-              >
-                <Users className="w-5 h-5 text-slate-400" />
-                <div className="text-xs font-bold line-through">جلسة الموظف</div>
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 font-bold">
-                  معطل من الإدارة
-                </span>
-              </div>
-            )}
+            ) : null}
           </div>
 
           {/* Multiple Supervisors Selector when Supervisor role is selected */}

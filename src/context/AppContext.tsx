@@ -138,6 +138,7 @@ interface AppContextType {
   deleteProduct: (id: string) => void;
   batchDeleteProducts: (productIdsToDelete: string[], stockIncrements?: Record<string, number>) => Promise<{ success: boolean; deletedCount: number; error?: string }>;
   adjustStock: (id: string, delta: number, opts?: { log?: boolean }) => void;
+  featureOn: (key: 'enableTelegram' | 'enableModernDesign' | 'enableCustomerPriceChecker' | 'enableSupervisor' | 'enableEmployee') => boolean;
   sendDebtReminder: (customerId: string) => Promise<{ ok: boolean; sent: number; error?: string }>;
   sendDebtRemindersToAll: (onProgress?: (done: number, total: number) => void) => Promise<{ total: number; sent: number; notLinked: number; failed: number; error?: string }>;
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'totalDebt'> & { initialDebt?: number }) => Customer;
@@ -927,6 +928,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [storeFeatures, sessionRole]);
 
+  // إذا ألغى مالك البرنامج جلسة المشرف أو الموظف والجلسة الحالية منها، نعود لجلسة متاحة
+  useEffect(() => {
+    const supOff = sessionRole === 'supervisor' && !featureOn('enableSupervisor');
+    const empOff = sessionRole === 'employee' && !featureOn('enableEmployee');
+    if (!supOff && !empOff) return;
+    const next: 'admin' | 'employee' = empOff || !featureOn('enableEmployee') ? 'admin' : 'employee';
+    setSessionRole(next);
+    setActiveSupervisorId(null);
+    try {
+      localStorage.setItem('active_session_role', next);
+      localStorage.removeItem('active_supervisor_id');
+    } catch {}
+  }, [sessionRole, settings.enableSupervisor, settings.enableEmployee, (currentUser as any)?.enableSupervisor, (currentUser as any)?.enableEmployee]);
+
   const permissions: RolePermissions = useMemo(() => {
     if (sessionRole === 'admin') return DEFAULT_ADMIN_PERMISSIONS;
     if (sessionRole === 'supervisor') {
@@ -1203,6 +1218,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     try {
       const tgs = stateRef.current.settings?.telegram;
+      if (!featureOn('enableTelegram')) return;
       if (!tgs || !tgs.enabled || !tgs.secret || !currentUser?.uid) return;
       const ctx: FmtCtx = {
         currency: stateRef.current.settings?.currency || 'د.ع',
@@ -1224,6 +1240,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }).catch(() => {});
     } catch {}
   };
+
+  // ميزة مفعّلة لهذا المتجر؟ (يُلغيها مالك البرنامج من لوحة التحكم: في إعدادات المتجر أو في حساب العميل)
+  const featureOn = (key: 'enableTelegram' | 'enableModernDesign' | 'enableCustomerPriceChecker' | 'enableSupervisor' | 'enableEmployee'): boolean =>
+    (stateRef.current.settings as any)?.[key] !== false && (currentUser as any)?.[key] !== false;
 
   // ============ إشعار الدين للزبون عبر التليجرام (يدوي) ============
   const buildDebtReminderText = (customerId: string): string | null => {
@@ -1255,7 +1275,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const sendDebtReminder = async (customerId: string): Promise<{ ok: boolean; sent: number; error?: string }> => {
     const tgs = stateRef.current.settings?.telegram;
-    if (!tgs || !tgs.secret || !currentUser?.uid) return { ok: false, sent: 0, error: 'التليجرام غير مفعّل أو غير مربوط للمتجر.' };
+    if (!featureOn('enableTelegram') || !tgs || !tgs.secret || !currentUser?.uid) return { ok: false, sent: 0, error: 'التليجرام غير مفعّل أو غير مربوط للمتجر.' };
     const text = buildDebtReminderText(customerId);
     if (!text) return { ok: false, sent: 0, error: 'الزبون غير موجود.' };
     try {
@@ -1269,7 +1289,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const sendDebtRemindersToAll = async (onProgress?: (done: number, total: number) => void) => {
     const list = [...(stateRef.current.customers || [])];
     const tgs = stateRef.current.settings?.telegram;
-    if (!tgs || !tgs.secret || !currentUser?.uid) {
+    if (!featureOn('enableTelegram') || !tgs || !tgs.secret || !currentUser?.uid) {
       return { total: list.length, sent: 0, notLinked: 0, failed: 0, error: 'التليجرام غير مفعّل أو غير مربوط للمتجر.' };
     }
     let sent = 0, notLinked = 0, failed = 0;
@@ -3091,6 +3111,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteProduct,
         batchDeleteProducts,
         adjustStock,
+        featureOn,
         sendDebtReminder,
         sendDebtRemindersToAll,
         addCustomer,

@@ -36,10 +36,13 @@ const StarburstSeal: React.FC<{ text: string }> = ({ text }) => (
 );
 
 export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, onClose }) => {
-  const { settings, hasPermission } = useApp();
-  const [activeTemplate, setActiveTemplate] = useState<'classic' | 'modern'>(
+  const { settings, hasPermission, featureOn } = useApp();
+  const modernAllowed = featureOn('enableModernDesign');
+  const [activeTemplateRaw, setActiveTemplate] = useState<'classic' | 'modern'>(
     settings.invoiceTemplate || 'modern'
   );
+  // عند إلغاء الطباعة العصرية من مالك البرنامج تُفرض الكلاسيكية
+  const activeTemplate: 'classic' | 'modern' = modernAllowed ? activeTemplateRaw : 'classic';
 
   useEffect(() => {
     if (settings.invoiceTemplate) {
@@ -429,6 +432,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
               </div>
             </div>
 
+            {modernAllowed && (
             <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2.5 sm:mr-1">
               <span className="text-xs font-bold text-slate-700">شكل القائمة:</span>
               <div className="flex items-center bg-slate-200 p-0.5 rounded-lg text-xs font-bold">
@@ -453,6 +457,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                 </button>
               </div>
             </div>
+            )}
 
             <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2.5 sm:mr-1">
               <label 

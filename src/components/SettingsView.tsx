@@ -124,7 +124,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     shifts,
     activeShift,
     theme,
-    setTheme
+    setTheme,
+    featureOn
   } = useApp();
 
   const [storeName, setStoreName] = useState(settings.storeName);
@@ -514,7 +515,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       defaultSessionOnLaunch,
       employeePermissions,
       supervisorPermissions,
-      invoiceTemplate,
+      invoiceTemplate: featureOn('enableModernDesign') ? invoiceTemplate : 'classic',
       modernHeader: modernHeaderConfig,
     } as any);
     // نافذة نجاح ثم العودة للنافذة الرئيسية دون أي أثر للحفظ في الإعدادات
@@ -853,6 +854,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <span>إدارة الجلسات والصلاحيات</span>
         </button>
 
+        {featureOn('enableCustomerPriceChecker') && (
         <button
           type="button"
           onClick={() => setActiveSettingsTab('customer-qr')}
@@ -865,7 +867,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <QrCodeIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           <span>قارئ أسعار الزبائن (QR)</span>
         </button>
+        )}
 
+        {featureOn('enableTelegram') && (
         <button
           type="button"
           onClick={() => setActiveSettingsTab('telegram')}
@@ -878,6 +882,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <span>✈️</span>
           <span>بوت التليجرام</span>
         </button>
+        )}
 
         <button
           type="button"
@@ -892,10 +897,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </button>
       </div>
 
-      {(activeSettingsTab === 'telegram' || activeSettingsTab === 'all') && <TelegramSettingsCard />}
+      {featureOn('enableTelegram') && (activeSettingsTab === 'telegram' || activeSettingsTab === 'all') && <TelegramSettingsCard />}
 
       {/* قسم قارئ أسعار الزبائن QR أونلاين وأوفلاين */}
-      {(activeSettingsTab === 'customer-qr' || activeSettingsTab === 'all') && (
+      {featureOn('enableCustomerPriceChecker') && (activeSettingsTab === 'customer-qr' || activeSettingsTab === 'all') && (
         <div className="bg-[#0b1728] border border-slate-800 rounded-2xl p-5 shadow-xl space-y-5 mb-6" dir="rtl">
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1227,6 +1232,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 </div>
               </div>
 
+              {featureOn('enableModernDesign') && (
               <div className="inline-flex p-1 bg-slate-200/80 dark:bg-slate-800 rounded-xl border border-slate-300/80 dark:border-slate-700 text-xs font-bold">
                 <button
                   type="button"
@@ -1253,6 +1259,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   <span>التصميم الكلاسيكي</span>
                 </button>
               </div>
+              )}
             </div>
 
             <div className="border-t border-indigo-100 dark:border-slate-800 pt-5 space-y-5">
