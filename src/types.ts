@@ -60,8 +60,12 @@ export interface StockLogEntry {
   /** عدد القطع (موجب دائماً) */
   qty: number;
   /** purchase: شراء/إضافة مخزون، adjust: تنقيص يدوي */
-  type: 'purchase' | 'adjust';
+  type: 'purchase' | 'adjust' | 'price';
   note?: string;
+  /** سعر تكلفة الشراء وقت هذه الحركة */
+  costPrice?: number;
+  /** سعر التكلفة السابق إذا تغيّر في هذه الحركة */
+  prevCostPrice?: number;
 }
 
 export type Item = Product;

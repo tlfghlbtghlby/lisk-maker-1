@@ -1455,12 +1455,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const makeStockLog = (qty: number, type: 'purchase' | 'adjust', note?: string): StockLogEntry => ({
+  const makeStockLog = (qty: number, type: 'purchase' | 'adjust' | 'price', note?: string, costPrice?: number, prevCostPrice?: number): StockLogEntry => ({
     id: 'sl_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
     date: new Date().toISOString(),
     qty,
     type,
     ...(note ? { note } : {}),
+    ...(typeof costPrice === 'number' ? { costPrice } : {}),
+    ...(typeof prevCostPrice === 'number' && prevCostPrice !== costPrice ? { prevCostPrice } : {}),
   });
   const appendStockLog = (log: StockLogEntry[] | undefined, entry: StockLogEntry): StockLogEntry[] =>
     [...(log || []), entry].slice(-500);
@@ -1480,7 +1482,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: now,
     };
     if ((newProduct.stock || 0) > 0 && !(newProduct.purchaseLog && newProduct.purchaseLog.length)) {
-      newProduct.purchaseLog = [makeStockLog(newProduct.stock, 'purchase', addNote || 'رصيد أولي')];
+      newProduct.purchaseLog = [makeStockLog(newProduct.stock, 'purchase', addNote || 'رصيد أولي', newProduct.costPrice)];
     }
 
     const updated = [newProduct, ...products];
@@ -1526,14 +1528,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { stockNote, ...updates } = rawUpdates as any;
     const beforeProduct = products.find(p => p.id === id);
     const finalUpdates: Partial<Product> = { ...updates, updatedAt: new Date().toISOString() };
-    if (beforeProduct && typeof updates.stock === 'number' && !updates.purchaseLog) {
-      const diff = Math.round((updates.stock - (beforeProduct.stock || 0)) * 1000) / 1000;
+    if (beforeProduct && !updates.purchaseLog) {
+      const diff = typeof updates.stock === 'number'
+        ? Math.round((updates.stock - (beforeProduct.stock || 0)) * 1000) / 1000
+        : 0;
+      const newCost = typeof updates.costPrice === 'number' ? updates.costPrice : beforeProduct.costPrice;
+      const costChanged = typeof updates.costPrice === 'number' && updates.costPrice !== beforeProduct.costPrice;
+      let log = beforeProduct.purchaseLog;
+      let changed = false;
       if (diff !== 0) {
-        finalUpdates.purchaseLog = appendStockLog(
-          beforeProduct.purchaseLog,
-          makeStockLog(Math.abs(diff), diff > 0 ? 'purchase' : 'adjust', stockNote || 'تعديل المادة')
-        );
+        log = appendStockLog(log, makeStockLog(Math.abs(diff), diff > 0 ? 'purchase' : 'adjust', stockNote || 'تعديل المادة', newCost, costChanged ? beforeProduct.costPrice : undefined));
+        changed = true;
+      } else if (costChanged) {
+        log = appendStockLog(log, makeStockLog(0, 'price', stockNote || 'تغيير سعر التكلفة', newCost, beforeProduct.costPrice));
+        changed = true;
       }
+      if (changed) finalUpdates.purchaseLog = log;
     }
     const updated = products.map(p => p.id === id ? { ...p, ...finalUpdates } : p);
     setProducts(updated);
@@ -1766,7 +1776,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const newStock = Math.max(0, Math.round((t.stock + delta) * 1000) / 1000);
       const realDiff = Math.round((newStock - t.stock) * 1000) / 1000;
       const logged = opts?.log && realDiff !== 0
-        ? appendStockLog(t.purchaseLog, makeStockLog(Math.abs(realDiff), realDiff > 0 ? 'purchase' : 'adjust', 'تعديل من المخزن'))
+        ? appendStockLog(t.purchaseLog, makeStockLog(Math.abs(realDiff), realDiff > 0 ? 'purchase' : 'adjust', 'تعديل من المخزن', t.costPrice))
         : t.purchaseLog;
       const updated = prev.map(p => p.id === id ? { ...p, stock: newStock, ...(logged ? { purchaseLog: logged } : {}), updatedAt: new Date().toISOString() } : p);
       try {
@@ -2516,7 +2526,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ownerUid: currentUid,
         createdAt: now,
         updatedAt: now,
-      })).map(p => (p.stock > 0 ? { ...p, purchaseLog: [makeStockLog(p.stock, 'purchase', 'استيراد')] } : p));
+      })).map(p => (p.stock > 0 ? { ...p, purchaseLog: [makeStockLog(p.stock, 'purchase', 'استيراد', p.costPrice)] } : p));
 
       let updatedList = cleanList;
       if (mode === 'merge') {
@@ -2550,10 +2560,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const old = map.get(String(p.id));
         let np = p;
         if (!old && (p.stock || 0) > 0 && !(p.purchaseLog && p.purchaseLog.length)) {
-          np = { ...p, purchaseLog: [makeStockLog(p.stock, 'purchase', 'إضافة سريعة')] };
+          np = { ...p, purchaseLog: [makeStockLog(p.stock, 'purchase', 'إضافة سريعة', p.costPrice)] };
         } else if (old && typeof p.stock === 'number' && p.stock !== old.stock && !p.purchaseLog) {
           const diff = Math.round((p.stock - old.stock) * 1000) / 1000;
-          np = { ...p, purchaseLog: appendStockLog(old.purchaseLog, makeStockLog(Math.abs(diff), diff > 0 ? 'purchase' : 'adjust', 'إضافة سريعة')) };
+          np = { ...p, purchaseLog: appendStockLog(old.purchaseLog, makeStockLog(Math.abs(diff), diff > 0 ? 'purchase' : 'adjust', 'إضافة سريعة', p.costPrice)) };
         } else if (old && !p.purchaseLog && old.purchaseLog) {
           np = { ...p, purchaseLog: old.purchaseLog };
         }
