@@ -27,6 +27,7 @@ interface Row {
   kind: 'purchase' | 'adjust' | 'sale' | 'gift' | 'return';
   qty: number;
   label: string;
+  note?: string;
   estimated?: boolean;
 }
 
@@ -69,7 +70,8 @@ export default function ProductMovementModal({ product, onClose }: Props) {
         date: e.date,
         kind: e.type,
         qty: e.qty,
-        label: e.type === 'purchase' ? `شراء / إضافة مخزون${e.note ? ' (' + e.note + ')' : ''}` : `تنقيص يدوي${e.note ? ' (' + e.note + ')' : ''}`,
+        label: e.type === 'purchase' ? 'شراء / إضافة مخزون' : 'تنقيص يدوي',
+        note: e.note,
       });
     });
 
@@ -81,7 +83,8 @@ export default function ProductMovementModal({ product, onClose }: Props) {
         date: product.createdAt,
         kind: 'purchase',
         qty: unlogged,
-        label: 'مشتريات سابقة (مقدّرة قبل تفعيل التتبع)',
+        label: 'مشتريات سابقة (مقدّرة)',
+        note: 'قبل تفعيل التتبع',
         estimated: true,
       });
     }
@@ -163,15 +166,16 @@ export default function ProductMovementModal({ product, onClose }: Props) {
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             <table className="w-full text-xs">
               <thead className="bg-slate-50 text-slate-600">
-                <tr><th className="p-2 text-right">التاريخ</th><th className="p-2 text-right">الحركة</th><th className="p-2 text-center">الكمية</th></tr>
+                <tr><th className="p-2 text-right">التاريخ</th><th className="p-2 text-right">الحركة</th><th className="p-2 text-right">ملاحظة</th><th className="p-2 text-center">الكمية</th></tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
-                  <tr><td colSpan={3} className="p-4 text-center text-slate-400">لا توجد حركة في هذه الفترة</td></tr>
+                  <tr><td colSpan={4} className="p-4 text-center text-slate-400">لا توجد حركة في هذه الفترة</td></tr>
                 ) : rows.map(r => (
                   <tr key={r.key} className="border-t border-slate-100">
                     <td className="p-2 whitespace-nowrap">{r.estimated ? dayKey(r.date) : fmtDate(r.date)}</td>
                     <td className="p-2">{r.label}</td>
+                    <td className="p-2 text-slate-600">{r.note || '-'}</td>
                     <td className={`p-2 text-center font-bold ${r.kind === 'purchase' ? 'text-emerald-700' : r.kind === 'sale' ? 'text-indigo-700' : 'text-slate-600'}`}>
                       {r.kind === 'purchase' ? '+' : '−'}{num(r.qty)}
                     </td>

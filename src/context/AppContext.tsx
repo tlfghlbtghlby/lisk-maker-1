@@ -1465,7 +1465,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const appendStockLog = (log: StockLogEntry[] | undefined, entry: StockLogEntry): StockLogEntry[] =>
     [...(log || []), entry].slice(-500);
 
-  const addProduct = (prodData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Product => {
+  const addProduct = (rawProdData: Omit<Product, 'id' | 'createdAt' | 'updatedAt'> & { stockNote?: string }): Product => {
+    const { stockNote: addNote, ...prodData } = rawProdData as any;
     const now = new Date().toISOString();
     const newId = 'prod_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     const currentUid = currentUser?.uid || 'offline_store';
@@ -1479,7 +1480,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: now,
     };
     if ((newProduct.stock || 0) > 0 && !(newProduct.purchaseLog && newProduct.purchaseLog.length)) {
-      newProduct.purchaseLog = [makeStockLog(newProduct.stock, 'purchase', 'رصيد أولي')];
+      newProduct.purchaseLog = [makeStockLog(newProduct.stock, 'purchase', addNote || 'رصيد أولي')];
     }
 
     const updated = [newProduct, ...products];
@@ -1521,7 +1522,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true, count: created.length, products: created };
   };
 
-  const updateProduct = (id: string, updates: Partial<Product>) => {
+  const updateProduct = (id: string, rawUpdates: Partial<Product> & { stockNote?: string }) => {
+    const { stockNote, ...updates } = rawUpdates as any;
     const beforeProduct = products.find(p => p.id === id);
     const finalUpdates: Partial<Product> = { ...updates, updatedAt: new Date().toISOString() };
     if (beforeProduct && typeof updates.stock === 'number' && !updates.purchaseLog) {
@@ -1529,7 +1531,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (diff !== 0) {
         finalUpdates.purchaseLog = appendStockLog(
           beforeProduct.purchaseLog,
-          makeStockLog(Math.abs(diff), diff > 0 ? 'purchase' : 'adjust', 'تعديل المادة')
+          makeStockLog(Math.abs(diff), diff > 0 ? 'purchase' : 'adjust', stockNote || 'تعديل المادة')
         );
       }
     }
