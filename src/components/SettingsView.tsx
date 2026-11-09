@@ -74,6 +74,7 @@ import { WipeProductsModal } from './WipeProductsModal';
 import { ModernInvoiceHeader } from './ModernInvoiceHeader';
 import { DuplicateProductsModal } from './DuplicateProductsModal';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
+import { buildCheckerUrl, CHECKER_LEVEL_LABELS, STOCK_COLOR_DEFAULTS } from '../utils/checkerLinks';
 
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
 
@@ -142,13 +143,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     || (currentUser as any)?.username 
     || (settings.storeName ? settings.storeName.trim() : 'azarstore');
 
-  const customerPriceCheckerUrl = `https://ckeckprice.vercel.app/#${(function() {
+  const [checkerLevel, setCheckerLevel] = useState<'retail' | 'wholesale' | 'superWholesale' | 'special'>('retail');
+  const encodedStoreToken = (function() {
     try {
       return btoa(unescape(encodeURIComponent(String(realStoreId))));
     } catch {
       return btoa(String(realStoreId));
     }
-  })()}`;
+  })();
+  const customerPriceCheckerUrl = buildCheckerUrl('https://ckeckprice.vercel.app/', encodedStoreToken, checkerLevel);
+  const checkerLevels = (['retail', 'wholesale', 'superWholesale', 'special'] as const).filter(l =>
+    l === 'retail' ||
+    (settings.enableWholesale && (l === 'wholesale' ||
+      (l === 'superWholesale' && settings.showSuperWholesale !== false) ||
+      (l === 'special' && settings.showSpecialPrice !== false)))
+  );
+  const stockMode = settings.checkerStockMode || 'none';
+  const redMax = Number(settings.checkerRedMax) > 0 ? Number(settings.checkerRedMax) : STOCK_COLOR_DEFAULTS.redMax;
+  const yellowMax = Number(settings.checkerYellowMax) > redMax ? Number(settings.checkerYellowMax) : Math.max(STOCK_COLOR_DEFAULTS.yellowMax, redMax + 1);
 
   useEffect(() => {
     if (customerPriceCheckerUrl) {
@@ -212,7 +224,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       const a = document.createElement('a');
       a.href = dataUrl;
       const cleanStoreName = (settings.storeName || 'Store').trim().replace(/[\s/\\?%*:|"<>]/g, '_');
-      a.download = `QR-PriceChecker-${cleanStoreName}.png`;
+      a.download = `QR-PriceChecker-${cleanStoreName}${checkerLevel === 'retail' ? '' : '-' + checkerLevel}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -904,6 +916,77 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               <span className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-sm">📱</span>
               <span>رابط ورمز QR قارئ الأسعار المشفر للزبائن (أونلاين وأوفلاين)</span>
             </h3>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 bg-slate-900/60 border border-slate-800 rounded-xl p-2">
+            <span className="text-xs font-bold text-slate-300 px-1">نوع السعر الذي يظهر للزبون في هذا الرابط:</span>
+            {checkerLevels.map(l => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setCheckerLevel(l)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  checkerLevel === l ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {CHECKER_LEVEL_LABELS[l]}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3">
+            <div className="text-xs font-bold text-slate-200">إظهار الكمية المتوفرة للزبون</div>
+            <div className="flex flex-wrap gap-2">
+              {([['none', 'إخفاء الكمية'], ['count', 'إظهار العدد'], ['colors', 'إظهار بالألوان']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => updateSettings({ checkerStockMode: val })}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    stockMode === val ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {stockMode === 'colors' && (
+              <div className="space-y-2 text-xs text-slate-300">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-slate-400" />
+                  <span>رمادي (غير متوفر): عند الصفر دائماً</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-rose-500" />
+                  <span>أحمر: من 1 إلى</span>
+                  <input
+                    type="number" min={1} value={redMax}
+                    onChange={(e) => {
+                      const v = Math.max(1, Math.floor(Number(e.target.value) || 1));
+                      updateSettings({ checkerRedMax: v, ...(yellowMax <= v ? { checkerYellowMax: v + 1 } : {}) });
+                    }}
+                    className="w-20 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-center text-white font-bold"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-amber-400" />
+                  <span>أصفر: من {redMax + 1} إلى</span>
+                  <input
+                    type="number" min={redMax + 1} value={yellowMax}
+                    onChange={(e) => {
+                      const v = Math.max(redMax + 1, Math.floor(Number(e.target.value) || redMax + 1));
+                      updateSettings({ checkerYellowMax: v });
+                    }}
+                    className="w-20 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-center text-white font-bold"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-emerald-500" />
+                  <span>أخضر: من {yellowMax + 1} فأكثر</span>
+                </div>
+              </div>
+            )}
+            <div className="text-[11px] text-slate-500">الكمية تُحسب بالقطعة، وتنطبق على كل روابط الزبائن.</div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">

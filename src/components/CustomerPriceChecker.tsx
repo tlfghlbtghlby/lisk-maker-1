@@ -3,13 +3,32 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { Search, Camera, RefreshCw, CheckCircle, X, QrCode, AlertTriangle } from 'lucide-react';
 
 import { supabaseUrl as SUPABASE_URL, supabaseAnonKey as SUPABASE_ANON_KEY } from '../supabase';
+import { parseCheckerToken, priceForLevel, stockLevelOf, STOCK_COLOR_DEFAULTS, CHECKER_LEVEL_LABELS } from '../utils/checkerLinks';
 
 interface ProductItem {
   id: string;
   name: string;
   barcode: string;
   price: number;
+  wholesalePrice?: number;
+  superWholesalePrice?: number;
+  specialPrice?: number;
+  stock?: number;
 }
+
+interface StockConfig {
+  mode: 'none' | 'count' | 'colors';
+  redMax: number;
+  yellowMax: number;
+}
+const DEFAULT_STOCK_CONFIG: StockConfig = { mode: 'none', ...STOCK_COLOR_DEFAULTS };
+
+const STOCK_BADGE: Record<'gray' | 'red' | 'yellow' | 'green', { label: string; cls: string; dot: string }> = {
+  gray: { label: 'غير متوفر', cls: 'bg-slate-500/15 text-slate-300 border-slate-500/40', dot: 'bg-slate-400' },
+  red: { label: 'كمية قليلة', cls: 'bg-rose-500/15 text-rose-300 border-rose-500/40', dot: 'bg-rose-500' },
+  yellow: { label: 'كمية متوسطة', cls: 'bg-amber-500/15 text-amber-300 border-amber-500/40', dot: 'bg-amber-400' },
+  green: { label: 'متوفر', cls: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40', dot: 'bg-emerald-500' },
+};
 
 // دالة فك التشفير الآمنة لـ base64 مع دعم النصوص العربية واليونيكود
 const decodeStoreToken = (raw: string | null | undefined): string => {
@@ -47,8 +66,23 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
   }, []);
 
   // استخلاص معرف المتجر النهائي مع فك التشفير إن وجد
-  const rawTargetToken = initialStoreId || currentHashToken;
+  const levelSource = (() => {
+    if (currentHashToken) return currentHashToken;
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      return sp.get('k') || sp.get('store') || '';
+    } catch { return ''; }
+  })();
+  const priceLevel = parseCheckerToken(levelSource).level;
+  const rawTargetToken = initialStoreId || parseCheckerToken(currentHashToken).token;
   const resolvedStoreId = decodeStoreToken(rawTargetToken);
+  const [stockCfg, setStockCfg] = useState<StockConfig>(() => {
+    try {
+      const raw = localStorage.getItem(`cache_checker_cfg_${decodeStoreToken(initialStoreId || parseCheckerToken(window.location.hash).token)}`);
+      if (raw) return { ...DEFAULT_STOCK_CONFIG, ...JSON.parse(raw) };
+    } catch {}
+    return DEFAULT_STOCK_CONFIG;
+  });
 
   const [storeName, setStoreName] = useState<string>('جاري التحميل...');
   const [products, setProducts] = useState<ProductItem[]>([]);
@@ -170,6 +204,16 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
           } catch {}
         }
 
+        const st = foundData.settings || {};
+        const cfg: StockConfig = {
+          mode: st.checkerStockMode === 'count' || st.checkerStockMode === 'colors' ? st.checkerStockMode : 'none',
+          redMax: Number(st.checkerRedMax) > 0 ? Number(st.checkerRedMax) : STOCK_COLOR_DEFAULTS.redMax,
+          yellowMax: Number(st.checkerYellowMax) > 0 ? Number(st.checkerYellowMax) : STOCK_COLOR_DEFAULTS.yellowMax,
+        };
+        if (cfg.yellowMax <= cfg.redMax) cfg.yellowMax = cfg.redMax + 1;
+        setStockCfg(cfg);
+        try { localStorage.setItem(`cache_checker_cfg_${resolvedStoreId}`, JSON.stringify(cfg)); } catch {}
+
         const itemMap = new Map<string, ProductItem>();
 
         // 1. استخراج المواد المباشرة
@@ -180,7 +224,16 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
             const price = Number(p.price ?? p.retailPrice ?? p.unitPrice ?? 0);
             if (code || pName) {
               const key = code || pName;
-              itemMap.set(key, { id: String(p.id || key), name: pName, barcode: code, price });
+              itemMap.set(key, {
+                id: String(p.id || key),
+                name: pName,
+                barcode: code,
+                price,
+                wholesalePrice: Number(p.wholesalePrice) || undefined,
+                superWholesalePrice: Number(p.superWholesalePrice) || undefined,
+                specialPrice: Number(p.specialPrice) || undefined,
+                stock: typeof p.stock === 'number' ? p.stock : undefined,
+              });
             }
           });
         }
@@ -323,6 +376,34 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
       scannerRef.current = null;
     }
     setScannerActive(false);
+  };
+
+  const priceOf = (p: ProductItem): number =>
+    priceLevel === 'retail'
+      ? p.price
+      : priceForLevel(
+          { retailPrice: p.price, wholesalePrice: p.wholesalePrice, superWholesalePrice: p.superWholesalePrice, specialPrice: p.specialPrice },
+          priceLevel
+        );
+
+  const renderStock = (p: ProductItem, big = false) => {
+    if (stockCfg.mode === 'none' || typeof p.stock !== 'number') return null;
+    const stock = p.stock;
+    if (stockCfg.mode === 'count') {
+      return (
+        <span className={`inline-flex items-center gap-1 rounded-full border border-slate-600/60 bg-slate-700/30 text-slate-200 font-bold ${big ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-[11px]'}`}>
+          المتوفر: {Math.round(stock * 1000) / 1000}
+        </span>
+      );
+    }
+    const lv = stockLevelOf(stock, stockCfg.redMax, stockCfg.yellowMax);
+    const b = STOCK_BADGE[lv];
+    return (
+      <span className={`inline-flex items-center gap-1.5 rounded-full border font-bold ${b.cls} ${big ? 'px-3 py-1 text-sm' : 'px-2 py-0.5 text-[11px]'}`}>
+        <span className={`w-2.5 h-2.5 rounded-full ${b.dot}`} />
+        {b.label}
+      </span>
+    );
   };
 
   const filteredProducts = searchTerm.trim() && !scannedProduct
@@ -500,10 +581,13 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
               <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-2" />
               <div className="text-xs text-slate-400 mb-1">اسم المادة</div>
               <h2 className="text-xl font-bold text-white mb-4">{scannedProduct.name}</h2>
-              <div className="text-xs text-slate-400 mb-1">السعر المعتمد</div>
-              <div className="text-3xl font-black text-amber-400">
-                {scannedProduct.price.toLocaleString()} <span className="text-sm font-normal text-slate-300">دينار</span>
+              <div className="text-xs text-slate-400 mb-1">
+                {priceLevel === 'retail' ? 'السعر المعتمد' : `السعر المعتمد (${CHECKER_LEVEL_LABELS[priceLevel]})`}
               </div>
+              <div className="text-3xl font-black text-amber-400">
+                {priceOf(scannedProduct).toLocaleString()} <span className="text-sm font-normal text-slate-300">دينار</span>
+              </div>
+              {renderStock(scannedProduct, true) && <div className="mt-4">{renderStock(scannedProduct, true)}</div>}
             </div>
           )}
 
@@ -525,8 +609,11 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
                       <div className="text-[11px] text-slate-500 font-mono mt-0.5">#{item.barcode}</div>
                     )}
                   </div>
-                  <div className="text-sm font-black text-emerald-400 whitespace-nowrap">
-                    {item.price.toLocaleString()} دينار
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="text-sm font-black text-emerald-400 whitespace-nowrap">
+                      {priceOf(item).toLocaleString()} دينار
+                    </div>
+                    {renderStock(item)}
                   </div>
                 </div>
               ))}
