@@ -470,6 +470,10 @@ export interface StoreSettings {
   // السماح بشفت مستقل ومتزامن على كل جهاز (الافتراضي: مفعّل)
   allowMultiDeviceShifts?: boolean;
   /** إظهار الكمية المتوفرة للزبون في فاحص الأسعار: none=مخفية، count=الرقم، colors=ألوان */
+  /** ما يُعرض للزبون في رابط جملة الجملة إذا لم يكن للمادة سعر جملة جملة */
+  checkerFallbackSuper?: 'wholesale' | 'retail' | 'none';
+  /** ما يُعرض للزبون في رابط السعر الخاص إذا لم يكن للمادة سعر خاص */
+  checkerFallbackSpecial?: 'wholesale' | 'retail' | 'none';
   checkerStockMode?: 'none' | 'count' | 'colors';
   /** آخر عدد يظهر باللون الأحمر (من 1 إلى هذا الرقم) */
   checkerRedMax?: number;
