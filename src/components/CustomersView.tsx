@@ -59,6 +59,25 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [telegramCustomer, setTelegramCustomer] = useState<Customer | null>(null);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
+  // فترة التصفية (تحدد قوائم ودفعات ومواد الزبون في كشف الحساب). فارغة = كل الفترة
+  const [periodFrom, setPeriodFrom] = useState('');
+  const [periodTo, setPeriodTo] = useState('');
+  const [showPurchasedItems, setShowPurchasedItems] = useState(false);
+  const inPeriod = (iso: string): boolean => {
+    if (!periodFrom && !periodTo) return true;
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return true;
+    if (periodFrom) {
+      const [y, m, dd] = periodFrom.split('-').map(Number);
+      if (d < new Date(y, m - 1, dd, 0, 0, 0, 0)) return false;
+    }
+    if (periodTo) {
+      const [y, m, dd] = periodTo.split('-').map(Number);
+      if (d > new Date(y, m - 1, dd, 23, 59, 59, 999)) return false;
+    }
+    return true;
+  };
+  const periodActive = !!(periodFrom || periodTo);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   
@@ -116,6 +135,13 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
   const totalMarketDebt = customers.reduce((sum, c) => sum + c.totalDebt, 0);
   const indebtedCount = customers.filter((c) => c.totalDebt > 0).length;
   const zeroDebtCount = customers.filter((c) => c.totalDebt === 0).length;
+
+  const customerInvoicesInPeriod = (cust: Customer) =>
+    invoices.filter((i) => (i.customerId === cust.id || i.customerName === cust.name) && inPeriod(i.date));
+  const customerPaymentsInPeriod = (cust: Customer) =>
+    payments.filter((p) => p.customerId === cust.id && inPeriod(p.date));
+  const periodDebtOf = (cust: Customer) =>
+    customerInvoicesInPeriod(cust).filter((i) => i.status !== 'returned').reduce((sum, i) => sum + (Number(i.remainingAmount) || 0), 0);
 
   // Handle open statement
   const handleOpenStatement = (cust: Customer) => {
@@ -213,6 +239,25 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
           <div className="text-[11px] text-slate-400 mt-1">سددوا كامل حساباتهم</div>
         </div>
 
+      </div>
+
+      {/* فترة عرض الديون والقوائم */}
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-end gap-3">
+        <div className="text-xs font-bold text-slate-700 self-center">📅 الديون والقوائم حسب الفترة:</div>
+        <label className="text-[11px] font-bold text-slate-600">من تاريخ
+          <input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="block mt-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs" />
+        </label>
+        <label className="text-[11px] font-bold text-slate-600">إلى تاريخ
+          <input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} className="block mt-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs" />
+        </label>
+        {periodActive && (
+          <button type="button" onClick={() => { setPeriodFrom(''); setPeriodTo(''); }} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">
+            كل الفترة
+          </button>
+        )}
+        <div className="text-[11px] text-slate-500 self-center">
+          {periodActive ? 'تظهر ديون الفترة تحت كل زبون، وعند فتح كشف الحساب تظهر قوائمه ودفعاته في هذه الفترة فقط.' : 'اختر فترة لعرض ديون وقوائم الزبائن فيها فقط.'}
+        </div>
       </div>
 
       {/* Control Bar */}
@@ -341,6 +386,11 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                         <span className={hasDebt ? 'text-amber-800' : 'text-slate-400'}>
                           {formatMoney(cust.totalDebt)}
                         </span>
+                        {periodActive && (
+                          <div className="text-[11px] font-bold text-sky-700 mt-0.5">
+                            دين الفترة: {formatMoney(periodDebtOf(cust))}
+                          </div>
+                        )}
                       </td>
 
                       {/* Status */}
@@ -439,6 +489,79 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+
+              {/* فترة الكشف + زر المواد المشتراة */}
+              <div className="flex flex-wrap items-end gap-2 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                <label className="text-[11px] font-bold text-slate-600">من تاريخ
+                  <input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="block mt-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white" />
+                </label>
+                <label className="text-[11px] font-bold text-slate-600">إلى تاريخ
+                  <input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} className="block mt-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white" />
+                </label>
+                {periodActive && (
+                  <button type="button" onClick={() => { setPeriodFrom(''); setPeriodTo(''); }} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700">
+                    كل الفترة
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowPurchasedItems(v => !v)}
+                  className={`px-3 py-2 text-xs font-bold rounded-lg border transition mr-auto ${showPurchasedItems ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-800 border-emerald-300 hover:bg-emerald-50'}`}
+                >
+                  {showPurchasedItems ? 'إخفاء المواد المشتراة' : '🛒 المواد المشتراة'}
+                </button>
+                {periodActive && (
+                  <div className="w-full text-[11px] text-sky-800 font-bold">
+                    ديون هذه الفترة: {formatMoney(periodDebtOf(selectedCustomer))} — المسدّد فيها: {formatMoney(customerPaymentsInPeriod(selectedCustomer).reduce((a, p) => a + (Number(p.amount) || 0), 0))}
+                  </div>
+                )}
+              </div>
+
+              {showPurchasedItems && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                    <Receipt className="w-4 h-4 text-emerald-600" />
+                    المواد التي اشتراها الزبون{periodActive ? ' في الفترة المحددة' : ''}:
+                  </h4>
+                  {(() => {
+                    const rows = customerInvoicesInPeriod(selectedCustomer)
+                      .filter((i) => i.status !== 'returned')
+                      .flatMap((inv) => (inv.items || []).map((it, idx) => ({ inv, it, key: `${inv.id}_${idx}` })))
+                      .sort((a, b) => new Date(b.inv.date).getTime() - new Date(a.inv.date).getTime());
+                    if (rows.length === 0) {
+                      return <p className="text-xs text-slate-400 bg-slate-50 p-4 rounded-lg text-center">لا توجد مواد مشتراة في هذه الفترة</p>;
+                    }
+                    return (
+                      <div className="border border-slate-200 rounded-lg overflow-hidden text-xs max-h-72 overflow-y-auto">
+                        <table className="w-full text-right">
+                          <thead className="bg-slate-100 font-bold text-slate-700 sticky top-0">
+                            <tr>
+                              <th className="py-2 px-3">المادة</th>
+                              <th className="py-2 px-3">السعر</th>
+                              <th className="py-2 px-3 text-center">الكمية</th>
+                              <th className="py-2 px-3">تاريخ الشراء</th>
+                              <th className="py-2 px-3">القائمة</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {rows.map(({ inv, it, key }) => (
+                              <tr key={key} className="hover:bg-slate-50">
+                                <td className="py-2 px-3 font-bold text-slate-900">{it.productName}{it.isGift ? ' 🎁' : ''}</td>
+                                <td className="py-2 px-3">{it.isGift ? 'هدية' : formatMoney(it.unitPrice)}</td>
+                                <td className="py-2 px-3 text-center font-bold">
+                                  {it.quantity}{it.returnedQuantity ? <span className="text-rose-600 font-normal"> (مُرجَع {it.returnedQuantity})</span> : null}
+                                </td>
+                                <td className="py-2 px-3 text-slate-500">{new Date(inv.date).toLocaleDateString('ar-EG')}</td>
+                                <td className="py-2 px-3 font-mono">{inv.invoiceNumber}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
               
               {/* Invoices by this customer */}
               <div>
@@ -446,9 +569,9 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                   <Receipt className="w-4 h-4 text-emerald-600" />
                   قوائم الشراء والفواتير السابقة:
                 </h4>
-                {invoices.filter((i) => i.customerId === selectedCustomer.id || i.customerName === selectedCustomer.name).length === 0 ? (
+                {customerInvoicesInPeriod(selectedCustomer).length === 0 ? (
                   <p className="text-xs text-slate-400 bg-slate-50 p-4 rounded-lg text-center">
-                    لا توجد فواتير مسجلة باسم هذا الزبون
+                    {periodActive ? 'لا توجد فواتير لهذا الزبون في الفترة المحددة' : 'لا توجد فواتير مسجلة باسم هذا الزبون'}
                   </p>
                 ) : (
                   <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">
@@ -465,8 +588,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
-                        {invoices
-                          .filter((i) => i.customerId === selectedCustomer.id || i.customerName === selectedCustomer.name)
+                        {customerInvoicesInPeriod(selectedCustomer)
                           .map((inv) => (
                             <tr key={inv.id} className="hover:bg-slate-50">
                               <td className="py-2 px-3 font-mono font-bold">{inv.invoiceNumber}</td>
@@ -508,7 +630,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                   <DollarSign className="w-4 h-4 text-blue-600" />
                   سجل سندات تسديد الديون (الدفعات):
                 </h4>
-                {payments.filter((p) => p.customerId === selectedCustomer.id).length === 0 ? (
+                {customerPaymentsInPeriod(selectedCustomer).length === 0 ? (
                   <p className="text-xs text-slate-400 bg-slate-50 p-4 rounded-lg text-center">
                     لم يتم تسجيل أي سندات تسديد لهذا الزبون بعد
                   </p>
@@ -524,8 +646,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
-                        {payments
-                          .filter((p) => p.customerId === selectedCustomer.id)
+                        {customerPaymentsInPeriod(selectedCustomer)
                           .map((pay) => (
                             <tr key={pay.id} className="hover:bg-slate-50">
                               <td className="py-2 px-3 font-mono font-bold text-blue-800">
