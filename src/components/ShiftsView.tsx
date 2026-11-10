@@ -83,6 +83,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [presetName, setPresetName] = useState('');
   const [presetCode, setPresetCode] = useState('');
+  const [presetCashier, setPresetCashier] = useState('');
   const [presetNotes, setPresetNotes] = useState('');
   const [presetFeedback, setPresetFeedback] = useState<string | null>(null);
 
@@ -271,6 +272,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
         await updatePresetShift(editingPresetId, {
           name: presetName.trim(),
           code: presetCode.trim(),
+          cashierName: presetCashier.trim(),
           notes: presetNotes.trim(),
         });
         setPresetFeedback('تم حفظ تعديلات الشفت بنجاح');
@@ -278,6 +280,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
         await addPresetShift({
           name: presetName.trim(),
           code: presetCode.trim(),
+          cashierName: presetCashier.trim(),
           notes: presetNotes.trim(),
         });
         setPresetFeedback('تمت إضافة قالب الشفت الجديد بنجاح');
@@ -286,6 +289,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
       setEditingPresetId(null);
       setPresetName('');
       setPresetCode('');
+      setPresetCashier('');
       setPresetNotes('');
       setTimeout(() => setPresetFeedback(null), 4000);
     } catch (err: any) {
@@ -297,6 +301,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
     setEditingPresetId(preset.id);
     setPresetName(preset.name);
     setPresetCode(preset.code);
+    setPresetCashier(preset.cashierName || '');
     setPresetNotes(preset.notes || '');
     setIsAddingPreset(false);
   };
@@ -327,7 +332,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
           </div>
           <div>
             <h2 className="text-lg sm:text-xl font-black text-slate-900">
-              إدارة وسجل شفتات العمل (الورديات)
+              إدارة وسجل الشفتات
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
               متابعة ساعات العمل، الشفتات المسبقة، فواتير المبيعات وصافي الأرباح لكل وردية
@@ -391,7 +396,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
             }`}
           >
             <Clock className="w-4 h-4" />
-            <span>سجل الشفتات والورديات</span>
+            <span>سجل الشفتات</span>
             <span className="text-[10px] bg-slate-800 text-white px-2 py-0.5 rounded-full font-mono">
               {filteredShifts.length}
             </span>
@@ -447,6 +452,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
                     setEditingPresetId(null);
                     setPresetName('');
                     setPresetCode('');
+                    setPresetCashier('');
                     setPresetNotes('');
                   }}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
@@ -510,6 +516,19 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
+                    اسم الكاشير على هذا الشفت (يظهر في سجل الشفتات وشريط الشفت):
+                  </label>
+                  <input
+                    type="text"
+                    value={presetCashier}
+                    onChange={(e) => setPresetCashier(e.target.value)}
+                    placeholder="مثال: أحمد"
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     ملاحظات أو تعليمات الشفت (اختياري):
                   </label>
                   <input
@@ -564,6 +583,11 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
                           <span className="font-extrabold text-sm text-slate-900 block">
                             {preset.name}
                           </span>
+                          {preset.cashierName && (
+                            <span className="text-[11px] text-indigo-700 font-bold mt-0.5 block">
+                              الكاشير: {preset.cashierName}
+                            </span>
+                          )}
                           {preset.notes && (
                             <span className="text-[11px] text-slate-500 mt-0.5 block">
                               {preset.notes}

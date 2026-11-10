@@ -1085,7 +1085,7 @@ export const AdminPanel: React.FC = () => {
                       onChange={(e) => setEditEnableShifts(e.target.checked)}
                       className="accent-emerald-500 w-3.5 h-3.5"
                     />
-                    <span className="font-bold text-slate-200">الشفتات والورديات</span>
+                    <span className="font-bold text-slate-200">الشفتات</span>
                   </label>
 
                   <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 cursor-pointer hover:border-slate-600">

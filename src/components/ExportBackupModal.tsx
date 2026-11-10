@@ -315,7 +315,7 @@ export const ExportBackupModal: React.FC<ExportBackupModalProps> = ({ isOpen, on
                     className="rounded text-indigo-600 focus:ring-indigo-500"
                   />
                   <Clock className="w-3.5 h-3.5 text-indigo-600" />
-                  <span className="font-bold text-slate-800">سجل الشفتات والورديات</span>
+                  <span className="font-bold text-slate-800">سجل الشفتات</span>
                 </label>
 
                 <label className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 cursor-pointer">

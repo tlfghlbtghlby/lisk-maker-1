@@ -28,6 +28,7 @@ export const ReportsView: React.FC = () => {
   const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'all' | 'custom'>('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [showAllSold, setShowAllSold] = useState(false);
 
   if (!hasPermission('canViewReports')) {
     return (
@@ -125,7 +126,7 @@ export const ReportsView: React.FC = () => {
         }
         map[item.productId].quantity += item.quantity;
         map[item.productId].revenue += item.total;
-        map[item.productId].profit += (item.unitPrice - item.costPrice) * item.quantity;
+        map[item.productId].profit += item.total - item.costPrice * item.quantity;
       });
     });
 
@@ -376,11 +377,22 @@ export const ReportsView: React.FC = () => {
         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Award className="w-5 h-5 text-amber-500" />
-            <h3 className="font-bold text-sm text-slate-900">المواد الأكثر مبيعاً وتحقيقاً للأرباح</h3>
+            <h3 className="font-bold text-sm text-slate-900">{showAllSold ? 'كل المواد المباعة في الفترة المحددة' : 'المواد الأكثر مبيعاً وتحقيقاً للأرباح'}</h3>
           </div>
-          <span className="text-xs text-slate-500">
-            مرتبة حسب أعلى إيرادات مبيعات
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 hidden sm:inline">
+              مرتبة حسب أعلى إيرادات مبيعات
+            </span>
+            {productSalesMap.length > 10 && (
+              <button
+                type="button"
+                onClick={() => setShowAllSold(v => !v)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition cursor-pointer"
+              >
+                {showAllSold ? 'عرض أول 10 فقط' : `عرض كل المواد المباعة (${productSalesMap.length})`}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -402,7 +414,7 @@ export const ReportsView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                productSalesMap.slice(0, 10).map((item, index) => (
+                (showAllSold ? productSalesMap : productSalesMap.slice(0, 10)).map((item, index) => (
                   <tr key={index} className="hover:bg-slate-50">
                     <td className="py-2.5 px-4 text-center font-bold text-slate-400">
                       {index + 1}

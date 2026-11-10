@@ -27,6 +27,7 @@ export const StartShiftModal: React.FC = () => {
   const [isCreatingQuickPreset, setIsCreatingQuickPreset] = useState(false);
   const [quickPresetName, setQuickPresetName] = useState('');
   const [quickPresetCode, setQuickPresetCode] = useState('');
+  const [quickPresetCashier, setQuickPresetCashier] = useState('');
 
   useEffect(() => {
     if (isStartShiftModalOpen) {
@@ -55,12 +56,14 @@ export const StartShiftModal: React.FC = () => {
       const created = await addPresetShift({
         name: quickPresetName.trim(),
         code: quickPresetCode.trim(),
+        cashierName: quickPresetCashier.trim(),
         notes: 'شفت مسبق الإعداد',
       });
       setSelectedPresetId(created.id);
       setIsCreatingQuickPreset(false);
       setQuickPresetName('');
       setQuickPresetCode('');
+      setQuickPresetCashier('');
       setErrorMsg(null);
     } catch (err: any) {
       setErrorMsg(err.message || 'فشل في حفظ قالب الشفت');
@@ -195,6 +198,16 @@ export const StartShiftModal: React.FC = () => {
                     onChange={(e) => setQuickPresetCode(e.target.value)}
                     placeholder="مثلاً: 1234"
                     className="w-full px-3 py-1.5 text-xs font-mono font-bold bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">اسم الكاشير (اختياري):</label>
+                  <input
+                    type="text"
+                    value={quickPresetCashier}
+                    onChange={(e) => setQuickPresetCashier(e.target.value)}
+                    placeholder="مثلاً: أحمد"
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                 </div>
               </div>
@@ -371,7 +384,7 @@ export const StartShiftModal: React.FC = () => {
                 <span>ملاحظات نظام الشفتات:</span>
               </div>
               <ul className="list-disc list-inside space-y-0.5 text-slate-500 pr-1">
-                <li>سيبدأ مؤقت الشفت فوراً ويستمر بالعد حتى إنهاء الوردية.</li>
+                <li>سيبدأ مؤقت الشفت فوراً ويستمر بالعد حتى إنهاء الشفت.</li>
                 <li>يتم حظر البيع في جلسة الموظف بدون شفت نشط لضمان الدقة المالية.</li>
               </ul>
             </div>

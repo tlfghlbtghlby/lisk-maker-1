@@ -171,6 +171,20 @@ export interface SalesRep {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
+  telegramCode?: string;
+  telegramLinked?: boolean;
+  /** تاريخ آخر تصفية: الأرباح تُحسب من القوائم بعد هذا التاريخ */
+  settledAt?: string;
+  settlements?: RepSettlement[];
+}
+
+export interface RepSettlement {
+  id: string;
+  date: string;
+  amount: number;
+  invoiceCount: number;
+  qty: number;
+  sales: number;
 }
 
 export interface Invoice {
@@ -318,6 +332,8 @@ export interface PresetShift {
   id: string;
   name: string;
   code: string;
+  /** اسم الكاشير الذي يعمل على هذا الشفت (يظهر في القوائم وشريط الشفت) */
+  cashierName?: string;
   notes?: string;
   createdAt: string;
   createdBy?: string;

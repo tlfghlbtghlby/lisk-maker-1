@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { SalesRep, Invoice } from '../types';
+import { RepTelegramModal, RepSettleModal } from './RepModals';
+import { computeRepEarnings } from '../utils/repEarnings';
 import { 
   Users, 
   UserPlus, 
@@ -53,8 +55,12 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
     addSalesRep, 
     updateSalesRep, 
     deleteSalesRep,
-    sessionRole
+    sessionRole,
+    featureOn
   } = useApp();
+  const telegramOn = featureOn('enableTelegram');
+  const [tgRep, setTgRep] = useState<SalesRep | null>(null);
+  const [settleRep, setSettleRep] = useState<SalesRep | null>(null);
 
   const reps: SalesRep[] = settings.salesReps || [];
 
@@ -356,6 +362,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
   const selectedRepObj = reps.find(r => r.id === selectedRepId);
 
   return (
+    <>
     <div className="space-y-6 animate-in fade-in duration-200">
       
       {/* Top Header & Activation Check */}
@@ -925,7 +932,25 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 flex-wrap justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setSettleRep(rep)}
+                              className="px-2 py-1 rounded-lg text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition cursor-pointer"
+                              title="تصفية أرباح المندوب"
+                            >
+                              تصفية الأرباح
+                            </button>
+                            {telegramOn && (
+                              <button
+                                type="button"
+                                onClick={() => setTgRep(rep)}
+                                className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${rep.telegramLinked ? 'text-sky-700 bg-sky-50 border-sky-200 hover:bg-sky-100' : 'text-slate-600 bg-slate-50 border-slate-200 hover:bg-slate-100'}`}
+                                title="ربط تليجرام وإرسال إشعار للمندوب"
+                              >
+                                {rep.telegramLinked ? 'إشعار تليجرام' : 'ربط تليجرام'}
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleOpenEditModal(rep)}
@@ -984,6 +1009,10 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                           <div className="flex items-center justify-between text-indigo-700 font-bold">
                             <span>أرباح وعمولات المندوب:</span>
                             <span className="font-mono font-black">{formatMoney(repTotalCommission)}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-amber-700 font-bold">
+                            <span>مستحقاته غير المصفّاة:</span>
+                            <span className="font-mono font-black">{formatMoney(computeRepEarnings(rep, invoices, settings.repCommissionDefaultType).commission)}</span>
                           </div>
                           <div className="flex items-center justify-between text-emerald-700 font-bold">
                             <span>أرباح المالك من هذا المندوب:</span>
@@ -1265,5 +1294,8 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
       )}
 
     </div>
+    {tgRep && <RepTelegramModal rep={tgRep} onClose={() => setTgRep(null)} />}
+    {settleRep && <RepSettleModal rep={settleRep} telegramOn={telegramOn} onClose={() => setSettleRep(null)} />}
+    </>
   );
 };

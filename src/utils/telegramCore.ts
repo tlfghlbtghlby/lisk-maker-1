@@ -33,7 +33,7 @@ export const DEFAULT_TELEGRAM_SETTINGS: TelegramSettings = {
 };
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-export function generateTelegramCode(prefix: 'ST' | 'CU'): string {
+export function generateTelegramCode(prefix: 'ST' | 'CU' | 'RP'): string {
   const bytes = crypto.getRandomValues(new Uint8Array(8));
   return `${prefix}-${Array.from(bytes).map(b => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('')}`;
 }
