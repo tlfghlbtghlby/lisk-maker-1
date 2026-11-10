@@ -31,7 +31,7 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
   onClose,
   onViewInvoice 
 }) => {
-  const { invoices, formatMoney, settings } = useApp();
+  const { invoices, formatMoney, settings, hasPermission, openInvoiceEditor } = useApp();
   const [activeTab, setActiveTab] = useState<'items' | 'stats' | 'invoices'>('items');
   const [searchItemQuery, setSearchItemQuery] = useState('');
 
@@ -476,6 +476,15 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
                           +{formatMoney(inv.netProfit)}
                         </td>
                         <td className="py-2.5 px-3 text-center">
+                          {hasPermission('canEditInvoice') && inv.status !== 'returned' && (
+                            <button
+                              type="button"
+                              onClick={() => { onClose(); openInvoiceEditor(inv.id); }}
+                              className="px-1.5 py-0.5 ml-1 text-[11px] font-bold rounded bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer"
+                            >
+                              تعديل
+                            </button>
+                          )}
                           {onViewInvoice && (
                             <button
                               type="button"

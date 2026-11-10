@@ -134,6 +134,7 @@ export type TelegramEventKey =
   | 'invoiceDeleted'
   | 'invoiceReturnedFull'
   | 'invoiceReturnedPartial'
+  | 'invoiceEdited'
   | 'productAdded'
   | 'productEdited'
   | 'productDeleted'
@@ -226,6 +227,22 @@ export interface Invoice {
   salesRepCommission?: number;
   storeNetProfit?: number;
   showRepOnInvoice?: boolean;
+  editedAt?: string;
+  editLog?: { date: string; by: string; summary: string }[];
+}
+
+export interface UpdateInvoiceInput {
+  items: InvoiceItem[];
+  type: SaleType;
+  customerId?: string;
+  customerName: string;
+  customerPhone?: string;
+  date?: string;
+  discount: number;
+  paidAmount: number;
+  paymentDueDate?: string;
+  notes?: string;
+  salesRepId?: string;
 }
 
 export interface POSDraftOrder {
@@ -540,6 +557,7 @@ export interface RolePermissions {
   canViewInvoices: boolean;
   canReturnInvoice: boolean;
   canDeleteInvoice: boolean;
+  canEditInvoice?: boolean;
   canViewCustomers: boolean;
   canViewReports: boolean;
   canAccessSettings: boolean;
@@ -558,6 +576,7 @@ export const DEFAULT_EMPLOYEE_PERMISSIONS: RolePermissions = {
   canViewInvoices: true,
   canReturnInvoice: false,
   canDeleteInvoice: false,
+  canEditInvoice: false,
   canViewCustomers: false,
   canViewReports: false,
   canAccessSettings: false,
@@ -576,6 +595,7 @@ export const DEFAULT_SUPERVISOR_PERMISSIONS: RolePermissions = {
   canViewInvoices: true,
   canReturnInvoice: true,
   canDeleteInvoice: false,
+  canEditInvoice: true,
   canViewCustomers: true,
   canViewReports: false,
   canAccessSettings: false,
@@ -594,6 +614,7 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   canViewInvoices: true,
   canReturnInvoice: true,
   canDeleteInvoice: true,
+  canEditInvoice: true,
   canViewCustomers: true,
   canViewReports: true,
   canAccessSettings: true,

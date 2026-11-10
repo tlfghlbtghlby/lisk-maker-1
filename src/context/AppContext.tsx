@@ -26,6 +26,7 @@ import {
   DuplicateProductGroup, 
   SalesRep, 
   PriceType,
+  UpdateInvoiceInput,
   StoreFeatures, 
   DEFAULT_STORE_FEATURES 
 } from '../types';
@@ -150,6 +151,10 @@ interface AppContextType {
   createInvoice: (data: CreateInvoiceInput) => Invoice;
   deleteInvoice: (id: string) => void;
   returnInvoice: (id: string, reason?: string) => Promise<boolean>;
+  updateInvoice: (id: string, data: UpdateInvoiceInput) => { success: boolean; error?: string };
+  editingInvoiceId: string | null;
+  openInvoiceEditor: (id: string) => void;
+  closeInvoiceEditor: () => void;
   returnPartialInvoice: (
     invoiceId: string,
     itemsToReturn: { productId: string; quantity: number }[],
@@ -2412,6 +2417,234 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
+
+  // ============ تعديل قائمة محفوظة (كامل): يعيد حساب المخزن والدين والشفت وعمولة المندوب ============
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const openInvoiceEditor = (id: string) => {
+    if (!hasPermission('canEditInvoice')) {
+      setSyncNotice('⚠️ لا تملك صلاحية تعديل القوائم.');
+      setTimeout(() => setSyncNotice(null), 4000);
+      return;
+    }
+    setEditingInvoiceId(id);
+  };
+  const closeInvoiceEditor = () => setEditingInvoiceId(null);
+
+  const updateInvoice = (id: string, data: UpdateInvoiceInput): { success: boolean; error?: string } => {
+    if (!hasPermission('canEditInvoice')) return { success: false, error: '⚠️ لا تملك صلاحية تعديل القوائم.' };
+    const old = invoices.find(i => i.id === id);
+    if (!old) return { success: false, error: 'القائمة غير موجودة.' };
+    if (old.status === 'returned') return { success: false, error: 'هذه القائمة مرجعة بالكامل ولا يمكن تعديلها.' };
+    if (!data.items || data.items.length === 0) return { success: false, error: 'لا يمكن حفظ قائمة بلا مواد. استعمل الحذف أو الإرجاع.' };
+
+    const now = new Date().toISOString();
+    const giftCostCounted = settings.giftCostCounted !== false;
+
+    // ---- المواد والمجاميع ----
+    let subtotal = 0;
+    let totalCost = 0;
+    const items: InvoiceItem[] = data.items.map((i: InvoiceItem) => {
+      const ppc = i.piecesPerCarton || 1;
+      const qty = Number(i.quantity) || 0;
+      const deductedPieces = i.isWeighted ? qty : i.unitType === 'carton' ? qty * ppc : qty;
+      const cost = i.isGift && !giftCostCounted ? 0 : (Number(i.costPrice) || 0);
+      const lineNet = Math.max(0, (Number(i.unitPrice) || 0) * qty - (Number(i.discount) || 0));
+      subtotal += lineNet;
+      totalCost += cost * qty;
+      return {
+        ...i,
+        quantity: qty,
+        returnedQuantity: 0,
+        deductedPieces,
+        costPrice: cost,
+        total: Math.round(lineNet),
+        weightGrams: i.isWeighted ? Math.round(qty * 1000) : i.weightGrams,
+        subtotal: lineNet,
+      } as InvoiceItem;
+    });
+
+    const discount = Math.max(0, Number(data.discount) || 0);
+    const total = Math.max(0, subtotal - discount);
+    const paidAmount = data.type === 'direct' ? total : Math.max(0, Number(data.paidAmount) || 0);
+    const remainingAmount = Math.max(0, total - paidAmount);
+    const status: InvoiceStatus = remainingAmount === 0 ? 'paid' : paidAmount > 0 ? 'partial' : 'unpaid';
+    const rawNetProfit = total - totalCost;
+
+    // ---- المندوب والعمولة ----
+    let salesRepId = data.salesRepId || undefined;
+    let salesRepName: string | undefined;
+    let salesRepCommission = 0;
+    let storeNetProfit = rawNetProfit;
+    let showRepOnInvoice = old.showRepOnInvoice ?? true;
+    const rep = salesRepId ? (settings.salesReps || []).find(r => r.id === salesRepId) : undefined;
+    if (salesRepId && !rep) salesRepId = undefined;
+    if (rep) {
+      salesRepName = rep.name;
+      if (rep.id !== old.salesRepId) showRepOnInvoice = rep.showOnInvoice ?? settings.defaultShowRepOnInvoice ?? true;
+      const rtype = rep.commissionType || settings.repCommissionDefaultType || 'percentage_profit';
+      if (rtype === 'percentage_sales') salesRepCommission = Math.round((total * (rep.commissionRate || 0)) / 100);
+      else if (rtype === 'fixed_per_invoice') salesRepCommission = Math.round(Math.max(0, rep.commissionRate || 0));
+      else if (rtype === 'fixed_per_piece') {
+        const pieces = items.reduce((sum, it: any) => sum + (it.isGift ? 0 : (it.deductedPieces ?? it.quantity ?? 0)), 0);
+        salesRepCommission = Math.round(Math.max(0, pieces * (rep.commissionRate || 0)));
+      } else salesRepCommission = Math.round(Math.max(0, (rawNetProfit * (rep.commissionRate || 0)) / 100));
+      storeNetProfit = Math.max(0, rawNetProfit - salesRepCommission);
+    }
+
+    // ---- المخزن: الفرق بين ما كان مخصوماً (بعد الإرجاعات) وما سيُخصم الآن ----
+    const pieceMap = new Map<string, number>();
+    old.items.forEach(it => {
+      const q = Number(it.quantity) || 0;
+      const net = Math.max(0, q - (it.returnedQuantity || 0));
+      const factor = q > 0 ? (it.deductedPieces ?? it.quantity) / q : 1;
+      pieceMap.set(it.productId, (pieceMap.get(it.productId) || 0) + net * factor);
+    });
+    items.forEach(it => {
+      pieceMap.set(it.productId, (pieceMap.get(it.productId) || 0) - (it.deductedPieces ?? it.quantity));
+    });
+    // قيمة موجبة = تُعاد للمخزن، سالبة = تُخصم منه
+    const updatedProducts = products.map(p => {
+      const diff = pieceMap.get(p.id);
+      if (!diff || Math.abs(diff) < 1e-9) return p;
+      return { ...p, stock: Math.max(0, Math.round((p.stock + diff) * 1000) / 1000), updatedAt: now };
+    });
+
+    // ---- دين الزبون ----
+    const oldCustId = old.customerId || '';
+    const newCustId = data.customerId || '';
+    const legacy = (old as any).debtApplied === undefined && !!oldCustId && oldCustId === newCustId;
+    const oldApplied = (old as any).debtApplied && oldCustId && old.remainingAmount > 0 ? old.remainingAmount : 0;
+    let custs = customers;
+    if (oldApplied > 0) {
+      custs = custs.map(c => c.id === oldCustId ? { ...c, totalDebt: Math.max(0, (c.totalDebt || 0) - oldApplied), updatedAt: now } : c);
+    }
+    const newCustomer = newCustId ? custs.find(c => c.id === newCustId) : undefined;
+    const previousDebt = legacy ? (old.previousDebt || 0) : newCustomer ? Math.max(0, Number(newCustomer.totalDebt) || 0) : 0;
+    const newApplied = !legacy && newCustomer && remainingAmount > 0 ? remainingAmount : 0;
+    if (newApplied > 0) {
+      custs = custs.map(c => c.id === newCustId ? { ...c, totalDebt: (c.totalDebt || 0) + newApplied, updatedAt: now } : c);
+    }
+    const customersChanged = custs !== customers;
+
+    // ---- الختم ----
+    const dateNew = data.date || old.date;
+    const customerNameNew = data.customerName || (data.type === 'direct' ? 'زبون نقدي مباشر' : 'عميل غير مسجل');
+    const sealNew = settings.invoiceSecret
+      ? computeInvoiceSeal(settings.invoiceSecret, { invoiceNumber: old.invoiceNumber, total, date: dateNew, customerName: customerNameNew, itemsCount: items.length })
+      : old.seal;
+
+    const summary = `الإجمالي ${old.total.toLocaleString()} ← ${total.toLocaleString()}`;
+    const updatedInv: any = {
+      ...old,
+      seal: sealNew,
+      date: dateNew,
+      type: data.type,
+      customerId: newCustId,
+      customerName: customerNameNew,
+      customerPhone: data.customerPhone || '',
+      items,
+      subtotal,
+      discount,
+      total,
+      paidAmount,
+      remainingAmount,
+      previousDebt,
+      currentTotalDebt: previousDebt + (newCustomer && remainingAmount > 0 ? remainingAmount : 0),
+      debtApplied: legacy ? undefined : newApplied > 0,
+      paymentDueDate: data.paymentDueDate || '',
+      status,
+      isPartiallyReturned: false,
+      notes: data.notes || '',
+      totalCost,
+      netProfit: rawNetProfit,
+      salesRepId,
+      salesRepName,
+      salesRepCommission,
+      storeNetProfit,
+      showRepOnInvoice,
+      updatedAt: now,
+      editedAt: now,
+      editLog: [...(old.editLog || []), { date: now, by: getActorLabel(), summary }].slice(-20),
+    };
+    if (legacy) delete updatedInv.debtApplied;
+
+    const updatedInvoices = invoices.map(i => (i.id === id ? updatedInv : i));
+
+    // ---- الشفت: تعديل مجاميعه بالفرق ----
+    let updatedShiftsList = shifts;
+    let touchedShift: Shift | null = null;
+    if (old.shiftId) {
+      const dTotal = total - (old.total || 0);
+      const dPaid = paidAmount - (old.paidAmount || 0);
+      const dRem = remainingAmount - (old.remainingAmount || 0);
+      const dCost = totalCost - (old.totalCost || 0);
+      updatedShiftsList = shifts.map(sh => {
+        if (sh.id !== old.shiftId) return sh;
+        touchedShift = {
+          ...sh,
+          totalSales: (sh.totalSales || 0) + dTotal,
+          totalPaid: (sh.totalPaid || 0) + dPaid,
+          totalRemaining: (sh.totalRemaining || 0) + dRem,
+          totalCost: (sh.totalCost || 0) + dCost,
+          totalProfit: (sh.totalProfit || 0) + (dTotal - dCost),
+        };
+        return touchedShift;
+      });
+    }
+
+    setProducts(updatedProducts);
+    setInvoices(updatedInvoices);
+    if (customersChanged) setCustomers(custs);
+    if (touchedShift) {
+      setShifts(updatedShiftsList);
+      if (activeShift && activeShift.id === (touchedShift as Shift).id) setActiveShift(touchedShift);
+    }
+    try {
+      localStorage.setItem('cached_pos_products', JSON.stringify(updatedProducts));
+      localStorage.setItem('cached_pos_invoices', JSON.stringify(updatedInvoices));
+      if (customersChanged) localStorage.setItem('cached_pos_customers', JSON.stringify(custs));
+      const uid = currentUser?.uid;
+      if (touchedShift && uid) {
+        localStorage.setItem(`cached_pos_shifts_${uid}`, JSON.stringify(updatedShiftsList));
+        localStorage.setItem('cached_pos_shifts', JSON.stringify(updatedShiftsList));
+      }
+    } catch {}
+
+    saveStoreToCloud({
+      products: updatedProducts,
+      invoices: updatedInvoices,
+      ...(customersChanged ? { customers: custs } : {}),
+      ...(touchedShift ? { shifts: updatedShiftsList } : {}),
+    });
+    broadcastSyncEvent('INVOICE_DELETED', { invoiceId: id, updatedInvoices, restoredProducts: updatedProducts }, currentSessionId, currentUser?.uid);
+    if (customersChanged) broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: custs }, currentSessionId, currentUser?.uid);
+    if (touchedShift) broadcastSyncEvent('SHIFT_UPDATED', { shift: touchedShift, allShifts: updatedShiftsList }, currentSessionId, currentUser?.uid);
+
+    const debtAfter = newCustomer ? custs.find(c => c.id === newCustId)?.totalDebt : undefined;
+    emitTelegram('invoiceEdited', ctx => ({
+      store: formatSimple('✏️ <b>تعديل قائمة</b>', [
+        `🧾 القائمة: <code>${tgEsc(old.invoiceNumber)}</code>`,
+        `👤 الزبون: ${tgEsc(customerNameNew)}`,
+        `الإجمالي: ${old.total.toLocaleString()} ← <b>${total.toLocaleString()} ${tgEsc(ctx.currency)}</b>`,
+        `المدفوع: ${old.paidAmount.toLocaleString()} ← <b>${paidAmount.toLocaleString()}</b>`,
+        `المتبقي: ${old.remainingAmount.toLocaleString()} ← <b>${remainingAmount.toLocaleString()}</b>`,
+        ctx.includeProfit ? `الربح: ${Number(old.netProfit || 0).toLocaleString()} ← <b>${rawNetProfit.toLocaleString()}</b>` : '',
+        `🧑‍💼 المنفذ: ${tgEsc(ctx.actor || '')}`,
+      ], ctx),
+      customerId: newCustId || undefined,
+      customer: newCustId
+        ? formatSimple('✏️ <b>تم تعديل قائمتك</b>', [
+            `🧾 القائمة: <code>${tgEsc(old.invoiceNumber)}</code>`,
+            `الإجمالي الجديد: <b>${total.toLocaleString()} ${tgEsc(ctx.currency)}</b>`,
+            `المتبقي من هذه القائمة: <b>${remainingAmount.toLocaleString()} ${tgEsc(ctx.currency)}</b>`,
+            debtAfter !== undefined ? `إجمالي دينك الآن: <b>${Number(debtAfter).toLocaleString()} ${tgEsc(ctx.currency)}</b>` : '',
+          ], ctx)
+        : undefined,
+    }));
+
+    return { success: true };
+  };
+
   const applyBulkPriceAdjustment = async () => ({ updatedCount: 0 });
 
   const recordPayment = (customerId: string, amount: number, notes?: string): PaymentRecord => {
@@ -3143,6 +3376,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         createInvoice,
         deleteInvoice,
         returnInvoice,
+        updateInvoice,
+        editingInvoiceId,
+        openInvoiceEditor,
+        closeInvoiceEditor,
         returnPartialInvoice,
         applyBulkPriceAdjustment,
         recordPayment,

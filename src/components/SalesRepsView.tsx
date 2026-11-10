@@ -56,7 +56,9 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
     updateSalesRep, 
     deleteSalesRep,
     sessionRole,
-    featureOn
+    featureOn,
+    hasPermission,
+    openInvoiceEditor
   } = useApp();
   const telegramOn = featureOn('enableTelegram');
   const [tgRep, setTgRep] = useState<SalesRep | null>(null);
@@ -849,6 +851,15 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                           {formatMoney(inv.storeNetProfit ?? (inv.netProfit - (inv.salesRepCommission || 0)))}
                         </td>
                         <td className="py-3 px-3 text-center">
+                          {hasPermission('canEditInvoice') && (
+                            <button
+                              type="button"
+                              onClick={() => openInvoiceEditor(inv.id)}
+                              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100 transition mb-1 block mx-auto cursor-pointer"
+                            >
+                              تعديل
+                            </button>
+                          )}
                           {onViewInvoice && (
                             <button
                               type="button"
@@ -1340,6 +1351,9 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                         <td className="p-2 text-center font-mono">{formatMoney(inv.total)}</td>
                         <td className="p-2 text-center font-mono text-indigo-700">{formatMoney(inv.salesRepCommission || 0)}</td>
                         <td className="p-2">
+                          {hasPermission('canEditInvoice') && (
+                            <button type="button" onClick={() => { setRepView(null); openInvoiceEditor(inv.id); }} className="px-2 py-1 ml-1 text-[11px] font-bold rounded-lg bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100 cursor-pointer">تعديل</button>
+                          )}
                           {onViewInvoice && (
                             <button type="button" onClick={() => { setRepView(null); onViewInvoice(inv); }} className="px-2 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">معاينة</button>
                           )}
