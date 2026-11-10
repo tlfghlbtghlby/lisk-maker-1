@@ -362,6 +362,8 @@ export interface StoreSupervisor {
   pin: string;
   canConfigureShifts?: boolean;
   permissions?: Partial<RolePermissions>;
+  /** بصمات مسجلة للمشرف (WebAuthn) */
+  biometrics?: { id: string; publicKey?: string; alg?: number; label?: string; createdAt: string }[];
   createdAt: string;
 }
 

@@ -14,6 +14,7 @@ import { OffersView } from './components/OffersView';
 import { ProductModal } from './components/ProductModal';
 import { InvoicePrintModal } from './components/InvoicePrintModal';
 import { InvoiceEditModal } from './components/InvoiceEditModal';
+import { SupervisorApprovalModal } from './components/SupervisorApprovalModal';
 import { SessionSwitchModal } from './components/SessionSwitchModal';
 import { StartShiftModal } from './components/StartShiftModal';
 import { EndShiftModal } from './components/EndShiftModal';
@@ -480,6 +481,7 @@ const MainContent: React.FC = () => {
       />
 
       <InvoiceEditModal />
+      <SupervisorApprovalModal />
       <SessionSwitchModal />
       <StartShiftModal />
       <EndShiftModal onNavigateToShifts={() => setActiveTab('shifts')} />

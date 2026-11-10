@@ -36,7 +36,7 @@ const StarburstSeal: React.FC<{ text: string }> = ({ text }) => (
 );
 
 export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, onClose }) => {
-  const { settings, hasPermission, featureOn, openInvoiceEditor, invoices: allInvoices } = useApp();
+  const { settings, hasPermission, featureOn, openInvoiceEditor, invoices: allInvoices, requestApproval, clearApprovalGrant } = useApp();
   const modernAllowed = featureOn('enableModernDesign');
   const [activeTemplateRaw, setActiveTemplate] = useState<'classic' | 'modern'>(
     settings.invoiceTemplate || 'modern'
@@ -509,10 +509,10 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
               <span>واتساب</span>
             </button>
 
-            {hasPermission('canReturnInvoice') && invoice.status !== 'returned' && (
+            {invoice.status !== 'returned' && (
               <button
                 type="button"
-                onClick={() => setIsPartialReturnOpen(true)}
+                onClick={() => requestApproval('return', invoice.id, () => setIsPartialReturnOpen(true))}
                 className="px-3.5 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-xs"
               >
                 <PackageMinus className="w-3.5 h-3.5 text-indigo-600" />
@@ -520,10 +520,10 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
               </button>
             )}
 
-            {hasPermission('canEditInvoice') && invoice.status !== 'returned' && allInvoices.some(x => x.id === invoice.id) && (
+            {invoice.status !== 'returned' && allInvoices.some(x => x.id === invoice.id) && (
               <button
                 type="button"
-                onClick={() => { const id = invoice.id; onClose(); openInvoiceEditor(id); }}
+                onClick={() => { const id = invoice.id; requestApproval('edit', id, () => { onClose(); openInvoiceEditor(id); }); }}
                 className="px-3.5 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition cursor-pointer shadow-xs"
                 title="تعديل القائمة بالكامل"
               >
@@ -859,7 +859,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
       <PartialReturnModal
         invoice={invoice}
         isOpen={isPartialReturnOpen}
-        onClose={() => setIsPartialReturnOpen(false)}
+        onClose={() => { clearApprovalGrant(); setIsPartialReturnOpen(false); }}
         onSuccess={() => {
           setIsPartialReturnOpen(false);
           onClose();

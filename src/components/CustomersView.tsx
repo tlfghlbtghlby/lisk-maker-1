@@ -38,6 +38,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
     settings,
     hasPermission,
     openInvoiceEditor,
+    requestApproval,
     openSessionModal,
     sendDebtReminder,
     featureOn
@@ -616,11 +617,13 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                                 >
                                   معاينة
                                 </button>
-                                {hasPermission('canEditInvoice') && inv.status !== 'returned' && (
+                                {inv.status !== 'returned' && (
                                   <button
                                     onClick={() => {
-                                      setIsStatementOpen(false);
-                                      openInvoiceEditor(inv.id);
+                                      requestApproval('edit', inv.id, () => {
+                                        setIsStatementOpen(false);
+                                        openInvoiceEditor(inv.id);
+                                      });
                                     }}
                                     className="text-amber-700 hover:underline font-bold mr-3"
                                   >
