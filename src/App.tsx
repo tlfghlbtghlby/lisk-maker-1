@@ -16,6 +16,7 @@ import { InvoicePrintModal } from './components/InvoicePrintModal';
 import { InvoiceEditModal } from './components/InvoiceEditModal';
 import { SupervisorApprovalModal } from './components/SupervisorApprovalModal';
 import { GlobalBarcodeListener } from './components/GlobalBarcodeListener';
+import { ZeroSelectOnFocus } from './components/ZeroSelectOnFocus';
 import { SessionSwitchModal } from './components/SessionSwitchModal';
 import { StartShiftModal } from './components/StartShiftModal';
 import { EndShiftModal } from './components/EndShiftModal';
@@ -482,6 +483,7 @@ const MainContent: React.FC = () => {
       />
 
       <GlobalBarcodeListener />
+      <ZeroSelectOnFocus />
       <InvoiceEditModal />
       <SupervisorApprovalModal />
       <SessionSwitchModal />

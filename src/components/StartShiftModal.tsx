@@ -18,7 +18,7 @@ export const StartShiftModal: React.FC = () => {
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [shiftCode, setShiftCode] = useState<string>('');
   const [showCode, setShowCode] = useState(false);
-  const [startingCash, setStartingCash] = useState<string>('0');
+  const [startingCash, setStartingCash] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -38,7 +38,7 @@ export const StartShiftModal: React.FC = () => {
       }
       setShiftCode('');
       setErrorMsg(null);
-      setStartingCash('0');
+      setStartingCash('');
       setNotes('');
       setIsCreatingQuickPreset(false);
     }
@@ -96,7 +96,7 @@ export const StartShiftModal: React.FC = () => {
       if (res.success) {
         setIsStartShiftModalOpen(false);
         setShiftCode('');
-        setStartingCash('0');
+        setStartingCash('');
         setNotes('');
         setErrorMsg(null);
       } else {
