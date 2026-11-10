@@ -102,3 +102,17 @@ export function formatRepSettlement(rep: SalesRep, amount: number, e: RepEarning
     '🕒 ' + new Date().toLocaleString('ar-IQ', { dateStyle: 'full', timeStyle: 'short' }),
   ].join('\n');
 }
+
+/** رسالة تلقائية للمندوب عند بيع قائمة باسمه */
+export function formatRepNewSale(rep: SalesRep, inv: Invoice, e: RepEarnings, ctx: FmtCtx): string {
+  const cur = esc(ctx.currency);
+  return [
+    `🛒 <b>قائمة جديدة باسمك</b>${ctx.storeName ? ` — ${esc(ctx.storeName)}` : ''}`,
+    `👤 ${esc(rep.name)}`,
+    `🧾 القائمة: <code>${esc(inv.invoiceNumber)}</code>${inv.customerName ? ` — ${esc(inv.customerName)}` : ''}`,
+    `💰 المبلغ: <b>${num(inv.total)} ${cur}</b>`,
+    `✅ ربحك منها: <b>${num(inv.salesRepCommission || 0)} ${cur}</b>`,
+    '',
+    `📈 أرباحك الحالية (غير المصفّاة): <b>${num(e.commission)} ${cur}</b> من ${num(e.invoices.length)} قائمة`,
+  ].join('\n');
+}
