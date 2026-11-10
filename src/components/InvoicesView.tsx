@@ -26,7 +26,7 @@ interface InvoicesViewProps {
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => {
-  const { invoices, deleteInvoice, returnInvoice, formatMoney, hasPermission } = useApp();
+  const { invoices, deleteInvoice, returnInvoice, formatMoney, hasPermission, openInvoiceEditor } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'direct' | 'credit' | 'unpaid' | 'returned'>('all');
@@ -409,6 +409,17 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
                           >
                             <Printer className="w-4 h-4" />
                           </button>
+
+                          {hasPermission('canEditInvoice') && inv.status !== 'returned' && (
+                            <button
+                              type="button"
+                              onClick={() => openInvoiceEditor(inv.id)}
+                              className="px-2 py-1 rounded-lg text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-300 hover:bg-amber-100 transition cursor-pointer"
+                              title="تعديل القائمة بالكامل"
+                            >
+                              تعديل
+                            </button>
+                          )}
 
                           {/* زر استرجاع جزئي للمواد مع خانة السبب (للمشرفين والمدير) */}
                           {hasPermission('canReturnInvoice') && (

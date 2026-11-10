@@ -36,7 +36,7 @@ const StarburstSeal: React.FC<{ text: string }> = ({ text }) => (
 );
 
 export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, onClose }) => {
-  const { settings, hasPermission, featureOn } = useApp();
+  const { settings, hasPermission, featureOn, openInvoiceEditor, invoices: allInvoices } = useApp();
   const modernAllowed = featureOn('enableModernDesign');
   const [activeTemplateRaw, setActiveTemplate] = useState<'classic' | 'modern'>(
     settings.invoiceTemplate || 'modern'
@@ -517,6 +517,17 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
               >
                 <PackageMinus className="w-3.5 h-3.5 text-indigo-600" />
                 <span>استرجاع جزئي</span>
+              </button>
+            )}
+
+            {hasPermission('canEditInvoice') && invoice.status !== 'returned' && allInvoices.some(x => x.id === invoice.id) && (
+              <button
+                type="button"
+                onClick={() => { const id = invoice.id; onClose(); openInvoiceEditor(id); }}
+                className="px-3.5 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition cursor-pointer shadow-xs"
+                title="تعديل القائمة بالكامل"
+              >
+                تعديل القائمة
               </button>
             )}
 

@@ -13,6 +13,7 @@ import { SalesRepsView } from './components/SalesRepsView';
 import { OffersView } from './components/OffersView';
 import { ProductModal } from './components/ProductModal';
 import { InvoicePrintModal } from './components/InvoicePrintModal';
+import { InvoiceEditModal } from './components/InvoiceEditModal';
 import { SessionSwitchModal } from './components/SessionSwitchModal';
 import { StartShiftModal } from './components/StartShiftModal';
 import { EndShiftModal } from './components/EndShiftModal';
@@ -478,6 +479,7 @@ const MainContent: React.FC = () => {
         onClose={() => setInvoiceToPrint(null)}
       />
 
+      <InvoiceEditModal />
       <SessionSwitchModal />
       <StartShiftModal />
       <EndShiftModal onNavigateToShifts={() => setActiveTab('shifts')} />

@@ -10,6 +10,7 @@ export const TELEGRAM_EVENT_LABELS: Record<TelegramEventKey, { label: string; hi
   invoiceDeleted: { label: 'حذف قائمة', hint: 'من حذفها ومتى وتفاصيلها' },
   invoiceReturnedFull: { label: 'إرجاع كامل', hint: 'الجهة التي أرجعت، الوقت، السبب' },
   invoiceReturnedPartial: { label: 'إرجاع جزئي', hint: 'المواد المرجعة، السبب، من قام به' },
+  invoiceEdited: { label: 'تعديل قائمة', hint: 'ما تغيّر في القائمة: الإجمالي والمدفوع والمتبقي ومن عدّلها' },
   productAdded: { label: 'إضافة مادة', hint: 'مادة جديدة في المخزن' },
   productEdited: { label: 'تعديل مادة', hint: 'تغيّر في الأسعار أو الكمية أو البيانات' },
   productDeleted: { label: 'حذف مادة', hint: 'مواد تُنقل إلى سلة المحذوفات' },
