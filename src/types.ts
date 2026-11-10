@@ -499,6 +499,7 @@ export interface StoreSettings {
   invoiceShowCartonColumns?: boolean;
   invoiceShowPiecePrice?: boolean;
   quickQuantityEntry?: boolean;
+  invertEnterShortcuts?: boolean;
   promotions?: Promotion[];
   // طريقة ذكر الخصم في القائمة: عمود «الخصم» أو تطبيق مباشر على السعر دون ذكره
   promoDiscountDisplay?: 'column' | 'hidden';

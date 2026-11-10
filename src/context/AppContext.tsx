@@ -261,6 +261,7 @@ const defaultEmptySettings: StoreSettings = {
   invoiceShowCartonColumns: true,
   invoiceShowPiecePrice: false,
   quickQuantityEntry: false,
+  invertEnterShortcuts: false,
   allowMultiDeviceShifts: true,
   giftCostCounted: true,
   deviceMode: typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
