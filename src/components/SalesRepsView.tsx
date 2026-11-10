@@ -730,9 +730,9 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
             {soldProductsList.length === 0 ? (
               <div className="text-center py-12 text-slate-400">
                 <Package className="w-12 h-12 mx-auto stroke-1 text-slate-300 mb-2" />
-                <div className="text-sm font-bold text-slate-700">لا توجد مواد مباعة مسجلة لهذا المندوب في هذه الفترة</div>
+                <div className="text-sm font-bold text-slate-700">لا توجد مواد مباعة مسجلة في هذه الفترة</div>
                 <div className="text-xs text-slate-500 mt-1">
-                  عند إتمام أي قائمة جديدة واختيار هذا المندوب، ستظهر المواد وأرباحها هنا مباشرة.
+                  عند إتمام أي قائمة جديدة واختيار مندوب، ستظهر المواد وأرباحها هنا مباشرة.
                 </div>
               </div>
             ) : (
@@ -809,7 +809,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
             {filteredInvoices.length === 0 ? (
               <div className="text-center py-12 text-slate-400">
                 <FileText className="w-12 h-12 mx-auto stroke-1 text-slate-300 mb-2" />
-                <div className="text-sm font-bold text-slate-700">لا توجد فواتير صادرة بواسطة هذا المندوب في هذه الفترة</div>
+                <div className="text-sm font-bold text-slate-700">لا توجد قوائم صادرة بواسطة المندوبين في هذه الفترة</div>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-xl border border-slate-200">
