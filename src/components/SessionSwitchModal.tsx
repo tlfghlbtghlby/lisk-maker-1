@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { SessionRole } from '../types';
+import { useSupervisorBiometric } from './useSupervisorBiometric';
+import { registerBiometric, biometricSupported } from '../utils/biometric';
 import { 
   ShieldCheck, 
   UserCheck, 
@@ -12,7 +14,8 @@ import {
   Eye, 
   EyeOff, 
   AlertCircle,
-  Delete
+  Delete,
+  Fingerprint
 } from 'lucide-react';
 
 export const SessionSwitchModal: React.FC = () => {
@@ -28,7 +31,10 @@ export const SessionSwitchModal: React.FC = () => {
     currentUser,
     settings,
     storeFeatures,
-    activeSupervisorId
+    activeSupervisorId,
+    completeSupervisorLogin,
+    checkSupervisorCode,
+    addSupervisorBiometric
   } = useApp();
 
   const supervisors = settings.supervisors || [];
@@ -44,6 +50,19 @@ export const SessionSwitchModal: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [infoMsg, setInfoMsg] = useState<string | null>(null);
+
+  // البصمة والرمز يعملان معاً: يكفي وضع الإصبع أو كتابة الرمز
+  const bio = useSupervisorBiometric(
+    isSessionModalOpen && selectedRole === 'supervisor' && isSupervisorEnabled,
+    (supId) => {
+      completeSupervisorLogin(supId);
+      setIsSessionModalOpen(false);
+      setTargetSessionForModal(null);
+      setTargetSupervisorIdForModal(null);
+      setPasswordOrPin('');
+    }
+  );
 
   useEffect(() => {
     if (isSessionModalOpen) {
@@ -76,6 +95,25 @@ export const SessionSwitchModal: React.FC = () => {
   }, [isSessionModalOpen, targetSessionForModal, targetSupervisorIdForModal, sessionRole, activeSupervisorId, supervisors, isAdminEnabled, isSupervisorEnabled, isEmployeeEnabled]);
 
   if (!isSessionModalOpen) return null;
+
+  const enrollBiometric = async () => {
+    setErrorMsg(null);
+    setInfoMsg(null);
+    const sup = supervisors.find(x => x.id === selectedSupervisorId) || supervisors[0];
+    if (!sup) { setErrorMsg('لا يوجد مشرف لربط البصمة به.'); return; }
+    if (!(await checkSupervisorCode(passwordOrPin, sup.id))) {
+      setErrorMsg('أدخل رمز هذا المشرف (أو كلمة مرور الحساب) أولاً ثم اضغط تسجيل البصمة.');
+      return;
+    }
+    try {
+      bio.stop();
+      const cred = await registerBiometric({ userId: sup.id, userName: sup.name, label: `${sup.name} - ${navigator.platform || 'جهاز'}` });
+      addSupervisorBiometric(sup.id, cred);
+      setInfoMsg(`تم تسجيل بصمة المشرف (${sup.name}). من الآن يكفي وضع الإصبع للدخول.`);
+    } catch (e: any) {
+      setErrorMsg(e?.name === 'NotAllowedError' ? 'أُلغي تسجيل البصمة.' : (e?.message || 'تعذر تسجيل البصمة.'));
+    }
+  };
 
   const handleSwitch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -318,6 +356,31 @@ export const SessionSwitchModal: React.FC = () => {
               </>
             )}
           </div>
+
+          {selectedRole === 'supervisor' && isSupervisorEnabled && biometricSupported() && (
+            <div className="bg-sky-50 border border-sky-200 rounded-xl p-2.5 space-y-1.5">
+              {bio.hasCreds ? (
+                <button
+                  type="button"
+                  onClick={bio.start}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-bold text-sky-900 bg-white border border-sky-300 cursor-pointer"
+                >
+                  <Fingerprint className={`w-5 h-5 ${bio.status === 'waiting' ? 'animate-pulse text-sky-600' : 'text-slate-500'}`} />
+                  {bio.status === 'waiting' ? 'ضع إصبعك على البصمة للدخول... أو اكتب الرمز بالأسفل' : 'إعادة محاولة البصمة'}
+                </button>
+              ) : (
+                <p className="text-[11px] text-sky-900 font-bold">لم تُسجَّل بصمة بعد: أدخل رمز المشرف ثم اضغط «تسجيل البصمة».</p>
+              )}
+              <button
+                type="button"
+                onClick={enrollBiometric}
+                className="text-[11px] font-bold text-sky-700 hover:underline cursor-pointer"
+              >
+                {bio.hasCreds ? 'تسجيل بصمة إضافية لهذا المشرف' : 'تسجيل البصمة لهذا المشرف'}
+              </button>
+              {infoMsg && <div className="text-[11px] font-bold text-emerald-700">{infoMsg}</div>}
+            </div>
+          )}
 
           {/* Password / PIN Input */}
           {selectedRole !== 'employee' && (

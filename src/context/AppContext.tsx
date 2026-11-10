@@ -32,6 +32,7 @@ import {
 } from '../types';
 import { getOrCreateDeviceId, getOrCreateSessionId, detectSystemInfo } from '../utils/deviceSession';
 import { findDuplicateGroups } from '../utils/duplicateCleaner';
+import { getPiecePrice } from '../utils/pricing';
 import {
   mergeProducts, mergeInvoices, mergeShifts,
   mergeCollection, mergeTombstones, mergeTrash, makeTrashEntry, purgeTrash,
@@ -154,6 +155,15 @@ interface AppContextType {
   updateInvoice: (id: string, data: UpdateInvoiceInput) => { success: boolean; error?: string };
   editingInvoiceId: string | null;
   openInvoiceEditor: (id: string) => void;
+  addBarcodeToActiveDraft: (code: string) => { found: boolean; name?: string };
+  approvalRequest: { action: 'edit' | 'return'; invoiceId: string } | null;
+  requestApproval: (action: 'edit' | 'return', invoiceId: string, run: () => void) => void;
+  grantApproval: () => void;
+  clearApprovalGrant: () => void;
+  cancelApproval: () => void;
+  checkSupervisorCode: (code: string, supervisorId?: string) => Promise<boolean>;
+  completeSupervisorLogin: (supervisorId: string) => void;
+  addSupervisorBiometric: (supervisorId: string, cred: { id: string; publicKey?: string; alg?: number; label?: string; createdAt: string }) => void;
   closeInvoiceEditor: () => void;
   returnPartialInvoice: (
     invoiceId: string,
@@ -261,6 +271,7 @@ const defaultEmptySettings: StoreSettings = {
   invoiceShowCartonColumns: true,
   invoiceShowPiecePrice: false,
   quickQuantityEntry: false,
+  invertEnterShortcuts: false,
   allowMultiDeviceShifts: true,
   giftCostCounted: true,
   deviceMode: typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop',
@@ -852,6 +863,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDraftOrders(prev => [...prev, newOrder]);
     setActiveDraftId(newOrder.id);
     return newOrder.id;
+  };
+
+  // إضافة مادة بالباركود إلى القائمة النشطة من أي قسم (دون الحاجة لفتح نقطة البيع)
+  const addBarcodeToActiveDraft = (code: string): { found: boolean; name?: string } => {
+    const clean = (code || '').trim();
+    if (!clean) return { found: false };
+    const product = products.find(p => (p.code || '').toLowerCase() === clean.toLowerCase());
+    if (!product) return { found: false };
+    const isWeighted = Boolean(product.isWeighted || product.unit === 'كغم' || product.unit === 'كيلو');
+    setDraftOrders(prev => prev.map(order => {
+      if (order.id !== activeDraft.id) return order;
+      const wanted: PriceType = (order.globalPriceType || 'retail');
+      const priceType: PriceType = priceTypeOn(wanted) ? wanted : 'retail';
+      const items = order.cartItems || [];
+      const idx = items.findIndex(it => it.productId === product.id && !it.isGift);
+      let next: InvoiceItem[];
+      if (idx > -1) {
+        const t = items[idx];
+        const q = Math.round((t.quantity + 1) * 1000) / 1000;
+        const cap = isWeighted ? 1 : (t.piecesPerCarton || product.piecesPerCarton || 1);
+        const upd: InvoiceItem = {
+          ...t,
+          quantity: q,
+          deductedPieces: (!isWeighted && t.unitType === 'carton') ? q * cap : q,
+          weightGrams: isWeighted ? Math.round(q * 1000) : undefined,
+          total: Math.round(q * t.unitPrice),
+        };
+        next = [upd, ...items.filter((_, i) => i !== idx)];
+      } else {
+        const price = getPiecePrice(product, priceType);
+        const item: InvoiceItem = {
+          productId: product.id,
+          productName: product.name,
+          code: product.code,
+          unit: isWeighted ? 'كغم' : product.unit,
+          priceType,
+          unitType: 'piece',
+          piecesPerCarton: isWeighted ? 1 : (product.piecesPerCarton || 1),
+          deductedPieces: 1,
+          costPrice: product.costPrice,
+          unitPrice: price,
+          quantity: 1,
+          isWeighted,
+          weightGrams: isWeighted ? 1000 : undefined,
+          total: Math.round(price),
+        };
+        next = [item, ...items];
+      }
+      return { ...order, cartItems: next, updatedAt: new Date().toISOString() };
+    }));
+    return { found: true, name: product.name };
   };
 
   const switchToDraft = (id: string) => setActiveDraftId(id);
@@ -2222,7 +2284,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const returnInvoice = async (id: string, reason?: string): Promise<boolean> => {
-    if (!hasPermission('canReturnInvoice')) {
+    if (!hasPermission('canReturnInvoice') && !grantAllows('return', id)) {
       setSyncNotice('⚠️ لا تملك صلاحية استرجاع الفواتير.');
       setTimeout(() => setSyncNotice(null), 4000);
       return false;
@@ -2280,6 +2342,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ], ctx)
         : undefined,
     }));
+    consumeGrant('return', id);
     return true;
   };
 
@@ -2289,7 +2352,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     reason: string,
     notes?: string
   ): Promise<{ success: boolean; error?: string }> => {
-    if (!hasPermission('canReturnInvoice')) {
+    if (!hasPermission('canReturnInvoice') && !grantAllows('return', invoiceId)) {
       return { success: false, error: '⚠️ لا تملك صلاحية استرجاع المواد.' };
     }
     const inv = invoices.find(i => i.id === invoiceId);
@@ -2414,24 +2477,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : undefined,
     }));
 
+    consumeGrant('return', invoiceId);
     return { success: true };
   };
 
 
   // ============ تعديل قائمة محفوظة (كامل): يعيد حساب المخزن والدين والشفت وعمولة المندوب ============
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  // ============ إذن المشرف لمرة واحدة (لقائمة واحدة وإجراء واحد) ============
+  const [approvalRequest, setApprovalRequest] = useState<{ action: 'edit' | 'return'; invoiceId: string } | null>(null);
+  const approvalRunRef = useRef<(() => void) | null>(null);
+  const grantRef = useRef<{ action: 'edit' | 'return'; invoiceId: string; at: number } | null>(null);
+  const grantAllows = (action: 'edit' | 'return', invoiceId: string) =>
+    !!grantRef.current && grantRef.current.action === action && grantRef.current.invoiceId === invoiceId && Date.now() - grantRef.current.at < 10 * 60 * 1000;
+  const clearApprovalGrant = () => { grantRef.current = null; };
+  const consumeGrant = (action: 'edit' | 'return', invoiceId: string) => {
+    if (grantAllows(action, invoiceId)) grantRef.current = null;
+  };
+  const requestApproval = (action: 'edit' | 'return', invoiceId: string, run: () => void) => {
+    const perm = action === 'edit' ? 'canEditInvoice' : 'canReturnInvoice';
+    if (hasPermission(perm)) { run(); return; }
+    approvalRunRef.current = run;
+    setApprovalRequest({ action, invoiceId });
+  };
+  const grantApproval = () => {
+    const req = approvalRequest;
+    const run = approvalRunRef.current;
+    approvalRunRef.current = null;
+    setApprovalRequest(null);
+    if (!req) return;
+    grantRef.current = { ...req, at: Date.now() };
+    run?.();
+  };
+  const cancelApproval = () => { approvalRunRef.current = null; setApprovalRequest(null); };
+
+  const checkSupervisorCode = async (code: string, supervisorId?: string): Promise<boolean> => {
+    const clean = (code || '').trim();
+    if (!clean) return false;
+    const list = settings.supervisors || [];
+    if (supervisorId) {
+      const sup = list.find(x => x.id === supervisorId);
+      if (sup && sup.pin && sup.pin.trim() === clean) return true;
+    } else if (list.some(x => x.pin && x.pin.trim() === clean)) {
+      return true;
+    }
+    if (clean === (settings.supervisorPin || '1122').trim()) return true;
+    return verifyAccountPassword(currentUser, clean);
+  };
+
+  const completeSupervisorLogin = (supervisorId: string) => {
+    setSessionRole('supervisor');
+    setActiveSupervisorId(supervisorId);
+    try {
+      localStorage.setItem('active_session_role', 'supervisor');
+      localStorage.setItem('active_supervisor_id', supervisorId);
+    } catch {}
+  };
+
+  const addSupervisorBiometric = (supervisorId: string, cred: { id: string; publicKey?: string; alg?: number; label?: string; createdAt: string }) => {
+    const list = (settings.supervisors || []).map(x =>
+      x.id === supervisorId ? { ...x, biometrics: [...(x.biometrics || []).filter(b => b.id !== cred.id), cred] } : x
+    );
+    updateSettings({ supervisors: list });
+  };
+
   const openInvoiceEditor = (id: string) => {
-    if (!hasPermission('canEditInvoice')) {
+    if (!hasPermission('canEditInvoice') && !grantAllows('edit', id)) {
       setSyncNotice('⚠️ لا تملك صلاحية تعديل القوائم.');
       setTimeout(() => setSyncNotice(null), 4000);
       return;
     }
     setEditingInvoiceId(id);
   };
-  const closeInvoiceEditor = () => setEditingInvoiceId(null);
+  const closeInvoiceEditor = () => { setEditingInvoiceId(null); grantRef.current = null; };
 
   const updateInvoice = (id: string, data: UpdateInvoiceInput): { success: boolean; error?: string } => {
-    if (!hasPermission('canEditInvoice')) return { success: false, error: '⚠️ لا تملك صلاحية تعديل القوائم.' };
+    if (!hasPermission('canEditInvoice') && !grantAllows('edit', id)) return { success: false, error: '⚠️ لا تملك صلاحية تعديل القوائم.' };
     const old = invoices.find(i => i.id === id);
     if (!old) return { success: false, error: 'القائمة غير موجودة.' };
     if (old.status === 'returned') return { success: false, error: 'هذه القائمة مرجعة بالكامل ولا يمكن تعديلها.' };
@@ -2642,6 +2763,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : undefined,
     }));
 
+    consumeGrant('edit', id);
     return { success: true };
   };
 
@@ -3379,6 +3501,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateInvoice,
         editingInvoiceId,
         openInvoiceEditor,
+        addBarcodeToActiveDraft,
+        approvalRequest,
+        requestApproval,
+        grantApproval,
+        clearApprovalGrant,
+        cancelApproval,
+        checkSupervisorCode,
+        completeSupervisorLogin,
+        addSupervisorBiometric,
         closeInvoiceEditor,
         returnPartialInvoice,
         applyBulkPriceAdjustment,

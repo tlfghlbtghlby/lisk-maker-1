@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { registerPosScanHandler } from '../utils/barcodeBus';
 import { Product, SaleType, PriceType, InvoiceItem, Invoice } from '../types';
 import { getPiecePrice, hasOwnPrice, PRICE_TYPE_LABELS } from '../utils/pricing';
 import { applyPromotions } from '../utils/promotions';
@@ -502,6 +503,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     handleBarcodeScannedRef.current = handleBarcodeScanned;
   });
 
+  // تسجيل هذه النافذة كمستقبِل للباركود القادم من نوافذ أخرى
+  useEffect(() => {
+    registerPosScanHandler((code) => handleBarcodeScannedRef.current(code));
+    return () => registerPosScanHandler(null);
+  }, []);
+
   const handleSaveInvoiceRef = useRef<(andPrint: boolean) => void>(() => {});
   useEffect(() => {
     handleSaveInvoiceRef.current = handleSaveInvoice;
@@ -545,7 +552,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         e.stopPropagation();
         buffer = '';
         if (cartItemsRef.current.length > 0) {
-          handleSaveInvoiceRef.current(false);
+          handleSaveInvoiceRef.current(!!settingsRef.current.invertEnterShortcuts);
         }
         return;
       }
@@ -574,7 +581,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           e.preventDefault();
           e.stopPropagation();
           buffer = '';
-          handleSaveInvoiceRef.current(true);
+          handleSaveInvoiceRef.current(!settingsRef.current.invertEnterShortcuts);
         }
         return;
       }
@@ -965,7 +972,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                         e.preventDefault();
                         if (cartItems.length > 0) {
-                          handleSaveInvoice(false);
+                          handleSaveInvoice(!!settings.invertEnterShortcuts);
                         }
                       } else if (e.key === 'Enter') {
                         if (searchQuery.trim()) {
@@ -973,7 +980,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           handleBarcodeScanned(searchQuery.trim());
                         } else if (cartItems.length > 0) {
                           e.preventDefault();
-                          handleSaveInvoice(true);
+                          handleSaveInvoice(!settings.invertEnterShortcuts);
                         }
                       }
                     }}
@@ -2041,12 +2048,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         ? 'bg-amber-600 hover:bg-amber-700 text-white ring-2 ring-amber-400' 
                         : 'bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white'
                     }`}
-                    title="حفظ وطباعة القائمة (اضغط Enter)"
+                    title={`حفظ وطباعة القائمة (اضغط ${settings.invertEnterShortcuts ? "Ctrl + Enter" : "Enter"})`}
                   >
                     <Printer className="w-3.5 h-3.5 shrink-0" />
                     <span>حفظ وطباعة القائمة</span>
                     <span className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-black/20 rounded font-mono font-bold">
-                      Enter ↵
+                      {settings.invertEnterShortcuts ? 'Ctrl+Enter' : 'Enter ↵'}
                     </span>
                   </button>
 
@@ -2055,12 +2062,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     disabled={cartItems.length === 0 || (saleType === 'credit' && !selectedCustomerId)}
                     onClick={() => handleSaveInvoice(false)}
                     className="py-2 px-2 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
-                    title="حفظ القائمة فقط دون طباعة (اضغط Ctrl + Enter)"
+                    title={`حفظ القائمة فقط دون طباعة (اضغط ${settings.invertEnterShortcuts ? "Enter" : "Ctrl + Enter"})`}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                     <span>حفظ فقط</span>
                     <span className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-white/20 text-slate-200 rounded font-mono font-bold">
-                      Ctrl+Enter
+                      {settings.invertEnterShortcuts ? 'Enter ↵' : 'Ctrl+Enter'}
                     </span>
                   </button>
                 </div>

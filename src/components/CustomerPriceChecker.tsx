@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Search, Camera, RefreshCw, CheckCircle, X, QrCode, AlertTriangle } from 'lucide-react';
+import { Search, Camera, RefreshCw, CheckCircle, X, QrCode, AlertTriangle, ShoppingCart, Plus, Minus, Share2, Trash2, Copy } from 'lucide-react';
 
 import { supabaseUrl as SUPABASE_URL, supabaseAnonKey as SUPABASE_ANON_KEY } from '../supabase';
 import { parseCheckerToken, priceForLevel, stockLevelOf, STOCK_COLOR_DEFAULTS, CHECKER_LEVEL_LABELS } from '../utils/checkerLinks';
@@ -97,6 +97,49 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
   const [notFound, setNotFound] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  // سلة الزبون: يجمع فيها المواد التي يريدها ثم يشاركها مع صاحب المتجر
+  interface CartLine { key: string; name: string; barcode: string; price: number; qty: number }
+  const cartKey = `checker_cart_${resolvedStoreId || 'x'}`;
+  const [cart, setCart] = useState<CartLine[]>(() => {
+    try { const raw = localStorage.getItem(`checker_cart_${decodeStoreToken(initialStoreId || parseCheckerToken(window.location.hash).token) || 'x'}`); return raw ? JSON.parse(raw) : []; } catch { return []; }
+  });
+  const [cartOpen, setCartOpen] = useState(false);
+  const [cartNote, setCartNote] = useState('');
+  const [cartMsg, setCartMsg] = useState<string | null>(null);
+  useEffect(() => { try { localStorage.setItem(cartKey, JSON.stringify(cart)); } catch {} }, [cart, cartKey]);
+  const cartCount = cart.reduce((n, l) => n + l.qty, 0);
+  const cartTotal = cart.reduce((n, l) => n + l.qty * l.price, 0);
+  const addToCart = (p: ProductItem) => {
+    const price = priceOf(p);
+    if (price === null) return;
+    const key = p.id || p.barcode || p.name;
+    setCart(prev => {
+      const i = prev.findIndex(l => l.key === key);
+      if (i > -1) return prev.map((l, idx) => idx === i ? { ...l, qty: l.qty + 1 } : l);
+      return [...prev, { key, name: p.name, barcode: p.barcode, price, qty: 1 }];
+    });
+    setCartMsg(`أُضيفت «${p.name}» إلى السلة`);
+    setTimeout(() => setCartMsg(null), 1500);
+  };
+  const setLineQty = (key: string, qty: number) =>
+    setCart(prev => qty <= 0 ? prev.filter(l => l.key !== key) : prev.map(l => l.key === key ? { ...l, qty } : l));
+  const cartText = () => {
+    const money = (n: number) => n.toLocaleString();
+    const lines = cart.map((l, i) => `${i + 1}) ${l.name}${l.barcode ? ` (#${l.barcode})` : ''} × ${l.qty} = ${money(l.qty * l.price)}`);
+    return [`طلب من ${storeName}`, cartNote.trim() ? `الاسم/ملاحظة: ${cartNote.trim()}` : '', '', ...lines, '', `المجموع: ${money(cartTotal)} دينار`].filter((x, i, arr) => x !== '' || (i > 0 && arr[i - 1] !== '')).join('\n');
+  };
+  const shareCart = async () => {
+    const text = cartText();
+    try {
+      if ((navigator as any).share) { await (navigator as any).share({ title: 'طلب مواد', text }); return; }
+    } catch { return; }
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+  const copyCart = async () => {
+    try { await navigator.clipboard.writeText(cartText()); setCartMsg('تم نسخ الطلب'); } catch { setCartMsg('تعذر النسخ'); }
+    setTimeout(() => setCartMsg(null), 1500);
+  };
 
   // جلب بيانات المتجر من Supabase عند وجود معرف صالح
   useEffect(() => {
@@ -583,7 +626,18 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
 
         {/* مربع البحث والنتائج */}
         <div className="bg-[#0b1424] border border-slate-800 rounded-2xl p-4 shadow-lg space-y-3">
-          <div className="text-xs font-bold text-slate-300">البحث بالاسم أو كتابة الباركود</div>
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-bold text-slate-300">البحث بالاسم أو كتابة الباركود</div>
+            <button
+              type="button"
+              onClick={() => setCartOpen(true)}
+              className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold hover:bg-emerald-600/30"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>السلة</span>
+              {cartCount > 0 && <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] flex items-center justify-center">{cartCount}</span>}
+            </button>
+          </div>
           
           <div className="relative">
             <input
@@ -622,6 +676,15 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
                 {priceOf(scannedProduct) === null ? <span className="text-xl">السعر غير متاح</span> : <>{priceOf(scannedProduct)!.toLocaleString()} <span className="text-sm font-normal text-slate-300">دينار</span></>}
               </div>
               {renderStock(scannedProduct, true) && <div className="mt-4">{renderStock(scannedProduct, true)}</div>}
+              {priceOf(scannedProduct) !== null && (
+                <button
+                  type="button"
+                  onClick={() => addToCart(scannedProduct)}
+                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold"
+                >
+                  <Plus className="w-4 h-4" /> أضف للقائمة
+                </button>
+              )}
             </div>
           )}
 
@@ -643,11 +706,24 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
                       <div className="text-[11px] text-slate-500 font-mono mt-0.5">#{item.barcode}</div>
                     )}
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <div className="text-sm font-black text-emerald-400 whitespace-nowrap">
-                      {priceText(item)}
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="text-sm font-black text-emerald-400 whitespace-nowrap">
+                        {priceText(item)}
+                      </div>
+                      {renderStock(item)}
                     </div>
-                    {renderStock(item)}
+                    {priceOf(item) !== null && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); addToCart(item); playBeep(); }}
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold"
+                        title="إضافة للسلة"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>أضف للقائمة</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -669,6 +745,54 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
         </div>
 
       </div>
+
+      {cartMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-full bg-emerald-700 text-white text-xs font-bold shadow-xl">{cartMsg}</div>
+      )}
+
+      {cartOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4" dir="rtl" onClick={() => setCartOpen(false)}>
+          <div className="bg-[#0b1424] border border-slate-700 rounded-t-2xl sm:rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-slate-800">
+              <span className="text-sm font-bold text-white flex items-center gap-2"><ShoppingCart className="w-4 h-4 text-emerald-400" /> سلتي ({cartCount})</span>
+              <button type="button" onClick={() => setCartOpen(false)} className="text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y divide-slate-800">
+              {cart.length === 0 && <div className="p-8 text-center text-xs text-slate-500">السلة فارغة. اضغط «أضف للقائمة» بجانب أي مادة.</div>}
+              {cart.map(l => (
+                <div key={l.key} className="p-3 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-slate-100 truncate">{l.name}</div>
+                    <div className="text-[11px] text-slate-500">{l.price.toLocaleString()} × {l.qty} = <span className="text-emerald-400 font-bold">{(l.price * l.qty).toLocaleString()}</span></div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button type="button" onClick={() => setLineQty(l.key, l.qty - 1)} className="w-7 h-7 rounded-lg bg-slate-800 text-white flex items-center justify-center"><Minus className="w-3.5 h-3.5" /></button>
+                    <span className="w-7 text-center text-sm font-mono font-bold text-white">{l.qty}</span>
+                    <button type="button" onClick={() => setLineQty(l.key, l.qty + 1)} className="w-7 h-7 rounded-lg bg-slate-800 text-white flex items-center justify-center"><Plus className="w-3.5 h-3.5" /></button>
+                    <button type="button" onClick={() => setLineQty(l.key, 0)} className="w-7 h-7 rounded-lg bg-rose-950 text-rose-300 flex items-center justify-center"><Trash2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {cart.length > 0 && (
+              <div className="p-4 border-t border-slate-800 space-y-2.5">
+                <input
+                  value={cartNote}
+                  onChange={e => setCartNote(e.target.value)}
+                  placeholder="اسمك أو ملاحظة (اختياري)"
+                  className="w-full bg-[#060b13] border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+                <div className="flex items-center justify-between text-sm font-bold text-white"><span>المجموع</span><span className="text-amber-400 font-black">{cartTotal.toLocaleString()} دينار</span></div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={shareCart} className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5"><Share2 className="w-4 h-4" /> مشاركة الطلب</button>
+                  <button type="button" onClick={copyCart} className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold flex items-center justify-center gap-1.5"><Copy className="w-4 h-4" /> نسخ</button>
+                </div>
+                <button type="button" onClick={() => { if (window.confirm('تفريغ السلة؟')) setCart([]); }} className="w-full text-[11px] text-slate-500 hover:text-rose-400">تفريغ السلة</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

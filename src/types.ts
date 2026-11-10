@@ -362,6 +362,8 @@ export interface StoreSupervisor {
   pin: string;
   canConfigureShifts?: boolean;
   permissions?: Partial<RolePermissions>;
+  /** بصمات مسجلة للمشرف (WebAuthn) */
+  biometrics?: { id: string; publicKey?: string; alg?: number; label?: string; createdAt: string }[];
   createdAt: string;
 }
 
@@ -499,6 +501,8 @@ export interface StoreSettings {
   invoiceShowCartonColumns?: boolean;
   invoiceShowPiecePrice?: boolean;
   quickQuantityEntry?: boolean;
+  invertEnterShortcuts?: boolean;
+  globalBarcodeCapture?: boolean;
   promotions?: Promotion[];
   // طريقة ذكر الخصم في القائمة: عمود «الخصم» أو تطبيق مباشر على السعر دون ذكره
   promoDiscountDisplay?: 'column' | 'hidden';

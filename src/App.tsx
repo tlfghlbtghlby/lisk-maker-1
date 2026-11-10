@@ -14,6 +14,8 @@ import { OffersView } from './components/OffersView';
 import { ProductModal } from './components/ProductModal';
 import { InvoicePrintModal } from './components/InvoicePrintModal';
 import { InvoiceEditModal } from './components/InvoiceEditModal';
+import { SupervisorApprovalModal } from './components/SupervisorApprovalModal';
+import { GlobalBarcodeListener } from './components/GlobalBarcodeListener';
 import { SessionSwitchModal } from './components/SessionSwitchModal';
 import { StartShiftModal } from './components/StartShiftModal';
 import { EndShiftModal } from './components/EndShiftModal';
@@ -479,7 +481,9 @@ const MainContent: React.FC = () => {
         onClose={() => setInvoiceToPrint(null)}
       />
 
+      <GlobalBarcodeListener />
       <InvoiceEditModal />
+      <SupervisorApprovalModal />
       <SessionSwitchModal />
       <StartShiftModal />
       <EndShiftModal onNavigateToShifts={() => setActiveTab('shifts')} />
@@ -572,7 +576,7 @@ export default function App() {
             setErrorMsg(false);
             setEnteredPass('');
           }}
-          className="fixed bottom-3 left-3 w-10 h-10 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-400 hover:text-white flex items-center justify-center text-sm shadow-xl z-50 cursor-pointer active:scale-95 transition"
+          className="fixed bottom-1.5 left-1.5 w-4 h-4 rounded-full bg-slate-900/40 text-slate-500 hover:text-white flex items-center justify-center text-[8px] leading-none opacity-40 hover:opacity-100 z-50 cursor-pointer transition"
           title="دخول الإدارة"
         >
           🔒

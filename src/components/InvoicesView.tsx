@@ -26,7 +26,7 @@ interface InvoicesViewProps {
 }
 
 export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => {
-  const { invoices, deleteInvoice, returnInvoice, formatMoney, hasPermission, openInvoiceEditor } = useApp();
+  const { invoices, deleteInvoice, returnInvoice, formatMoney, hasPermission, openInvoiceEditor, requestApproval, clearApprovalGrant } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'direct' | 'credit' | 'unpaid' | 'returned'>('all');
@@ -97,10 +97,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
       `✓ سيتم الاحتفاظ بسجل القائمة بحالة (مرتجعة) للتدقيق والشفافية.`
     );
 
-    if (!confirmed) return;
+    if (!confirmed) { clearApprovalGrant(); return; }
 
     const returnReason = window.prompt('سبب الإرجاع (يُرسل ضمن إشعار التليجرام):', 'رغبة الزبون');
-    if (returnReason === null) return;
+    if (returnReason === null) { clearApprovalGrant(); return; }
 
     setReturningId(inv.id);
     try {
@@ -410,10 +410,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
                             <Printer className="w-4 h-4" />
                           </button>
 
-                          {hasPermission('canEditInvoice') && inv.status !== 'returned' && (
+                          {inv.status !== 'returned' && (
                             <button
                               type="button"
-                              onClick={() => openInvoiceEditor(inv.id)}
+                              onClick={() => requestApproval('edit', inv.id, () => openInvoiceEditor(inv.id))}
                               className="px-2 py-1 rounded-lg text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-300 hover:bg-amber-100 transition cursor-pointer"
                               title="تعديل القائمة بالكامل"
                             >
@@ -422,10 +422,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
                           )}
 
                           {/* زر استرجاع جزئي للمواد مع خانة السبب (للمشرفين والمدير) */}
-                          {hasPermission('canReturnInvoice') && (
+                          {(
                             inv.status !== 'returned' ? (
                               <button
-                                onClick={() => setSelectedInvoiceForPartialReturn(inv)}
+                                onClick={() => requestApproval('return', inv.id, () => setSelectedInvoiceForPartialReturn(inv))}
                                 className="p-1.5 rounded-lg text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 transition cursor-pointer flex items-center gap-1"
                                 title="استرجاع جزئي لمواد محددة مع تحديد السبب"
                               >
@@ -442,11 +442,11 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
                           )}
 
                           {/* زر إرجاع كامل المشتريات / القائمة (للمصرح لهم فقط) */}
-                          {hasPermission('canReturnInvoice') && (
+                          {(
                             inv.status !== 'returned' ? (
                               <button
                                 disabled={returningId === inv.id}
-                                onClick={() => handleReturn(inv)}
+                                onClick={() => requestApproval('return', inv.id, () => handleReturn(inv))}
                                 className="p-1.5 rounded-lg text-purple-600 hover:text-purple-800 hover:bg-purple-50 transition cursor-pointer flex items-center gap-1"
                                 title="إرجاع كامل القائمة واسترداد المواد للمخزن"
                               >
@@ -562,7 +562,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
       <PartialReturnModal
         invoice={selectedInvoiceForPartialReturn}
         isOpen={!!selectedInvoiceForPartialReturn}
-        onClose={() => setSelectedInvoiceForPartialReturn(null)}
+        onClose={() => { clearApprovalGrant(); setSelectedInvoiceForPartialReturn(null); }}
         onSuccess={() => {
           setFeedbackNotice('تم استرجاع المواد المحددة وتسوية الحسابات والمخزن بنجاح!');
           setTimeout(() => setFeedbackNotice(null), 4000);

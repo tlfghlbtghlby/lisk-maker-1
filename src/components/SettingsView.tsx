@@ -259,6 +259,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [invoiceShowPiecePrice, setInvoiceShowPiecePrice] = useState<boolean>(settings.invoiceShowPiecePrice === true);
   const [giftCostCounted, setGiftCostCounted] = useState<boolean>(settings.giftCostCounted !== false);
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
+  const [invertEnterShortcuts, setInvertEnterShortcuts] = useState<boolean>(settings.invertEnterShortcuts === true);
+  const [globalBarcodeCapture, setGlobalBarcodeCapture] = useState<boolean>(settings.globalBarcodeCapture !== false);
   const [promoDiscountDisplay, setPromoDiscountDisplay] = useState<'column' | 'hidden'>(settings.promoDiscountDisplay === 'hidden' ? 'hidden' : 'column');
   const [promoOfferDisplay, setPromoOfferDisplay] = useState<'gift_column' | 'listed' | 'hidden'>(settings.promoOfferDisplay || 'gift_column');
   const [allowMultiDeviceShifts, setAllowMultiDeviceShifts] = useState<boolean>(settings.allowMultiDeviceShifts !== false);
@@ -415,6 +417,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setInvoiceShowCartonColumns(settings.invoiceShowCartonColumns !== false);
       setInvoiceShowPiecePrice(settings.invoiceShowPiecePrice === true);
       setQuickQuantityEntry(settings.quickQuantityEntry === true);
+      setInvertEnterShortcuts(settings.invertEnterShortcuts === true);
+      setGlobalBarcodeCapture(settings.globalBarcodeCapture !== false);
       setAllowMultiDeviceShifts(settings.allowMultiDeviceShifts !== false);
       setPromoDiscountDisplay(settings.promoDiscountDisplay === 'hidden' ? 'hidden' : 'column');
       setPromoOfferDisplay(settings.promoOfferDisplay || 'gift_column');
@@ -500,6 +504,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       invoiceShowCartonColumns,
       invoiceShowPiecePrice,
       quickQuantityEntry,
+      invertEnterShortcuts,
+      globalBarcodeCapture,
       allowMultiDeviceShifts,
       promoDiscountDisplay,
       promoOfferDisplay,
@@ -1667,6 +1673,30 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="checkbox"
                 checked={giftCostCounted}
                 onChange={(e) => setGiftCostCounted(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">إضافة المادة للقائمة عند مسح الباركود من أي قسم</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">يعمل حتى لو كنت في قسم آخر أو نافذة أخرى من البرنامج (لا يلتقط ما يُمسح خارج البرنامج). عند الإلغاء يعمل الباركود داخل نقطة البيع فقط.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={globalBarcodeCapture}
+                onChange={(e) => setGlobalBarcodeCapture(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">عكس أزرار الاختصار للحفظ والطباعة</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">الوضع العادي: Enter = حفظ وطباعة، Ctrl+Enter = حفظ فقط. عند التفعيل: Enter = حفظ فقط، Ctrl+Enter = حفظ وطباعة.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={invertEnterShortcuts}
+                onChange={(e) => setInvertEnterShortcuts(e.target.checked)}
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>
