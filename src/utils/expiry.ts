@@ -1,3 +1,5 @@
+import type { ExpiryBatch } from '../types';
+
 export type ShelfUnit = 'day' | 'month' | 'year';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -34,4 +36,32 @@ export function daysUntil(iso?: string): number | null {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return Math.round((d.getTime() - today.getTime()) / 86400000);
+}
+
+/** يطابق الدفعات مع المخزون الحالي: ما بيع يُخصم من الأقدم أولاً، وتُحذف الدفعات المستهلكة */
+export function reconcileBatches(batches: ExpiryBatch[] | undefined, stock: number): ExpiryBatch[] {
+  const list = [...(batches || [])].sort((a, b) => a.addedAt.localeCompare(b.addedAt)).map(b => ({ ...b }));
+  const total = list.reduce((sum, b) => sum + b.qty, 0);
+  let deficit = Math.round((total - Math.max(0, stock)) * 1000) / 1000;
+  for (const b of list) {
+    if (deficit <= 0) break;
+    const take = Math.min(b.qty, deficit);
+    b.qty = Math.round((b.qty - take) * 1000) / 1000;
+    deficit = Math.round((deficit - take) * 1000) / 1000;
+  }
+  return list.filter(b => b.qty > 0);
+}
+
+/** إضافة دفعة جديدة، مع دمجها بدفعة موجودة لها التاريخان نفسهما */
+export function addBatch(batches: ExpiryBatch[], qty: number, productionDate: string, expiryDate: string): ExpiryBatch[] {
+  if (!(qty > 0)) return batches;
+  const same = batches.find(b => (b.productionDate || '') === productionDate && (b.expiryDate || '') === expiryDate);
+  if (same) return batches.map(b => (b === same ? { ...b, qty: b.qty + qty } : b));
+  return [...batches, {
+    id: 'bt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+    qty,
+    ...(productionDate ? { productionDate } : {}),
+    ...(expiryDate ? { expiryDate } : {}),
+    addedAt: new Date().toISOString(),
+  }];
 }
