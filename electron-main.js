@@ -19,7 +19,7 @@ const TAB_TITLES_MAP = {
   pos: 'نقطة البيع وقائمة جديدة',
   inventory: 'المواد والمخزون',
   invoices: 'سجل القوائم والفواتير',
-  shifts: 'الشفتات والورديات',
+  shifts: 'الشفتات',
   customers: 'البيع الآجل وحسابات الديون',
   debts: 'حسابات الديون',
   reports: 'الأرباح والتقارير المالية',
@@ -62,9 +62,16 @@ function getLocalHotspotIP() {
 }
 
 function parseOpenRoute(argvList = process.argv) {
-  for (const arg of argvList) {
-    if (typeof arg === 'string' && arg.startsWith('--open-route=')) {
-      return arg.replace('--open-route=', '').trim();
+  const list = Array.isArray(argvList) ? argvList : [];
+  for (let i = 0; i < list.length; i++) {
+    const arg = list[i];
+    if (typeof arg !== 'string') continue;
+    // يدعم --open-route=pos و --open-route="pos" و --open-route pos
+    if (arg.startsWith('--open-route=')) {
+      return arg.slice('--open-route='.length).replace(/^["']|["']$/g, '').trim();
+    }
+    if (arg === '--open-route' && typeof list[i + 1] === 'string') {
+      return list[i + 1].replace(/^["']|["']$/g, '').trim();
     }
   }
   return '';
@@ -78,7 +85,7 @@ function createSectionWindow(route = 'pos', title = '') {
     pos: 'نقطة البيع',
     inventory: 'المواد والمخزون',
     invoices: 'سجل القوائم والفواتير',
-    shifts: 'الشفتات والورديات',
+    shifts: 'الشفتات',
     customers: 'حسابات الزبائن',
     debts: 'البيع الآجل والديون',
     reports: 'التقارير المالية',
@@ -180,33 +187,58 @@ function startApp() {
   }
 }
 
-// 4. إنشاء اختصار سطح المكتب اليدوي (عند طلب الكليك أيمن) عبر Electron Shell الأصلي بنسبة 100%
+// 4. إنشاء اختصار سطح المكتب (.lnk) عبر Electron Shell الأصلي
 function createWindowsShortcut({ route, name, title }) {
   try {
-    const desktopPath = app.getPath('desktop');
-    const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
-    const rawName = name || title || 'القسم';
-    const safeName = rawName.replace(/[/\\?%*:|"<>]/g, '').trim();
-    const fileName = `المفكر المحاسبي - ${safeName}.lnk`;
-    const lnkPath = path.join(desktopPath, fileName);
-    const exePath = process.execPath;
-    const args = `--open-route=${cleanRoute}`;
-
-    if (process.platform === 'win32') {
-      const success = shell.writeShortcutLink(lnkPath, 'replace', {
-        target: exePath,
-        args: args,
-        cwd: path.dirname(exePath),
-        icon: exePath,
-        iconIndex: 0,
-        description: `المفكر المحاسبي - ${safeName}`
-      });
-      return { success, path: lnkPath, fileName };
+    if (process.platform !== 'win32') {
+      return { success: false, error: 'اختصارات سطح المكتب تعمل على ويندوز فقط.' };
     }
-    return { success: true, path: lnkPath, fileName };
+    const desktopPath = app.getPath('desktop');
+    if (!desktopPath || !fs.existsSync(desktopPath)) {
+      return { success: false, error: 'تعذر الوصول إلى مجلد سطح المكتب.' };
+    }
+    const cleanRoute = (route || 'pos').replace(/^[#?]/, '').replace(/[^a-zA-Z0-9_-]/g, '').trim() || 'pos';
+    const rawName = name || title || 'القسم';
+    const safeName = rawName.replace(/[\u0000-\u001f/\\?%*:|"<>]/g, '').replace(/\s+/g, ' ').trim() || cleanRoute;
+    // PORTABLE_EXECUTABLE_FILE يشير للملف الحقيقي في النسخة المحمولة؛ وإلا الملف التنفيذي الحالي
+    const exePath = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+    const options = {
+      target: exePath,
+      args: `--open-route=${cleanRoute}`,
+      cwd: path.dirname(exePath),
+      icon: exePath,
+      iconIndex: 0,
+      appUserModelId: 'com.listmanger.app',
+      description: `المفكر المحاسبي - ${safeName}`,
+    };
+
+    // الاسم العربي أولاً، وإن لم يُكتب الملف فعلياً نجرّب اسماً لاتينياً آمناً
+    const candidates = [
+      `المفكر المحاسبي - ${safeName}.lnk`,
+      `Almufakir-${cleanRoute}.lnk`,
+    ];
+    for (const fileName of candidates) {
+      const lnkPath = path.join(desktopPath, fileName);
+      let ok = false;
+      try {
+        ok = shell.writeShortcutLink(lnkPath, 'replace', options);
+      } catch (err) {
+        console.error('writeShortcutLink failed for', fileName, err);
+      }
+      if (ok && fs.existsSync(lnkPath)) {
+        // نقرأ الاختصار للتأكد أن الوجهة والوسائط محفوظة فعلاً
+        let verified = true;
+        try {
+          const back = shell.readShortcutLink(lnkPath);
+          verified = !!back && back.target === exePath && String(back.args || '').includes(`--open-route=${cleanRoute}`);
+        } catch {}
+        return { success: true, path: lnkPath, fileName, target: exePath, args: options.args, verified };
+      }
+    }
+    return { success: false, error: 'تعذر كتابة ملف الاختصار على سطح المكتب (قد تمنعه صلاحيات المجلد).' };
   } catch (e) {
     console.error('Shortcut creation error:', e);
-    return { success: false, error: e.message };
+    return { success: false, error: e && e.message };
   }
 }
 
@@ -317,6 +349,8 @@ ipcMain.handle('print-direct', handlePrint);
 
 // نسخة واحدة فقط من البرنامج: أي تشغيل ثانٍ (مثل اختصار قسم) يفتح نافذة جديدة داخل النسخة الأولى
 // بدل تشغيل عملية جديدة تتعارض على المنفذ وقاعدة البيانات المحلية فتظهر رسالة خطأ.
+app.setAppUserModelId('com.listmanger.app');
+
 const gotSingleLock = app.requestSingleInstanceLock();
 
 if (!gotSingleLock) {

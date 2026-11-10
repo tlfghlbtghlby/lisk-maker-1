@@ -102,7 +102,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
         if (res && res.success) {
           setFeedback(`✅ تم إنشاء اختصار "${tabLabel}" على سطح المكتب بنجاح!`);
         } else {
-          setFeedback('⚠️ تعذر إنشاء الاختصار على سطح المكتب');
+          setFeedback(`⚠️ تعذر إنشاء الاختصار${res && res.error ? ': ' + res.error : ''}`);
         }
       } else {
         setFeedback('ℹ️ ميزة إنشاء اختصارات سطح المكتب تعمل داخل تطبيق البرنامج المثبت فقط');

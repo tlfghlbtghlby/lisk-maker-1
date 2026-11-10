@@ -32,6 +32,7 @@ import {
 } from '../types';
 import { getOrCreateDeviceId, getOrCreateSessionId, detectSystemInfo } from '../utils/deviceSession';
 import { findDuplicateGroups } from '../utils/duplicateCleaner';
+import { getPiecePrice } from '../utils/pricing';
 import {
   mergeProducts, mergeInvoices, mergeShifts,
   mergeCollection, mergeTombstones, mergeTrash, makeTrashEntry, purgeTrash,
@@ -154,6 +155,7 @@ interface AppContextType {
   updateInvoice: (id: string, data: UpdateInvoiceInput) => { success: boolean; error?: string };
   editingInvoiceId: string | null;
   openInvoiceEditor: (id: string) => void;
+  addBarcodeToActiveDraft: (code: string) => { found: boolean; name?: string };
   approvalRequest: { action: 'edit' | 'return'; invoiceId: string } | null;
   requestApproval: (action: 'edit' | 'return', invoiceId: string, run: () => void) => void;
   grantApproval: () => void;
@@ -861,6 +863,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDraftOrders(prev => [...prev, newOrder]);
     setActiveDraftId(newOrder.id);
     return newOrder.id;
+  };
+
+  // إضافة مادة بالباركود إلى القائمة النشطة من أي قسم (دون الحاجة لفتح نقطة البيع)
+  const addBarcodeToActiveDraft = (code: string): { found: boolean; name?: string } => {
+    const clean = (code || '').trim();
+    if (!clean) return { found: false };
+    const product = products.find(p => (p.code || '').toLowerCase() === clean.toLowerCase());
+    if (!product) return { found: false };
+    const isWeighted = Boolean(product.isWeighted || product.unit === 'كغم' || product.unit === 'كيلو');
+    setDraftOrders(prev => prev.map(order => {
+      if (order.id !== activeDraft.id) return order;
+      const wanted: PriceType = (order.globalPriceType || 'retail');
+      const priceType: PriceType = priceTypeOn(wanted) ? wanted : 'retail';
+      const items = order.cartItems || [];
+      const idx = items.findIndex(it => it.productId === product.id && !it.isGift);
+      let next: InvoiceItem[];
+      if (idx > -1) {
+        const t = items[idx];
+        const q = Math.round((t.quantity + 1) * 1000) / 1000;
+        const cap = isWeighted ? 1 : (t.piecesPerCarton || product.piecesPerCarton || 1);
+        const upd: InvoiceItem = {
+          ...t,
+          quantity: q,
+          deductedPieces: (!isWeighted && t.unitType === 'carton') ? q * cap : q,
+          weightGrams: isWeighted ? Math.round(q * 1000) : undefined,
+          total: Math.round(q * t.unitPrice),
+        };
+        next = [upd, ...items.filter((_, i) => i !== idx)];
+      } else {
+        const price = getPiecePrice(product, priceType);
+        const item: InvoiceItem = {
+          productId: product.id,
+          productName: product.name,
+          code: product.code,
+          unit: isWeighted ? 'كغم' : product.unit,
+          priceType,
+          unitType: 'piece',
+          piecesPerCarton: isWeighted ? 1 : (product.piecesPerCarton || 1),
+          deductedPieces: 1,
+          costPrice: product.costPrice,
+          unitPrice: price,
+          quantity: 1,
+          isWeighted,
+          weightGrams: isWeighted ? 1000 : undefined,
+          total: Math.round(price),
+        };
+        next = [item, ...items];
+      }
+      return { ...order, cartItems: next, updatedAt: new Date().toISOString() };
+    }));
+    return { found: true, name: product.name };
   };
 
   const switchToDraft = (id: string) => setActiveDraftId(id);
@@ -3448,6 +3501,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateInvoice,
         editingInvoiceId,
         openInvoiceEditor,
+        addBarcodeToActiveDraft,
         approvalRequest,
         requestApproval,
         grantApproval,

@@ -10,7 +10,9 @@ export type SyncEventType =
   | 'PRODUCTS_BATCH_UPDATED'
   | 'CUSTOMERS_UPDATED'
   | 'SHIFT_UPDATED'
-  | 'SETTINGS_UPDATED';
+  | 'SETTINGS_UPDATED'
+  | 'BARCODE_SCANNED'
+  | 'BARCODE_HANDLED';
 
 export interface SyncMessage<T = any> {
   senderId: string;

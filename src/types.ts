@@ -502,6 +502,7 @@ export interface StoreSettings {
   invoiceShowPiecePrice?: boolean;
   quickQuantityEntry?: boolean;
   invertEnterShortcuts?: boolean;
+  globalBarcodeCapture?: boolean;
   promotions?: Promotion[];
   // طريقة ذكر الخصم في القائمة: عمود «الخصم» أو تطبيق مباشر على السعر دون ذكره
   promoDiscountDisplay?: 'column' | 'hidden';

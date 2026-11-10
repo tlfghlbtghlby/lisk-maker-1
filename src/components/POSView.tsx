@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { registerPosScanHandler } from '../utils/barcodeBus';
 import { Product, SaleType, PriceType, InvoiceItem, Invoice } from '../types';
 import { getPiecePrice, hasOwnPrice, PRICE_TYPE_LABELS } from '../utils/pricing';
 import { applyPromotions } from '../utils/promotions';
@@ -501,6 +502,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   useEffect(() => {
     handleBarcodeScannedRef.current = handleBarcodeScanned;
   });
+
+  // تسجيل هذه النافذة كمستقبِل للباركود القادم من نوافذ أخرى
+  useEffect(() => {
+    registerPosScanHandler((code) => handleBarcodeScannedRef.current(code));
+    return () => registerPosScanHandler(null);
+  }, []);
 
   const handleSaveInvoiceRef = useRef<(andPrint: boolean) => void>(() => {});
   useEffect(() => {
