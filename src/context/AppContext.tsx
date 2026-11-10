@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { computeRepEarnings, formatRepNewSale } from '../utils/repEarnings';
 import { supabase, getDocument, setDocument, subscribeToDocument, verifyAccountPassword } from '../supabase';
 import { 
   Product, 
@@ -1214,7 +1215,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ============ إشعارات التليجرام (تُرسل عبر دالة Supabase، والتوكن محفوظ هناك) ============
   const emitTelegram = (
     event: TelegramEventKey,
-    build: (ctx: FmtCtx) => { store?: string; customerId?: string; customer?: string }
+    build: (ctx: FmtCtx) => { store?: string; customerId?: string; customer?: string; repId?: string; rep?: string }
   ) => {
     try {
       const tgs = stateRef.current.settings?.telegram;
@@ -1230,13 +1231,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const m = build(ctx);
       const text = tgs.events?.[event] !== false ? m.store : undefined;
       const customerText = tgs.customerNotifications !== false ? m.customer : undefined;
-      if (!text && !customerText) return;
+      const repText = m.rep && m.repId ? m.rep : undefined;
+      if (!text && !customerText && !repText) return;
       tgNotify({
         storeUid: currentUser.uid,
         secret: tgs.secret,
         text,
         customerId: m.customerId,
         customerText,
+        repId: m.repId,
+        repText,
       }).catch(() => {});
     } catch {}
   };
@@ -2139,6 +2143,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       store: formatInvoice(newInv, ctx, '🛒 <b>بيع قائمة</b>'),
       customerId: newInv.customerId,
       customer: newInv.customerId ? formatInvoice(newInv, ctx, '🧾 <b>قائمة جديدة على حسابك</b>', true) : undefined,
+      repId: newInv.salesRepId,
+      rep: (() => {
+        const rep = (stateRef.current.settings?.salesReps || []).find((r: any) => r.id === newInv.salesRepId);
+        if (!rep) return undefined;
+        const all = (stateRef.current.invoices || []);
+        const e = computeRepEarnings(rep, all.some((i: any) => i.id === newInv.id) ? all : [newInv, ...all], stateRef.current.settings?.repCommissionDefaultType);
+        return formatRepNewSale(rep, newInv, e, ctx);
+      })(),
     }));
     if (newInv.customerId && newInv.remainingAmount > 0) {
       emitTelegram('creditSale', ctx => ({
