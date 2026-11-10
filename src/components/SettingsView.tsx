@@ -68,6 +68,7 @@ import {
   Sun,
   Moon
 } from 'lucide-react';
+import { registerBiometric, biometricSupported } from '../utils/biometric';
 import { QuickAddItemsSection } from './QuickAddItemsSection';
 import { ExportBackupModal } from './ExportBackupModal';
 import { WipeProductsModal } from './WipeProductsModal';
@@ -126,7 +127,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     theme,
     setTheme,
     featureOn,
-    priceTypeOn
+    priceTypeOn,
+    addSupervisorBiometric
   } = useApp();
 
   const [storeName, setStoreName] = useState(settings.storeName);
@@ -2402,6 +2404,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                           بدون صلاحية إعداد شفتات
                         </span>
                       )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                      البصمات المسجلة: {(sup.biometrics || []).length}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {(sup.biometrics || []).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!window.confirm(`حذف كل بصمات «${sup.name}» المسجلة؟`)) return;
+                            updateSettings({ supervisors: (settings.supervisors || []).map(x => x.id === sup.id ? { ...x, biometrics: [] } : x) });
+                          }}
+                          className="text-[11px] font-bold text-rose-600 hover:underline cursor-pointer"
+                        >
+                          حذف البصمات
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!biometricSupported()) {
+                            alert('هذا المتصفح أو طريقة الفتح لا تدعم البصمة. افتح البرنامج من متصفح حديث عبر رابط https (مثل Chrome).');
+                            return;
+                          }
+                          try {
+                            const cred = await registerBiometric({ userId: sup.id, userName: sup.name, label: `${sup.name} - ${navigator.platform || 'جهاز'}` });
+                            addSupervisorBiometric(sup.id, cred);
+                            alert(`تم تسجيل بصمة «${sup.name}». من الآن يكفي وضع الإصبع عند اختيار جلسة المشرف.`);
+                          } catch (e: any) {
+                            alert(e?.name === 'NotAllowedError' ? 'أُلغي تسجيل البصمة.' : (e?.message || 'تعذر تسجيل البصمة.'));
+                          }
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-sky-600 hover:bg-sky-500 text-white cursor-pointer"
+                      >
+                        تسجيل بصمة
+                      </button>
                     </div>
                   </div>
 
