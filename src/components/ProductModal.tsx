@@ -32,6 +32,9 @@ export interface ProductModalProps {
   initialCode?: string;
 }
 
+/** يعرض الصفر كحقل فارغ */
+const nz = (n: number) => (n ? String(n) : '');
+
 export const ProductModal: React.FC<ProductModalProps> = ({
   isOpen,
   onClose,
@@ -166,22 +169,22 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setPiecesPerCarton(ppc);
 
       const cost = productToEdit.costPrice ?? 0;
-      setPieceCostInput(String(cost));
-      setCartonCostInput(String(Math.round(cost * ppc)));
+      setPieceCostInput(nz(cost));
+      setCartonCostInput(nz(Math.round(cost * ppc)));
 
       const retail = productToEdit.retailPrice ?? 0;
-      setPieceRetailInput(String(retail));
-      setCartonRetailInput(String(Math.round(retail * ppc)));
+      setPieceRetailInput(nz(retail));
+      setCartonRetailInput(nz(Math.round(retail * ppc)));
 
       const wholesale = productToEdit.wholesalePrice ?? 0;
-      setPieceWholesaleInput(String(wholesale));
-      setCartonWholesaleInput(String(Math.round(wholesale * ppc)));
+      setPieceWholesaleInput(nz(wholesale));
+      setCartonWholesaleInput(nz(Math.round(wholesale * ppc)));
       setSuperWholesaleInput(productToEdit.superWholesalePrice ? String(productToEdit.superWholesalePrice) : '');
       setSpecialPriceInput(productToEdit.specialPrice ? String(productToEdit.specialPrice) : '');
       setCartonSuperInput(productToEdit.superWholesalePrice ? String(Math.round(productToEdit.superWholesalePrice * ppc)) : '');
       setCartonSpecialInput(productToEdit.specialPrice ? String(Math.round(productToEdit.specialPrice * ppc)) : '');
 
-      setStock(productToEdit.stock ?? 0);
+      setStock(productToEdit.stock ? productToEdit.stock : '');
       setMinStock(productToEdit.minStock ?? 5);
       setIsWeighted(!!productToEdit.isWeighted);
       setNotes(productToEdit.notes || '');
@@ -199,18 +202,18 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setUnit('قطعة');
       
       setPiecesPerCarton(1);
-      setCartonCostInput('0');
-      setPieceCostInput('0');
-      setCartonRetailInput('0');
-      setPieceRetailInput('0');
-      setCartonWholesaleInput('0');
-      setPieceWholesaleInput('0');
+      setCartonCostInput('');
+      setPieceCostInput('');
+      setCartonRetailInput('');
+      setPieceRetailInput('');
+      setCartonWholesaleInput('');
+      setPieceWholesaleInput('');
       setSuperWholesaleInput('');
       setSpecialPriceInput('');
       setCartonSuperInput('');
       setCartonSpecialInput('');
 
-      setStock(0);
+      setStock('');
       setMinStock(5);
       setIsWeighted(false);
       setNotes('');
@@ -1015,7 +1018,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   step={isWeighted ? '0.001' : '1'}
                   value={stock}
                   onChange={(e) => {
-                    const val = e.target.value === '' ? '' : parseFloat(e.target.value) || 0;
+                    const val = e.target.value === '' ? '' : (isNaN(parseFloat(e.target.value)) ? '' : parseFloat(e.target.value));
                     setStock(val);
                   }}
                   className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 font-bold"
