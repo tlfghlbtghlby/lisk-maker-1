@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { computeRepEarnings, formatRepNewSale } from '../utils/repEarnings';
-import { supabase, getDocument, setDocument, subscribeToDocument, verifyAccountPassword } from '../supabase';
+import { isSubscriptionExpired, fetchAccountStatus, supabase, getDocument, setDocument, subscribeToDocument, verifyAccountPassword } from '../supabase';
 import { 
   Product, 
   Customer, 
@@ -1144,6 +1144,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
+
+  // إخراج فوري عند انتهاء الاشتراك أو تعطيل الحساب (دون مسح بيانات الجهاز غير المرفوعة)
+  const expireSession = async (reason: 'trial_expired' | 'disabled') => {
+    try { sessionStorage.setItem('auth_logout_reason', reason); } catch {}
+    setCurrentUser(null);
+    setProducts([]);
+    setCustomers([]);
+    setInvoices([]);
+    setPayments([]);
+    setShifts([]);
+    setActiveShift(null);
+    try {
+      localStorage.removeItem('active_client_session');
+      localStorage.removeItem('last_active_user_uid');
+      localStorage.removeItem('active_session_role');
+    } catch {}
+    try { await supabase.auth.signOut(); } catch {}
+  };
+  const expireSessionRef = useRef(expireSession);
+  expireSessionRef.current = expireSession;
+  const subUserRef = useRef<any>(currentUser);
+  subUserRef.current = currentUser;
+
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    let lastRemote = 0;
+    let running = false;
+    const check = async () => {
+      if (running) return;
+      running = true;
+      try {
+        const u = subUserRef.current;
+        if (!u || u.role === 'admin') return;
+        if (isSubscriptionExpired(u)) { await expireSessionRef.current('trial_expired'); return; }
+        if (typeof navigator !== 'undefined' && navigator.onLine && Date.now() - lastRemote > 5 * 60 * 1000) {
+          lastRemote = Date.now();
+          const st = await fetchAccountStatus(u.uid);
+          if (!st) return;
+          if (st.isActive === false) { await expireSessionRef.current('disabled'); return; }
+          const changed = st.isPermanent !== u.isPermanent || (st.trialExpiresAt ?? null) !== (u.trialExpiresAt ?? null);
+          if (changed) {
+            const merged = { ...u, isPermanent: st.isPermanent, trialExpiresAt: st.trialExpiresAt };
+            try { localStorage.setItem('active_client_session', JSON.stringify(merged)); } catch {}
+            setCurrentUser(merged);
+            if (isSubscriptionExpired(merged)) await expireSessionRef.current('trial_expired');
+          }
+        }
+      } finally {
+        running = false;
+      }
+    };
+    check();
+    const timer = setInterval(check, 30 * 1000);
+    const onWake = () => { lastRemote = 0; check(); };
+    window.addEventListener('online', onWake);
+    document.addEventListener('visibilitychange', onWake);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('online', onWake);
+      document.removeEventListener('visibilitychange', onWake);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.uid]);
 
   const logout = async () => {
     const prevUid = currentUser?.uid;
