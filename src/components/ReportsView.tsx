@@ -29,6 +29,8 @@ export const ReportsView: React.FC = () => {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [showAllSold, setShowAllSold] = useState(false);
+  const [soldSearch, setSoldSearch] = useState('');
+  const [soldSearch, setSoldSearch] = useState('');
 
   if (!hasPermission('canViewReports')) {
     return (
@@ -132,6 +134,15 @@ export const ReportsView: React.FC = () => {
 
     return Object.values(map).sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue);
   }, [filteredInvoices]);
+
+  // البحث عن مادة ضمن الفترة المحددة (تحتفظ بترتيبها العام حسب الكمية المباعة)
+  const soldSearchTerm = soldSearch.trim().toLowerCase();
+  const rankedSales = useMemo(() => productSalesMap.map((item, i) => ({ ...item, rank: i + 1 })), [productSalesMap]);
+  const searchedSales = useMemo(
+    () => (soldSearchTerm ? rankedSales.filter(r => (r.name || '').toLowerCase().includes(soldSearchTerm)) : rankedSales),
+    [rankedSales, soldSearchTerm]
+  );
+  const searchedQty = searchedSales.reduce((sum, r) => sum + r.quantity, 0);
 
   return (
     <div className="space-y-6">
@@ -381,9 +392,9 @@ export const ReportsView: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500 hidden sm:inline">
-              مرتبة حسب أعلى إيرادات مبيعات
+              مرتبة حسب الكمية المباعة
             </span>
-            {productSalesMap.length > 10 && (
+            {productSalesMap.length > 10 && !soldSearchTerm && (
               <button
                 type="button"
                 onClick={() => setShowAllSold(v => !v)}
@@ -393,6 +404,30 @@ export const ReportsView: React.FC = () => {
               </button>
             )}
           </div>
+        </div>
+
+        <div className="p-3 border-b border-slate-100 flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={soldSearch}
+            onChange={(e) => setSoldSearch(e.target.value)}
+            placeholder="ابحث عن مادة لمعرفة كميتها المباعة في الفترة المحددة..."
+            className="flex-1 min-w-[180px] bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-amber-500"
+          />
+          {soldSearchTerm && (
+            <>
+              <span className="text-xs font-bold text-slate-700">
+                {searchedSales.length} مادة · إجمالي الكمية المباعة: {searchedQty}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSoldSearch('')}
+                className="px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-300 text-slate-600"
+              >
+                مسح
+              </button>
+            </>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -407,17 +442,17 @@ export const ReportsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {productSalesMap.length === 0 ? (
+              {searchedSales.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-slate-400">
-                    لا توجد بيانات مبيعات في الفترة المحددة
+                    {soldSearchTerm ? 'لم تُبَع هذه المادة في الفترة المحددة' : 'لا توجد بيانات مبيعات في الفترة المحددة'}
                   </td>
                 </tr>
               ) : (
-                (showAllSold ? productSalesMap : productSalesMap.slice(0, 10)).map((item, index) => (
-                  <tr key={index} className="hover:bg-slate-50">
+                (showAllSold || soldSearchTerm ? searchedSales : searchedSales.slice(0, 10)).map((item) => (
+                  <tr key={item.rank} className="hover:bg-slate-50">
                     <td className="py-2.5 px-4 text-center font-bold text-slate-400">
-                      {index + 1}
+                      {item.rank}
                     </td>
                     <td className="py-2.5 px-4 font-bold text-slate-900">
                       {item.name}
