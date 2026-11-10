@@ -239,6 +239,8 @@ export interface UpdateClientInput {
   enableCustomerPriceChecker?: boolean;
   enableTelegram?: boolean;
   enableModernDesign?: boolean;
+  enableWholesalePrice?: boolean;
+  enableSpecialPrice?: boolean;
 }
 
 async function loadAllRawAccounts(): Promise<any[]> {

@@ -46,7 +46,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
     hasPermission,
     duplicateGroups,
     isDuplicatesModalOpen,
-    setIsDuplicatesModalOpen
+    setIsDuplicatesModalOpen,
+    priceTypeOn,
   } = useApp();
 
   const [movementProduct, setMovementProduct] = useState<Product | null>(null);
@@ -408,13 +409,13 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                   <th className="py-3 px-4 text-emerald-800">سعر تكلفة الجملة (الشراء)</th>
                 )}
                 <th className="py-3 px-4 text-slate-900">سعر بيع المفرد</th>
-                {settings.enableWholesale && (
+                {settings.enableWholesale && priceTypeOn('wholesale') && (
                   <th className="py-3 px-4 text-blue-900">سعر بيع الجملة</th>
                 )}
-                {settings.enableWholesale && settings.showSuperWholesale !== false && (
+                {settings.enableWholesale && priceTypeOn('superWholesale') && settings.showSuperWholesale !== false && (
                   <th className="py-3 px-4 text-orange-800">جملة الجملة</th>
                 )}
-                {settings.enableWholesale && settings.showSpecialPrice !== false && (
+                {settings.enableWholesale && priceTypeOn('special') && settings.showSpecialPrice !== false && (
                   <th className="py-3 px-4 text-violet-800">السعر الخاص</th>
                 )}
                 <th className="py-3 px-4 text-center">تعبئة الكارتون</th>
@@ -477,19 +478,19 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       </td>
 
                       {/* Wholesale Selling Price */}
-                      {settings.enableWholesale && (
+                      {settings.enableWholesale && priceTypeOn('wholesale') && (
                         <td className="py-3 px-4 font-bold text-blue-700">
                           {formatMoney(prod.wholesalePrice)}
                         </td>
                       )}
 
                       {/* Super Wholesale + Special */}
-                      {settings.enableWholesale && settings.showSuperWholesale !== false && (
+                      {settings.enableWholesale && priceTypeOn('superWholesale') && settings.showSuperWholesale !== false && (
                         <td className="py-3 px-4 font-bold text-orange-700">
                           {prod.superWholesalePrice ? formatMoney(prod.superWholesalePrice) : <span className="text-slate-300">-</span>}
                         </td>
                       )}
-                      {settings.enableWholesale && settings.showSpecialPrice !== false && (
+                      {settings.enableWholesale && priceTypeOn('special') && settings.showSpecialPrice !== false && (
                         <td className="py-3 px-4 font-bold text-violet-700">
                           {prod.specialPrice ? formatMoney(prod.specialPrice) : <span className="text-slate-300">-</span>}
                         </td>

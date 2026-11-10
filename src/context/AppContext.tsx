@@ -25,6 +25,7 @@ import {
   DeviceSession, 
   DuplicateProductGroup, 
   SalesRep, 
+  PriceType,
   StoreFeatures, 
   DEFAULT_STORE_FEATURES 
 } from '../types';
@@ -139,7 +140,8 @@ interface AppContextType {
   deleteProduct: (id: string) => void;
   batchDeleteProducts: (productIdsToDelete: string[], stockIncrements?: Record<string, number>) => Promise<{ success: boolean; deletedCount: number; error?: string }>;
   adjustStock: (id: string, delta: number, opts?: { log?: boolean }) => void;
-  featureOn: (key: 'enableTelegram' | 'enableModernDesign' | 'enableCustomerPriceChecker' | 'enableSupervisor' | 'enableEmployee') => boolean;
+  priceTypeOn: (t: PriceType) => boolean;
+  featureOn: (key: 'enableTelegram' | 'enableModernDesign' | 'enableCustomerPriceChecker' | 'enableSupervisor' | 'enableEmployee' | 'enableWholesalePrice' | 'enableSpecialPrice') => boolean;
   sendDebtReminder: (customerId: string) => Promise<{ ok: boolean; sent: number; error?: string }>;
   sendDebtRemindersToAll: (onProgress?: (done: number, total: number) => void) => Promise<{ total: number; sent: number; notLinked: number; failed: number; error?: string }>;
   addCustomer: (customer: Omit<Customer, 'id' | 'createdAt' | 'totalDebt'> & { initialDebt?: number }) => Customer;
@@ -1246,8 +1248,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // ميزة مفعّلة لهذا المتجر؟ (يُلغيها مالك البرنامج من لوحة التحكم: في إعدادات المتجر أو في حساب العميل)
-  const featureOn = (key: 'enableTelegram' | 'enableModernDesign' | 'enableCustomerPriceChecker' | 'enableSupervisor' | 'enableEmployee'): boolean =>
+  const featureOn = (key: 'enableTelegram' | 'enableModernDesign' | 'enableCustomerPriceChecker' | 'enableSupervisor' | 'enableEmployee' | 'enableWholesalePrice' | 'enableSpecialPrice'): boolean =>
     (stateRef.current.settings as any)?.[key] !== false && (currentUser as any)?.[key] !== false;
+
+  // مستويات الأسعار التي يسمح بها مالك البرنامج لهذا المتجر (المفرد دائماً متاح؛ جملة الجملة تتبع الجملة)
+  const priceTypeOn = (t: PriceType): boolean =>
+    t === 'retail' ? true
+    : t === 'special' ? featureOn('enableSpecialPrice')
+    : featureOn('enableWholesalePrice');
 
   // ============ إشعار الدين للزبون عبر التليجرام (يدوي) ============
   const buildDebtReminderText = (customerId: string): string | null => {
@@ -3126,6 +3134,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         batchDeleteProducts,
         adjustStock,
         featureOn,
+        priceTypeOn,
         sendDebtReminder,
         sendDebtRemindersToAll,
         addCustomer,

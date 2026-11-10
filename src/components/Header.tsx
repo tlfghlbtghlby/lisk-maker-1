@@ -53,7 +53,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
     isActiveSessionsModalOpen,
     setIsActiveSessionsModalOpen,
     theme,
-    toggleTheme
+    toggleTheme,
+    priceTypeOn
   } = useApp();
 
   // Metrics calculations
@@ -147,6 +148,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
             )}
 
             {/* Wholesale Price Visibility Toggle */}
+            {(priceTypeOn('wholesale') || priceTypeOn('special')) && (
             <button
               type="button"
               onClick={() => updateSettings({ enableWholesale: !settings.enableWholesale })}
@@ -173,6 +175,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
                 </>
               )}
             </button>
+            )}
 
             {/* Session Switch Button (زر التبديل بين جلسات النظام) */}
             <SessionBadgeButton />

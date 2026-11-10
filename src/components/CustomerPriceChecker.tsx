@@ -217,10 +217,14 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
         if (cfg.yellowMax <= cfg.redMax) cfg.yellowMax = cfg.redMax + 1;
         cfg.fallbackSuper = st.checkerFallbackSuper;
         cfg.fallbackSpecial = st.checkerFallbackSpecial;
+        const adminOn = (k: string) =>
+          st[k] !== false && (foundData as any)[k] !== false && (foundData as any).user?.[k] !== false;
+        const wsOn = adminOn('enableWholesalePrice');
+        const spOn = adminOn('enableSpecialPrice');
         cfg.levels = {
-          wholesale: !!st.enableWholesale,
-          superWholesale: !!st.enableWholesale && st.showSuperWholesale !== false,
-          special: !!st.enableWholesale && st.showSpecialPrice !== false,
+          wholesale: !!st.enableWholesale && wsOn,
+          superWholesale: !!st.enableWholesale && wsOn && st.showSuperWholesale !== false,
+          special: !!st.enableWholesale && spOn && st.showSpecialPrice !== false,
         };
         setStockCfg(cfg);
         try { localStorage.setItem(`cache_checker_cfg_${resolvedStoreId}`, JSON.stringify(cfg)); } catch {}
