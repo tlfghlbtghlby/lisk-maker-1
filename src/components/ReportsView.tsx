@@ -130,7 +130,7 @@ export const ReportsView: React.FC = () => {
       });
     });
 
-    return Object.values(map).sort((a, b) => b.revenue - a.revenue);
+    return Object.values(map).sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue);
   }, [filteredInvoices]);
 
   return (
