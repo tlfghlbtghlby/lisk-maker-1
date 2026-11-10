@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { shiftDate, daysUntil, ShelfUnit } from '../utils/expiry';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { 
@@ -64,6 +65,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [isWeighted, setIsWeighted] = useState(false);
   const [notes, setNotes] = useState('');
   const [stockNote, setStockNote] = useState('');
+  const [productionDate, setProductionDate] = useState('');
+  const [expiryDate, setExpiryDate] = useState('');
+  const [shelfAmount, setShelfAmount] = useState<string>('');
+  const [shelfUnit, setShelfUnit] = useState<ShelfUnit>('month');
 
   // فحص صلاحية إظهار أسعار التكلفة
   const canViewCost = hasPermission('canViewCostPrice');
@@ -179,7 +184,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setMinStock(productToEdit.minStock ?? 5);
       setIsWeighted(!!productToEdit.isWeighted);
       setNotes(productToEdit.notes || '');
+      setProductionDate(productToEdit.productionDate || '');
+      setExpiryDate(productToEdit.expiryDate || '');
+      setShelfAmount('');
     } else {
+      setProductionDate('');
+      setExpiryDate('');
+      setShelfAmount('');
       const initial = initialCode || '';
       setCode(initial);
       setName('');
@@ -350,6 +361,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     }
   };
 
+  const shelfNum = parseFloat(shelfAmount) || 0;
+  // يحسب التاريخ الناقص من الآخر ومدة الصلاحية
+  const applyShelfLife = (prod: string, exp: string, amount: number, unit: ShelfUnit) => {
+    if (!(amount > 0)) return;
+    if (prod && !exp) setExpiryDate(shiftDate(prod, amount, unit, 1));
+    else if (exp && !prod) setProductionDate(shiftDate(exp, amount, unit, -1));
+    else if (prod && exp) setExpiryDate(shiftDate(prod, amount, unit, 1));
+  };
+  const expiryDaysLeft = daysUntil(expiryDate);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
@@ -384,6 +405,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       piecesPerCarton: numPieces,
       isWeighted,
       notes: notes.trim(),
+      ...(settings.enableProductExpiry === true ? { productionDate: productionDate || undefined, expiryDate: expiryDate || undefined } : {}),
       stockNote: stockNote.trim(),
     };
 
@@ -997,6 +1019,89 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
+            {settings.enableProductExpiry === true && (
+              <div className="space-y-2 sm:col-span-2 lg:col-span-3 p-3 rounded-xl bg-amber-50/60 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20">
+                <div className="text-xs font-bold text-amber-800 dark:text-amber-300">تاريخ الإنتاج وانتهاء الصلاحية (اختياري)</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">تاريخ الإنتاج</label>
+                    <input
+                      type="date"
+                      value={productionDate}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setProductionDate(v);
+                        if (v && !expiryDate) applyShelfLife(v, '', shelfNum, shelfUnit);
+                      }}
+                      className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">تاريخ انتهاء الصلاحية</label>
+                    <input
+                      type="date"
+                      value={expiryDate}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setExpiryDate(v);
+                        if (v && !productionDate) applyShelfLife('', v, shelfNum, shelfUnit);
+                      }}
+                      className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">مدة الصلاحية</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="number"
+                        min="1"
+                        inputMode="numeric"
+                        value={shelfAmount}
+                        onChange={(e) => setShelfAmount(e.target.value)}
+                        placeholder="مثلاً 12"
+                        className="w-24 bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                      />
+                      <select
+                        value={shelfUnit}
+                        onChange={(e) => setShelfUnit(e.target.value as ShelfUnit)}
+                        className="bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-2 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="day">يوم</option>
+                        <option value="month">شهر</option>
+                        <option value="year">سنة</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyShelfLife(productionDate, expiryDate, shelfNum, shelfUnit)}
+                    disabled={!(shelfNum > 0) || (!productionDate && !expiryDate)}
+                    className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-40"
+                  >
+                    احسب التاريخ الناقص
+                  </button>
+                  {(productionDate || expiryDate) && (
+                    <button
+                      type="button"
+                      onClick={() => { setProductionDate(''); setExpiryDate(''); }}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                    >
+                      مسح التواريخ
+                    </button>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                  أدخل أحد التاريخين مع مدة الصلاحية ويُملأ الآخر تلقائيًا، أو اتركهما فارغين.
+                  {expiryDaysLeft !== null && (
+                    <span className={`font-bold mr-1 ${expiryDaysLeft < 0 ? 'text-red-600' : expiryDaysLeft <= 30 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                      {expiryDaysLeft < 0 ? `منتهية منذ ${-expiryDaysLeft} يومًا` : `متبقي ${expiryDaysLeft} يومًا`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="space-y-1 sm:col-span-2 lg:col-span-1">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">ملاحظات إضافية (اختياري)</label>
               <input
