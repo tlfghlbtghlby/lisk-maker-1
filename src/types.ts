@@ -47,6 +47,9 @@ export interface Product {
   isWeighted?: boolean;
   itemCount?: number;
   notes?: string;
+  /** تاريخ الإنتاج وتاريخ انتهاء الصلاحية (YYYY-MM-DD) — اختياري، يُفعَّل من الإعدادات */
+  productionDate?: string;
+  expiryDate?: string;
   ownerUid?: string;
   /** سجل الإضافات على المخزون (شراء/تعديل) لعرض تاريخ حركة المادة */
   purchaseLog?: StockLogEntry[];
@@ -502,6 +505,7 @@ export interface StoreSettings {
   invoiceShowPiecePrice?: boolean;
   quickQuantityEntry?: boolean;
   invertEnterShortcuts?: boolean;
+  enableProductExpiry?: boolean;
   globalBarcodeCapture?: boolean;
   promotions?: Promotion[];
   // طريقة ذكر الخصم في القائمة: عمود «الخصم» أو تطبيق مباشر على السعر دون ذكره
