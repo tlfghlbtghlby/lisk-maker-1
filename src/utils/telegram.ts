@@ -24,15 +24,15 @@ async function call(body: Record<string, unknown>): Promise<any> {
 
 export const tgInfo = () => call({ action: 'info' });
 export const tgRegister = (p: {
-  storeUid: string; secret: string; kind: 'store' | 'customer'; code: string;
-  customerId?: string; customerName?: string; storeName?: string;
+  storeUid: string; secret: string; kind: 'store' | 'customer' | 'rep'; code: string;
+  customerId?: string; customerName?: string; storeName?: string; repId?: string; repName?: string;
 }) => call({ action: 'register', ...p });
-export const tgStatus = (p: { storeUid: string; secret: string; kind: 'store' | 'customer'; customerId?: string }) =>
+export const tgStatus = (p: { storeUid: string; secret: string; kind: 'store' | 'customer' | 'rep'; customerId?: string; repId?: string }) =>
   call({ action: 'status', ...p });
-export const tgUnlink = (p: { storeUid: string; secret: string; kind: 'store' | 'customer'; customerId?: string }) =>
+export const tgUnlink = (p: { storeUid: string; secret: string; kind: 'store' | 'customer' | 'rep'; customerId?: string; repId?: string }) =>
   call({ action: 'unlink', ...p });
 export const tgNotify = (p: {
-  storeUid: string; secret: string; text?: string; customerId?: string; customerText?: string;
+  storeUid: string; secret: string; text?: string; customerId?: string; customerText?: string; repId?: string; repText?: string;
 }) => call({ action: 'notify', ...p });
 
 export const describeTelegramError = (e: any): string => {

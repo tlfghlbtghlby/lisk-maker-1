@@ -3,7 +3,7 @@
 //
 // الإجراءات (POST JSON {action, ...}):
 //   info      : اسم البوت
-//   register  : تسجيل رمز ربط (متجر أو زبون)
+//   register  : تسجيل رمز ربط (متجر أو زبون أو مندوب)
 //   status    : عدد المحادثات المرتبطة
 //   notify    : إرسال رسالة للمتجر و/أو للزبون
 //   unlink    : فك الربط
@@ -97,7 +97,12 @@ async function authStore(storeUid: string, secret: string): Promise<boolean> {
   return data.secret_hash === (await sha256(secret));
 }
 
-const CODE_RE = /^(ST|CU)-[A-Z0-9]{8}$/;
+const kindOf = (k: unknown): 'store' | 'customer' | 'rep' => (k === 'customer' ? 'customer' : k === 'rep' ? 'rep' : 'store');
+// معرّف الكيان المرتبط: الزبون أو المندوب (يُخزَّن في العمود customer_id)
+const entityOf = (kind: string, body: any): string =>
+  kind === 'customer' ? String(body.customerId || '') : kind === 'rep' ? String(body.repId || '') : '';
+
+const CODE_RE = /^(ST|CU|RP)-[A-Z0-9]{8}$/;
 
 async function handleUpdate(update: any) {
   const msg = update?.message;
@@ -148,6 +153,11 @@ async function handleUpdate(update: any) {
 
   if (code.kind === 'store') {
     await sendTo(chatId, `✅ <b>تم ربط متجرك «${esc(storeName)}» بنجاح</b>\nستصلك هنا كل الأحداث التي تحددها من إعدادات البرنامج.`);
+  } else if (code.kind === 'rep') {
+    await sendTo(
+      chatId,
+      `✅ <b>تم ربط حسابك كمندوب مع المتجر «${esc(storeName)}» بنجاح</b>\nستصلك هنا كشوفات أرباحك والقوائم المباعة باسمك وتصفية أرباحك.`
+    );
   } else {
     await sendTo(
       chatId,
@@ -193,7 +203,7 @@ Deno.serve(async req => {
   const secret = String(body?.secret || '');
 
   if (action === 'register') {
-    const kind = body.kind === 'customer' ? 'customer' : 'store';
+    const kind = kindOf(body.kind);
     const code = String(body.code || '').toUpperCase();
     if (!CODE_RE.test(code) || !storeUid || secret.length < 16) return json({ error: 'bad_request' }, 400);
 
@@ -208,16 +218,17 @@ Deno.serve(async req => {
       await sb.from('tg_stores').update({ store_name: body.storeName }).eq('store_uid', storeUid);
     }
 
+    const entityId = entityOf(kind, body);
     const { data: taken } = await sb.from('tg_codes').select('store_uid, customer_id').eq('code', code).maybeSingle();
-    if (taken && (taken.store_uid !== storeUid || (taken.customer_id || '') !== String(body.customerId || ''))) {
+    if (taken && (taken.store_uid !== storeUid || (taken.customer_id || '') !== entityId)) {
       return json({ error: 'code_taken' }, 409);
     }
     const { error } = await sb.from('tg_codes').upsert({
       code,
       kind,
       store_uid: storeUid,
-      customer_id: kind === 'customer' ? String(body.customerId || '') : null,
-      customer_name: kind === 'customer' ? body.customerName || null : null,
+      customer_id: kind === 'store' ? null : entityId,
+      customer_name: kind === 'customer' ? body.customerName || null : kind === 'rep' ? body.repName || null : null,
     });
     if (error) return json({ error: 'code_insert_failed' }, 500);
     return json({ ok: true });
@@ -226,24 +237,24 @@ Deno.serve(async req => {
   if (!(await authStore(storeUid, secret))) return json({ error: 'forbidden' }, 403);
 
   if (action === 'status') {
-    const kind = body.kind === 'customer' ? 'customer' : 'store';
+    const kind = kindOf(body.kind);
     const { data } = await sb
       .from('tg_chats')
       .select('chat_name, linked_at')
       .eq('store_uid', storeUid)
       .eq('kind', kind)
-      .eq('customer_id', kind === 'customer' ? String(body.customerId || '') : '');
+      .eq('customer_id', entityOf(kind, body));
     return json({ ok: true, linked: (data || []).length, chats: data || [] });
   }
 
   if (action === 'unlink') {
-    const kind = body.kind === 'customer' ? 'customer' : 'store';
+    const kind = kindOf(body.kind);
     await sb
       .from('tg_chats')
       .delete()
       .eq('store_uid', storeUid)
       .eq('kind', kind)
-      .eq('customer_id', kind === 'customer' ? String(body.customerId || '') : '');
+      .eq('customer_id', entityOf(kind, body));
     return json({ ok: true });
   }
 
@@ -263,6 +274,16 @@ Deno.serve(async req => {
         .eq('kind', 'customer')
         .eq('customer_id', String(body.customerId));
       for (const c of chats || []) if (await sendTo(Number(c.chat_id), customerText)) sent++;
+    }
+    const repText = String(body.repText || '');
+    if (repText && body.repId) {
+      const { data: chats } = await sb
+        .from('tg_chats')
+        .select('chat_id')
+        .eq('store_uid', storeUid)
+        .eq('kind', 'rep')
+        .eq('customer_id', String(body.repId));
+      for (const c of chats || []) if (await sendTo(Number(c.chat_id), repText)) sent++;
     }
     return json({ ok: true, sent });
   }

@@ -10,7 +10,7 @@ create table if not exists public.tg_stores (
 
 create table if not exists public.tg_codes (
   code          text primary key,
-  kind          text not null check (kind in ('store', 'customer')),
+  kind          text not null check (kind in ('store', 'customer', 'rep')),
   store_uid     text not null references public.tg_stores(store_uid) on delete cascade,
   customer_id   text,
   customer_name text,
@@ -19,7 +19,7 @@ create table if not exists public.tg_codes (
 
 create table if not exists public.tg_chats (
   id          bigserial primary key,
-  kind        text not null check (kind in ('store', 'customer')),
+  kind        text not null check (kind in ('store', 'customer', 'rep')),
   store_uid   text not null references public.tg_stores(store_uid) on delete cascade,
   customer_id text not null default '',
   chat_id     bigint not null,
@@ -40,3 +40,10 @@ alter table public.tg_config enable row level security;
 alter table public.tg_stores enable row level security;
 alter table public.tg_codes  enable row level security;
 alter table public.tg_chats  enable row level security;
+
+
+-- ترقية (لمن أنشأ الجداول سابقاً): السماح بنوع المندوب. شغّل هذا الجزء مرة واحدة.
+alter table public.tg_codes drop constraint if exists tg_codes_kind_check;
+alter table public.tg_codes add constraint tg_codes_kind_check check (kind in ('store', 'customer', 'rep'));
+alter table public.tg_chats drop constraint if exists tg_chats_kind_check;
+alter table public.tg_chats add constraint tg_chats_kind_check check (kind in ('store', 'customer', 'rep'));
