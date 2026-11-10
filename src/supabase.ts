@@ -651,3 +651,37 @@ export async function changeAccountPassword(
     return { success: false, error: err.message || 'تعذر الاتصال بقاعدة البيانات لتغيير كلمة المرور' };
   }
 }
+
+
+// ---------------------------------------------------------------------------
+// صلاحية الاشتراك (تعمل دون اتصال): الساعة لا تتراجع أبداً حتى لا يُمدَّد الاشتراك بتأخير ساعة الجهاز
+// ---------------------------------------------------------------------------
+export function monotonicNow(): number {
+  const now = Date.now();
+  try {
+    const last = Number(localStorage.getItem('sub_last_seen') || 0);
+    const eff = Math.max(now, last);
+    if (eff !== last) localStorage.setItem('sub_last_seen', String(eff));
+    return eff;
+  } catch {
+    return now;
+  }
+}
+
+export function isSubscriptionExpired(user: any): boolean {
+  if (!user || user.role === 'admin' || user.isPermanent) return false;
+  if (!user.trialExpiresAt) return false;
+  const ms = new Date(user.trialExpiresAt).getTime();
+  return ms > 0 && ms < monotonicNow();
+}
+
+/** حالة الحساب في السحابة (null عند تعذر الاتصال أو عدم وجود السجل) */
+export async function fetchAccountStatus(uid: string): Promise<{ isActive?: boolean; isPermanent?: boolean; trialExpiresAt?: string | null } | null> {
+  try {
+    const rec = await getDocumentStrict('users', uid);
+    if (!rec) return null;
+    return { isActive: rec.isActive, isPermanent: rec.isPermanent, trialExpiresAt: rec.trialExpiresAt ?? null };
+  } catch {
+    return null;
+  }
+}
