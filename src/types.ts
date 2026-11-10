@@ -80,6 +80,9 @@ export interface StockLogEntry {
   costPrice?: number;
   /** سعر التكلفة السابق إذا تغيّر في هذه الحركة */
   prevCostPrice?: number;
+  /** تاريخ الإنتاج وانتهاء الصلاحية للكمية المضافة في هذه الحركة */
+  productionDate?: string;
+  expiryDate?: string;
 }
 
 export type Item = Product;

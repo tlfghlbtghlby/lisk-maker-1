@@ -30,11 +30,13 @@ interface Row {
   note?: string;
   cost?: number;
   prevCost?: number;
+  expiryDate?: string;
   estimated?: boolean;
 }
 
 export default function ProductMovementModal({ product, onClose }: Props) {
-  const { invoices, hasPermission } = useApp();
+  const { invoices, hasPermission, settings } = useApp();
+  const showExpiry = settings.enableProductExpiry === true;
   const canViewCost = hasPermission('canViewCostPrice');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -77,6 +79,7 @@ export default function ProductMovementModal({ product, onClose }: Props) {
         note: e.note,
         cost: e.costPrice,
         prevCost: e.prevCostPrice,
+        expiryDate: e.expiryDate,
       });
     });
 
@@ -171,11 +174,11 @@ export default function ProductMovementModal({ product, onClose }: Props) {
           <div className="border border-slate-200 rounded-xl overflow-hidden">
             <table className="w-full text-xs">
               <thead className="bg-slate-50 text-slate-600">
-                <tr><th className="p-2 text-right">التاريخ</th><th className="p-2 text-right">الحركة</th><th className="p-2 text-right">ملاحظة</th>{canViewCost && <th className="p-2 text-center">سعر التكلفة</th>}<th className="p-2 text-center">الكمية</th></tr>
+                <tr><th className="p-2 text-right">التاريخ</th><th className="p-2 text-right">الحركة</th><th className="p-2 text-right">ملاحظة</th>{canViewCost && <th className="p-2 text-center">سعر التكلفة</th>}{showExpiry && <th className="p-2 text-center">تاريخ الانتهاء</th>}<th className="p-2 text-center">الكمية</th></tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
-                  <tr><td colSpan={canViewCost ? 5 : 4} className="p-4 text-center text-slate-400">لا توجد حركة في هذه الفترة</td></tr>
+                  <tr><td colSpan={(canViewCost ? 5 : 4) + (showExpiry ? 1 : 0)} className="p-4 text-center text-slate-400">لا توجد حركة في هذه الفترة</td></tr>
                 ) : rows.map(r => (
                   <tr key={r.key} className="border-t border-slate-100">
                     <td className="p-2 whitespace-nowrap">{r.estimated ? dayKey(r.date) : fmtDate(r.date)}</td>
@@ -193,6 +196,7 @@ export default function ProductMovementModal({ product, onClose }: Props) {
                         </>
                       ) : '-'}
                     </td>}
+                    {showExpiry && <td className="p-2 text-center whitespace-nowrap">{r.expiryDate || '-'}</td>}
                     <td className={`p-2 text-center font-bold ${r.kind === 'purchase' ? 'text-emerald-700' : r.kind === 'sale' ? 'text-indigo-700' : 'text-slate-600'}`}>
                       {r.kind === 'price' ? '-' : <>{r.kind === 'purchase' ? '+' : '−'}{num(r.qty)}</>}
                     </td>

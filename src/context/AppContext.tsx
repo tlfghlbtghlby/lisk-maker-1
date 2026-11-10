@@ -1678,7 +1678,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const makeStockLog = (qty: number, type: 'purchase' | 'adjust' | 'price', note?: string, costPrice?: number, prevCostPrice?: number): StockLogEntry => ({
+  const makeStockLog = (qty: number, type: 'purchase' | 'adjust' | 'price', note?: string, costPrice?: number, prevCostPrice?: number, dates?: { productionDate?: string; expiryDate?: string }): StockLogEntry => ({
     id: 'sl_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
     date: new Date().toISOString(),
     qty,
@@ -1686,6 +1686,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     ...(note ? { note } : {}),
     ...(typeof costPrice === 'number' ? { costPrice } : {}),
     ...(typeof prevCostPrice === 'number' && prevCostPrice !== costPrice ? { prevCostPrice } : {}),
+    ...(type === 'purchase' && dates?.productionDate ? { productionDate: dates.productionDate } : {}),
+    ...(type === 'purchase' && dates?.expiryDate ? { expiryDate: dates.expiryDate } : {}),
   });
   const appendStockLog = (log: StockLogEntry[] | undefined, entry: StockLogEntry): StockLogEntry[] =>
     [...(log || []), entry].slice(-500);
@@ -1705,7 +1707,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: now,
     };
     if ((newProduct.stock || 0) > 0 && !(newProduct.purchaseLog && newProduct.purchaseLog.length)) {
-      newProduct.purchaseLog = [makeStockLog(newProduct.stock, 'purchase', addNote || 'رصيد أولي', newProduct.costPrice)];
+      newProduct.purchaseLog = [makeStockLog(newProduct.stock, 'purchase', addNote || 'رصيد أولي', newProduct.costPrice, undefined, { productionDate: newProduct.productionDate, expiryDate: newProduct.expiryDate })];
     }
 
     const updated = [newProduct, ...products];
@@ -1760,7 +1762,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let log = beforeProduct.purchaseLog;
       let changed = false;
       if (diff !== 0) {
-        log = appendStockLog(log, makeStockLog(Math.abs(diff), diff > 0 ? 'purchase' : 'adjust', stockNote || 'تعديل المادة', newCost, costChanged ? beforeProduct.costPrice : undefined));
+        log = appendStockLog(log, makeStockLog(Math.abs(diff), diff > 0 ? 'purchase' : 'adjust', stockNote || 'تعديل المادة', newCost, costChanged ? beforeProduct.costPrice : undefined, { productionDate: (updates as any).productionDate, expiryDate: (updates as any).expiryDate }));
         changed = true;
       } else if (costChanged) {
         log = appendStockLog(log, makeStockLog(0, 'price', stockNote || 'تغيير سعر التكلفة', newCost, beforeProduct.costPrice));
