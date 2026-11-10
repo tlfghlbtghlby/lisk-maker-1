@@ -263,6 +263,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
   const [invertEnterShortcuts, setInvertEnterShortcuts] = useState<boolean>(settings.invertEnterShortcuts === true);
   const [enableProductExpiry, setEnableProductExpiry] = useState<boolean>(settings.enableProductExpiry === true);
+  const [trackExpiryBatches, setTrackExpiryBatches] = useState<boolean>(settings.trackExpiryBatches !== false);
   const [globalBarcodeCapture, setGlobalBarcodeCapture] = useState<boolean>(settings.globalBarcodeCapture !== false);
   const [promoDiscountDisplay, setPromoDiscountDisplay] = useState<'column' | 'hidden'>(settings.promoDiscountDisplay === 'hidden' ? 'hidden' : 'column');
   const [promoOfferDisplay, setPromoOfferDisplay] = useState<'gift_column' | 'listed' | 'hidden'>(settings.promoOfferDisplay || 'gift_column');
@@ -422,6 +423,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setQuickQuantityEntry(settings.quickQuantityEntry === true);
       setInvertEnterShortcuts(settings.invertEnterShortcuts === true);
       setEnableProductExpiry(settings.enableProductExpiry === true);
+      setTrackExpiryBatches(settings.trackExpiryBatches !== false);
       setGlobalBarcodeCapture(settings.globalBarcodeCapture !== false);
       setAllowMultiDeviceShifts(settings.allowMultiDeviceShifts !== false);
       setPromoDiscountDisplay(settings.promoDiscountDisplay === 'hidden' ? 'hidden' : 'column');
@@ -510,6 +512,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       quickQuantityEntry,
       invertEnterShortcuts,
       enableProductExpiry,
+      trackExpiryBatches,
       globalBarcodeCapture,
       allowMultiDeviceShifts,
       promoDiscountDisplay,
@@ -1717,6 +1720,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>
+            {enableProductExpiry && (
+              <label className="flex items-start justify-between gap-3 p-3 mr-4 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">حفظ تاريخ انتهاء كل كمية سابقة</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">عند إدخال كمية جديدة بتاريخ انتهاء مختلف يبقى تاريخ الكمية القديمة محفوظًا حتى تنفد، ويمكنك عرض كل كمية وتاريخ انتهائها (يُخصم من الأقدم أولًا).</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={trackExpiryBatches}
+                  onChange={(e) => setTrackExpiryBatches(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                />
+              </label>
+            )}
             <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
               <div>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">إدخال الكمية السريع في نقطة البيع</span>

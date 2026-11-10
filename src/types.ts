@@ -50,11 +50,22 @@ export interface Product {
   /** تاريخ الإنتاج وتاريخ انتهاء الصلاحية (YYYY-MM-DD) — اختياري، يُفعَّل من الإعدادات */
   productionDate?: string;
   expiryDate?: string;
+  /** دفعات المخزون بتواريخ صلاحية مختلفة (الأقدم أولاً) */
+  expiryBatches?: ExpiryBatch[];
   ownerUid?: string;
   /** سجل الإضافات على المخزون (شراء/تعديل) لعرض تاريخ حركة المادة */
   purchaseLog?: StockLogEntry[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ExpiryBatch {
+  id: string;
+  /** عدد القطع المسجّلة عند الإدخال (يُخصم منها الأقدم أولاً حسب المخزون الحالي) */
+  qty: number;
+  productionDate?: string;
+  expiryDate?: string;
+  addedAt: string;
 }
 
 export interface StockLogEntry {
@@ -506,6 +517,7 @@ export interface StoreSettings {
   quickQuantityEntry?: boolean;
   invertEnterShortcuts?: boolean;
   enableProductExpiry?: boolean;
+  trackExpiryBatches?: boolean;
   globalBarcodeCapture?: boolean;
   promotions?: Promotion[];
   // طريقة ذكر الخصم في القائمة: عمود «الخصم» أو تطبيق مباشر على السعر دون ذكره

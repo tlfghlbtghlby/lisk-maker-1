@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { shiftDate, daysUntil, ShelfUnit } from '../utils/expiry';
+import { shiftDate, daysUntil, reconcileBatches, addBatch, ShelfUnit } from '../utils/expiry';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { 
@@ -69,6 +69,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [expiryDate, setExpiryDate] = useState('');
   const [shelfAmount, setShelfAmount] = useState<string>('');
   const [shelfUnit, setShelfUnit] = useState<ShelfUnit>('month');
+  const [showBatches, setShowBatches] = useState(false);
 
   // فحص صلاحية إظهار أسعار التكلفة
   const canViewCost = hasPermission('canViewCostPrice');
@@ -361,6 +362,32 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     }
   };
 
+  const trackBatches = settings.enableProductExpiry === true && settings.trackExpiryBatches !== false;
+  // الدفعات الحالية بعد خصم ما بيع من المخزون (الأقدم أولاً)
+  const currentBatches = useMemo(
+    () => (trackBatches && productToEdit ? reconcileBatches(productToEdit.expiryBatches, productToEdit.stock || 0) : []),
+    [trackBatches, productToEdit]
+  );
+  const differingQty = currentBatches.length > 1 ? currentBatches.slice(0, -1).reduce((sum, b) => sum + b.qty, 0) : 0;
+  const buildBatches = () => {
+    const oldStock = productToEdit?.stock || 0;
+    const delta = numStock - oldStock;
+    let batches = reconcileBatches(productToEdit?.expiryBatches, oldStock);
+    if (productionDate || expiryDate) {
+      if (delta > 0) {
+        batches = addBatch(batches, delta, productionDate, expiryDate);
+      } else if (batches.length) {
+        const last = batches[batches.length - 1];
+        if ((last.productionDate || '') !== productionDate || (last.expiryDate || '') !== expiryDate) {
+          batches = batches.map(b => b === last ? { ...b, productionDate: productionDate || undefined, expiryDate: expiryDate || undefined } : b);
+        }
+      } else if (numStock > 0) {
+        batches = addBatch(batches, numStock, productionDate, expiryDate);
+      }
+    }
+    return reconcileBatches(batches, numStock);
+  };
+
   const shelfNum = parseFloat(shelfAmount) || 0;
   // يحسب التاريخ الناقص من الآخر ومدة الصلاحية
   const applyShelfLife = (prod: string, exp: string, amount: number, unit: ShelfUnit) => {
@@ -406,6 +433,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       isWeighted,
       notes: notes.trim(),
       ...(settings.enableProductExpiry === true ? { productionDate: productionDate || undefined, expiryDate: expiryDate || undefined } : {}),
+      ...(trackBatches ? { expiryBatches: buildBatches() } : {}),
       stockNote: stockNote.trim(),
     };
 
@@ -1092,6 +1120,41 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </button>
                   )}
                 </div>
+                {trackBatches && differingQty > 0 && (
+                  <div className="rounded-xl border border-orange-300 dark:border-orange-500/30 bg-orange-50 dark:bg-orange-500/10 p-2 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-orange-800 dark:text-orange-300">
+                        {differingQty} {unit || 'قطعة'} صلاحيتها تختلف
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowBatches(v => !v)}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-orange-500 hover:bg-orange-600 text-white"
+                      >
+                        {showBatches ? 'إخفاء' : 'إظهار'}
+                      </button>
+                    </div>
+                    {showBatches && (
+                      <div className="space-y-1">
+                        {currentBatches.map(b => {
+                          const left = daysUntil(b.expiryDate);
+                          return (
+                            <div key={b.id} className="flex flex-wrap items-center justify-between gap-1 bg-white dark:bg-[#060b13] border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-[11px] text-slate-700 dark:text-slate-200">
+                              <span className="font-bold">{b.qty} {unit || 'قطعة'}</span>
+                              <span>إنتاج: {b.productionDate || '—'}</span>
+                              <span>انتهاء: {b.expiryDate || '—'}</span>
+                              {left !== null && (
+                                <span className={`font-bold ${left < 0 ? 'text-red-600' : left <= 30 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                                  {left < 0 ? `منتهية منذ ${-left} يومًا` : `متبقي ${left} يومًا`}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="text-[11px] text-slate-500 dark:text-slate-400">
                   أدخل أحد التاريخين مع مدة الصلاحية ويُملأ الآخر تلقائيًا، أو اتركهما فارغين.
                   {expiryDaysLeft !== null && (
