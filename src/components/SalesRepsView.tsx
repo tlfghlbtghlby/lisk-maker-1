@@ -60,6 +60,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
   } = useApp();
   const telegramOn = featureOn('enableTelegram');
   const [tgRep, setTgRep] = useState<SalesRep | null>(null);
+  const [repView, setRepView] = useState<{ rep: SalesRep; mode: 'products' | 'invoices' } | null>(null);
   const [settleRep, setSettleRep] = useState<SalesRep | null>(null);
 
   const reps: SalesRep[] = settings.salesReps || [];
@@ -192,26 +193,25 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
     return { start, end };
   }, [dateFilter, customStartDate, customEndDate]);
 
-  // Filtered invoices for sales reps
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
-      // Must have a sales rep assigned (or if we filter by rep)
+  // قوائم المندوبين ضمن الفترة المحددة (لمندوب معيّن أو للجميع)
+  const invoicesForRep = (repId: string) =>
+    invoices.filter(inv => {
       if (!inv.salesRepId) return false;
-      if (selectedRepId !== 'all' && inv.salesRepId !== selectedRepId) return false;
-
-      // Filter returned invoices
+      if (repId !== 'all' && inv.salesRepId !== repId) return false;
       if (inv.status === 'returned') return false;
-
-      // Date check
       if (dateRange.start) {
         const invDate = new Date(inv.date);
         if (invDate < dateRange.start) return false;
         if (dateRange.end && invDate > dateRange.end) return false;
       }
-
       return true;
     });
-  }, [invoices, selectedRepId, dateRange]);
+
+  const filteredInvoices = useMemo(
+    () => invoicesForRep(selectedRepId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [invoices, selectedRepId, dateRange]
+  );
 
   // KPI Calculations
   const metrics = useMemo(() => {
@@ -252,7 +252,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
   }, [filteredInvoices]);
 
   // Products sold by the selected rep(s) across the month/period
-  const soldProductsList = useMemo(() => {
+  const buildSoldProducts = (invList: Invoice[], applySearch: boolean) => {
     const productMap = new Map<string, {
       productId: string;
       code: string;
@@ -266,7 +266,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
       storeNetProfit: number;
     }>();
 
-    filteredInvoices.forEach(inv => {
+    invList.forEach(inv => {
       // Find rep commission rate & type from settings if stored in invoice or fallback
       const rep = reps.find(r => r.id === inv.salesRepId);
       const repRate = rep ? rep.commissionRate : 0;
@@ -326,13 +326,19 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
     const list = Array.from(productMap.values());
 
     // Search filter
-    if (searchQuery.trim()) {
+    if (applySearch && searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       return list.filter(p => p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q));
     }
 
     return list.sort((a, b) => b.totalSales - a.totalSales);
-  }, [filteredInvoices, reps, settings.repCommissionDefaultType, searchQuery]);
+  };
+
+  const soldProductsList = useMemo(
+    () => buildSoldProducts(filteredInvoices, true),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredInvoices, reps, settings.repCommissionDefaultType, searchQuery]
+  );
 
   // Export CSV
   const handleExportCSV = () => {
@@ -1033,20 +1039,14 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                         </span>
                         <button
                           type="button"
-                          onClick={() => {
-                            setSelectedRepId(rep.id);
-                            setActiveSubTab('products');
-                          }}
+                          onClick={() => setRepView({ rep, mode: 'products' })}
                           className="text-xs font-bold text-indigo-600 hover:text-indigo-800 transition cursor-pointer"
                         >
                           عرض المواد المباعة ←
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setSelectedRepId(rep.id);
-                            setActiveSubTab('invoices');
-                          }}
+                          onClick={() => setRepView({ rep, mode: 'invoices' })}
                           className="text-xs font-bold text-emerald-700 hover:text-emerald-900 transition cursor-pointer mr-3"
                         >
                           عرض القوائم ←
@@ -1294,6 +1294,69 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
       )}
 
     </div>
+    {repView && (() => {
+      const list = invoicesForRep(repView.rep.id);
+      const prods = repView.mode === 'products' ? buildSoldProducts(list, false).sort((x, y) => y.totalSales - x.totalSales) : [];
+      return (
+        <div className="fixed inset-0 z-[85] bg-black/40 backdrop-blur-md flex items-center justify-center p-3" dir="rtl" onClick={() => setRepView(null)}>
+          <div className="bg-white dark:bg-[#0b1728] border border-slate-300 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col p-5 gap-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                {repView.mode === 'products' ? 'المواد المباعة' : 'قوائم'} المندوب: {repView.rep.name}
+              </h3>
+              <button type="button" onClick={() => setRepView(null)} className="p-1 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="text-[11px] text-slate-500">ضمن الفترة المحددة في الأعلى ({list.length} قائمة)</div>
+            <div className="overflow-auto flex-1 border border-slate-200 rounded-xl">
+              {repView.mode === 'products' ? (
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-50 text-slate-700 font-black sticky top-0">
+                    <tr><th className="p-2">المادة</th><th className="p-2 text-center">الكمية</th><th className="p-2 text-center">المبيعات</th><th className="p-2 text-center">ربح المندوب</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-bold">
+                    {prods.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-slate-400">لا توجد مواد مباعة في هذه الفترة.</td></tr>}
+                    {prods.map((p, i) => (
+                      <tr key={i}>
+                        <td className="p-2">{p.name}</td>
+                        <td className="p-2 text-center font-mono">{p.totalQty} {p.unit}</td>
+                        <td className="p-2 text-center font-mono">{formatMoney(p.totalSales)}</td>
+                        <td className="p-2 text-center font-mono text-indigo-700">{formatMoney(p.repCommission)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-50 text-slate-700 font-black sticky top-0">
+                    <tr><th className="p-2">القائمة</th><th className="p-2">التاريخ</th><th className="p-2">الزبون</th><th className="p-2 text-center">المبلغ</th><th className="p-2 text-center">عمولته</th><th className="p-2"></th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-bold">
+                    {list.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-slate-400">لا توجد قوائم في هذه الفترة.</td></tr>}
+                    {list.map(inv => (
+                      <tr key={inv.id}>
+                        <td className="p-2 font-mono">{inv.invoiceNumber}</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-500">{inv.date ? new Date(inv.date).toLocaleDateString('ar-EG') : '-'}</td>
+                        <td className="p-2">{inv.customerName}</td>
+                        <td className="p-2 text-center font-mono">{formatMoney(inv.total)}</td>
+                        <td className="p-2 text-center font-mono text-indigo-700">{formatMoney(inv.salesRepCommission || 0)}</td>
+                        <td className="p-2">
+                          {onViewInvoice && (
+                            <button type="button" onClick={() => { setRepView(null); onViewInvoice(inv); }} className="px-2 py-1 text-[11px] font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">معاينة</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="flex justify-start">
+              <button type="button" onClick={() => setRepView(null)} className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-300 text-slate-700 cursor-pointer">إغلاق</button>
+            </div>
+          </div>
+        </div>
+      );
+    })()}
     {tgRep && <RepTelegramModal rep={tgRep} onClose={() => setTgRep(null)} />}
     {settleRep && <RepSettleModal rep={settleRep} telegramOn={telegramOn} onClose={() => setSettleRep(null)} />}
     </>
