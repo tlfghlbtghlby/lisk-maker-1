@@ -432,6 +432,8 @@ export interface UserProfile {
   enableCustomerPriceChecker?: boolean;
   enableTelegram?: boolean;
   enableModernDesign?: boolean;
+  enableWholesalePrice?: boolean;
+  enableSpecialPrice?: boolean;
 }
 
 export type PrintFormatType = 'a4' | 'a5' | 'thermal' | 'thermal80' | 'thermal58';
@@ -523,6 +525,8 @@ export interface StoreSettings {
   enableEmployee?: boolean;
   enableTelegram?: boolean;
   enableModernDesign?: boolean;
+  enableWholesalePrice?: boolean;
+  enableSpecialPrice?: boolean;
   features?: StoreFeatures;
 }
 

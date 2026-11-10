@@ -101,7 +101,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     switchToDraft,
     clearCurrentDraft,
     deleteCurrentDraft,
-    completeActiveDraft
+    completeActiveDraft,
+    priceTypeOn
   } = useApp();
 
   // فحص صلاحية إظهار سعر الشراء والتكلفة
@@ -110,7 +111,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   // Active Draft Properties
   const cartItems = activeDraft.cartItems || [];
   const saleType = activeDraft.saleType || 'direct';
-  const globalPriceType = activeDraft.globalPriceType || 'retail';
+  const rawGlobalPriceType = activeDraft.globalPriceType || 'retail';
+  const globalPriceType: PriceType = priceTypeOn(rawGlobalPriceType) ? rawGlobalPriceType : 'retail';
+  const tieredMode = !!settings.enableWholesale && (priceTypeOn('wholesale') || priceTypeOn('special'));
   const selectedCustomerId = activeDraft.selectedCustomerId || '';
   const customCustomerName = activeDraft.customCustomerName || '';
   const customerPhone = activeDraft.customerPhone || '';
@@ -1082,7 +1085,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
                   {visibleProducts.map((prod, pIdx) => {
                     const isOutOfStock = prod.stock <= 0;
-                    const effectivePrice = settings.enableWholesale
+                    const effectivePrice = tieredMode
                       ? getPiecePrice(prod, globalPriceType)
                       : prod.retailPrice;
 
@@ -1230,7 +1233,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {settings.enableWholesale && (
+                          {settings.enableWholesale && priceTypeOn('wholesale') && (
                             <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
                               <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg px-2.5 py-1 text-right">
                                 <div className="text-[10px] text-amber-800 font-bold">
@@ -1259,7 +1262,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {settings.enableWholesale && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
+                          {settings.enableWholesale && priceTypeOn('superWholesale') && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
                             <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
                               <div className="bg-orange-50/90 border border-orange-200/90 rounded-lg px-2.5 py-1 text-right">
                                 <div className="text-[10px] text-orange-800 font-bold">
@@ -1284,7 +1287,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {settings.enableWholesale && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
+                          {settings.enableWholesale && priceTypeOn('special') && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
                             <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
                               <div className="bg-violet-50/90 border border-violet-200/90 rounded-lg px-2.5 py-1 text-right">
                                 <div className="text-[10px] text-violet-800 font-bold">
@@ -1312,7 +1315,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           <div className="flex flex-col gap-1 min-w-[105px] shrink-0">
                             <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-3 py-1.5 text-right">
                               <div className="text-[10px] text-emerald-800 font-bold">
-                                {settings.enableWholesale ? 'سعر بيع المفرد:' : 'سعر البيع:'}
+                                {tieredMode ? 'سعر بيع المفرد:' : 'سعر البيع:'}
                               </div>
                               <div className="text-xs sm:text-base font-black text-emerald-950 font-mono">
                                 {formatMoney(prod.retailPrice)}
@@ -1332,7 +1335,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               title={isOutOfStock ? "إضافة بسعر المفرد (تنبيه: الرصيد صفر في المخزن)" : "إضافة بسعر البيع المفرد"}
                             >
                               <Plus className="w-3.5 h-3.5" />
-                              <span>{settings.enableWholesale ? 'مفرد' : (isOutOfStock ? 'بيع (رصيد 0)' : 'إضافة للقائمة')}</span>
+                              <span>{tieredMode ? 'مفرد' : (isOutOfStock ? 'بيع (رصيد 0)' : 'إضافة للقائمة')}</span>
                             </button>
                           </div>
                         </div>
@@ -1471,7 +1474,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   </div>
                 </div>
 
-                {settings.enableWholesale ? (
+                {tieredMode ? (
                   <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 gap-1.5 text-[11px]">
                     <div className="flex items-center gap-1">
                       <span className="font-bold text-slate-600 text-[10px]">البيع:</span>
@@ -1486,6 +1489,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         >
                           مفرد
                         </button>
+                        {priceTypeOn('wholesale') && (
                         <button
                           onClick={() => handleGlobalPriceTypeChange('wholesale')}
                           className={`px-1.5 py-0.5 rounded transition ${
@@ -1496,7 +1500,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         >
                           جملة
                         </button>
-                        {settings.showSuperWholesale !== false && (
+                        )}
+                        {priceTypeOn('superWholesale') && settings.showSuperWholesale !== false && (
                         <button
                           onClick={() => handleGlobalPriceTypeChange('superWholesale')}
                           className={`px-1.5 py-0.5 rounded transition ${
@@ -1508,7 +1513,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           {PRICE_TYPE_LABELS.superWholesale}
                         </button>
                         )}
-                        {settings.showSpecialPrice !== false && (
+                        {priceTypeOn('special') && settings.showSpecialPrice !== false && (
                         <button
                           onClick={() => handleGlobalPriceTypeChange('special')}
                           className={`px-1.5 py-0.5 rounded transition ${
@@ -2303,6 +2308,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 </div>
               </div>
 
+              {priceTypeOn('wholesale') && (
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
                   سعر بيع الجملة ({settings.currency})
@@ -2321,8 +2327,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   </span>
                 </div>
               </div>
+              )}
 
-              {settings.showSuperWholesale !== false && (
+              {priceTypeOn('superWholesale') && settings.showSuperWholesale !== false && (
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
                   جملة الجملة ({settings.currency}) <span className="text-slate-400 font-medium">(اختياري)</span>
@@ -2343,7 +2350,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               </div>
               )}
 
-              {settings.showSpecialPrice !== false && (
+              {priceTypeOn('special') && settings.showSpecialPrice !== false && (
               <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1">
                   السعر الخاص ({settings.currency}) <span className="text-slate-400 font-medium">(اختياري)</span>

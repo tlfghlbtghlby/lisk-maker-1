@@ -125,7 +125,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     activeShift,
     theme,
     setTheme,
-    featureOn
+    featureOn,
+    priceTypeOn
   } = useApp();
 
   const [storeName, setStoreName] = useState(settings.storeName);
@@ -154,9 +155,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   })();
   const customerPriceCheckerUrl = buildCheckerUrl('https://ckeckprice.vercel.app/', encodedStoreToken, 'retail');
   const extraLinks = ([
-    { level: 'wholesale' as const, enabled: !!settings.enableWholesale },
-    { level: 'superWholesale' as const, enabled: !!settings.enableWholesale && settings.showSuperWholesale !== false },
-    { level: 'special' as const, enabled: !!settings.enableWholesale && settings.showSpecialPrice !== false },
+    { level: 'wholesale' as const, enabled: !!settings.enableWholesale && priceTypeOn('wholesale') },
+    { level: 'superWholesale' as const, enabled: !!settings.enableWholesale && priceTypeOn('superWholesale') && settings.showSuperWholesale !== false },
+    { level: 'special' as const, enabled: !!settings.enableWholesale && priceTypeOn('special') && settings.showSpecialPrice !== false },
   ]).map(x => ({ ...x, url: buildCheckerUrl('https://ckeckprice.vercel.app/', encodedStoreToken, x.level) }));
   const copyLevelLink = (level: string, url: string) => {
     try {
@@ -1605,6 +1606,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
 
           <div className="bg-slate-50 dark:bg-[#070e1b] border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-2">
             <h4 className="text-xs font-black text-slate-900 dark:text-white mb-1">خيارات الأسعار والقوائم والبيع السريع</h4>
+            {priceTypeOn('superWholesale') && (
             <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
               <div>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">إظهار سعر «جملة الجملة»</span>
@@ -1617,6 +1619,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>
+            )}
+            {priceTypeOn('special') && (
             <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
               <div>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">إظهار «السعر الخاص»</span>
@@ -1629,6 +1633,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>
+            )}
             <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
               <div>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">القائمة المطبوعة: خانات الكراتين والقطع والتعبئة</span>
@@ -1862,7 +1867,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200">سعر البيع المفرد (التجزئة)</span>
               </label>
 
-              {settings.enableWholesale && (
+              {settings.enableWholesale && priceTypeOn('wholesale') && (
                 <label className="flex items-center gap-2 p-2.5 rounded-lg bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
                   <input
                     type="checkbox"

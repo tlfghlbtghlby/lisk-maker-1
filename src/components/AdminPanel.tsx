@@ -73,6 +73,8 @@ export const AdminPanel: React.FC = () => {
   const [editEnableCustomerPriceChecker, setEditEnableCustomerPriceChecker] = useState(true);
   const [editEnableTelegram, setEditEnableTelegram] = useState(true);
   const [editEnableModernDesign, setEditEnableModernDesign] = useState(true);
+  const [editEnableWholesalePrice, setEditEnableWholesalePrice] = useState(true);
+  const [editEnableSpecialPrice, setEditEnableSpecialPrice] = useState(true);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [actionLoadingUid, setActionLoadingUid] = useState<string | null>(null);
 
@@ -219,6 +221,8 @@ export const AdminPanel: React.FC = () => {
     setEditEnableCustomerPriceChecker(client.enableCustomerPriceChecker !== false);
     setEditEnableTelegram(client.enableTelegram !== false);
     setEditEnableModernDesign(client.enableModernDesign !== false);
+    setEditEnableWholesalePrice(client.enableWholesalePrice !== false);
+    setEditEnableSpecialPrice(client.enableSpecialPrice !== false);
     
     if (client.trialExpiresAt) {
       try {
@@ -256,6 +260,8 @@ export const AdminPanel: React.FC = () => {
         enableCustomerPriceChecker: editEnableCustomerPriceChecker,
         enableTelegram: editEnableTelegram,
         enableModernDesign: editEnableModernDesign,
+        enableWholesalePrice: editEnableWholesalePrice,
+        enableSpecialPrice: editEnableSpecialPrice,
       };
 
       if (editPassword && editPassword.trim().length >= 6) {
@@ -279,6 +285,8 @@ export const AdminPanel: React.FC = () => {
             enableCustomerPriceChecker: editEnableCustomerPriceChecker,
             enableTelegram: editEnableTelegram,
             enableModernDesign: editEnableModernDesign,
+            enableWholesalePrice: editEnableWholesalePrice,
+            enableSpecialPrice: editEnableSpecialPrice,
             settings: {
               ...currentSettings,
               enableShifts: editEnableShifts,
@@ -288,6 +296,8 @@ export const AdminPanel: React.FC = () => {
               enableCustomerPriceChecker: editEnableCustomerPriceChecker,
               enableTelegram: editEnableTelegram,
               enableModernDesign: editEnableModernDesign,
+              enableWholesalePrice: editEnableWholesalePrice,
+              enableSpecialPrice: editEnableSpecialPrice,
             }
           });
         }
@@ -1146,6 +1156,26 @@ export const AdminPanel: React.FC = () => {
                       className="accent-violet-500 w-3.5 h-3.5"
                     />
                     <span className="font-bold text-violet-300">الطباعة العصرية الملونة</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 cursor-pointer hover:border-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={editEnableWholesalePrice}
+                      onChange={(e) => setEditEnableWholesalePrice(e.target.checked)}
+                      className="accent-emerald-500 w-3.5 h-3.5"
+                    />
+                    <span className="font-bold text-emerald-300">سعر الجملة (وجملة الجملة)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-700/60 cursor-pointer hover:border-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={editEnableSpecialPrice}
+                      onChange={(e) => setEditEnableSpecialPrice(e.target.checked)}
+                      className="accent-violet-500 w-3.5 h-3.5"
+                    />
+                    <span className="font-bold text-violet-300">السعر الخاص</span>
                   </label>
                 </div>
               </div>

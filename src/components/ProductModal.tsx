@@ -37,7 +37,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   productToEdit,
   initialCode,
 }) => {
-  const { addProduct, updateProduct, products, formatMoney, settings, hasPermission } = useApp();
+  const { addProduct, updateProduct, products, formatMoney, settings, hasPermission, priceTypeOn } = useApp();
 
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
@@ -782,6 +782,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
 
                 {/* 3. بطاقة سعر بيع الجملة */}
+                {priceTypeOn('wholesale') && (
                 <div className="bg-slate-50 dark:bg-[#070e1b] border border-amber-500/30 rounded-2xl p-3.5 space-y-3">
                   <div className="flex items-center justify-between pb-1.5 border-b border-amber-500/20">
                     <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
@@ -833,8 +834,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
 
-                {settings.showSuperWholesale !== false && (
+                {priceTypeOn('superWholesale') && settings.showSuperWholesale !== false && (
                 <div className="bg-slate-50 dark:bg-[#070e1b] border border-orange-500/30 rounded-2xl p-3.5 space-y-3">
                   <div className="flex items-center justify-between pb-1.5 border-b border-orange-500/20">
                     <span className="text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1">
@@ -889,7 +891,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
                 )}
 
-                {settings.showSpecialPrice !== false && (
+                {priceTypeOn('special') && settings.showSpecialPrice !== false && (
                 <div className="bg-slate-50 dark:bg-[#070e1b] border border-violet-500/30 rounded-2xl p-3.5 space-y-3">
                   <div className="flex items-center justify-between pb-1.5 border-b border-violet-500/20">
                     <span className="text-xs font-bold text-violet-600 dark:text-violet-400 flex items-center gap-1">
