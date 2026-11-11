@@ -25,7 +25,7 @@ import { AuthView } from './components/AuthView';
 import { SplashScreen } from './components/SplashScreen';
 import { CustomerPriceChecker } from './components/CustomerPriceChecker';
 import { Product, Invoice } from './types';
-import { Boxes, FileText, Users, BarChart3, Settings, ArrowRight, Clock, Briefcase } from 'lucide-react';
+import { Boxes, FileText, Users, BarChart3, Settings, ArrowRight, Clock, Briefcase, Tag } from 'lucide-react';
 
 const MainContent: React.FC = () => {
   const { 
@@ -356,6 +356,22 @@ const MainContent: React.FC = () => {
                 <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-amber-400" />
                 <span>سجل الفواتير</span>
               </button>
+
+              {hasPermission('canAccessInventory') && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('offers')}
+                  className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold transition flex items-center gap-1 cursor-pointer"
+                >
+                  <Tag className="w-3.5 h-3.5 text-fuchsia-600 dark:text-fuchsia-400" />
+                  <span>العروض والخصومات</span>
+                  {(settings.promotions || []).filter((p: any) => p.active).length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 bg-fuchsia-100 dark:bg-fuchsia-950/60 text-fuchsia-700 dark:text-fuchsia-300 rounded font-bold">
+                      {(settings.promotions || []).filter((p: any) => p.active).length}
+                    </span>
+                  )}
+                </button>
+              )}
 
               {storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts') && (
                 <button
