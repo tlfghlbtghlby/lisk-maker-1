@@ -500,6 +500,9 @@ export interface ModernInvoiceHeaderConfig {
   showInstagram?: boolean;
   instagramHandle?: string;
   deliveryNote?: string;
+  /** رأس القائمة: مخصص (ألوان ونصوص) أو صورة جاهزة مصممة من الزبون تحل محله بالكامل */
+  headerMode?: 'custom' | 'image';
+  headerImageUrl?: string;
 }
 
 export interface StoreSettings {
