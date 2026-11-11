@@ -30,7 +30,6 @@ export const ReportsView: React.FC = () => {
   const [toDate, setToDate] = useState('');
   const [showAllSold, setShowAllSold] = useState(false);
   const [soldSearch, setSoldSearch] = useState('');
-  const [soldSearch, setSoldSearch] = useState('');
 
   if (!hasPermission('canViewReports')) {
     return (
