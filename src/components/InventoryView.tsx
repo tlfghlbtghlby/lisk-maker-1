@@ -58,7 +58,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
-  const [sortBy, setSortBy] = useState<'name' | 'stock' | 'profit' | 'price'>('name');
+  const [sortBy, setSortBy] = useState<'name' | 'stock' | 'profit' | 'price' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // التحقق من صلاحية رؤية سعر التكلفة/الشراء
@@ -101,6 +101,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         if (sortBy === 'name') diff = a.name.localeCompare(b.name, 'ar');
         else if (sortBy === 'stock') diff = a.stock - b.stock;
         else if (sortBy === 'price') diff = a.retailPrice - b.retailPrice;
+        else if (sortBy === 'date') diff = String(a.createdAt || '').localeCompare(String(b.createdAt || ''));
         else if (sortBy === 'profit' && canViewCost) {
           const profitA = a.retailPrice - a.costPrice;
           const profitB = b.retailPrice - b.costPrice;
@@ -376,6 +377,30 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 {cat === 'all' ? 'الكل' : cat}
               </button>
             ))}
+          </div>
+
+          <div className="flex items-center gap-1">
+            <span className="text-slate-500 font-medium ml-1">ترتيب حسب:</span>
+            <select
+              value={`${sortBy}:${sortOrder}`}
+              onChange={(e) => {
+                const [k, o] = e.target.value.split(':');
+                setSortBy(k as any);
+                setSortOrder(o as 'asc' | 'desc');
+              }}
+              className="border border-slate-300 rounded-lg px-2 py-1 bg-white text-slate-800 font-semibold"
+            >
+              <option value="name:asc">الاسم (أ ← ي)</option>
+              <option value="name:desc">الاسم (ي ← أ)</option>
+              <option value="price:asc">السعر: الأقل أولًا</option>
+              <option value="price:desc">السعر: الأعلى أولًا</option>
+              <option value="date:desc">التاريخ: الأحدث إضافة</option>
+              <option value="date:asc">التاريخ: الأقدم إضافة</option>
+              <option value="stock:asc">الكمية: الأقل أولًا</option>
+              <option value="stock:desc">الكمية: الأكثر أولًا</option>
+              {canViewCost && <option value="profit:desc">الربح: الأعلى أولًا</option>}
+              {canViewCost && <option value="profit:asc">الربح: الأقل أولًا</option>}
+            </select>
           </div>
 
           <div className="flex items-center gap-1">

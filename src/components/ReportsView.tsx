@@ -25,7 +25,7 @@ export const ReportsView: React.FC = () => {
     openSessionModal
   } = useApp();
 
-  const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'all' | 'custom'>('all');
+  const [timeFilter, setTimeFilter] = useState<'today' | 'week' | 'month' | 'year' | 'all' | 'custom'>('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [showAllSold, setShowAllSold] = useState(false);
@@ -76,6 +76,9 @@ export const ReportsView: React.FC = () => {
         const weekAgo = new Date();
         weekAgo.setDate(now.getDate() - 7);
         return invDate >= weekAgo;
+      }
+      if (timeFilter === 'year') {
+        return invDate.getFullYear() === now.getFullYear();
       }
       if (timeFilter === 'month') {
         return (
@@ -177,6 +180,14 @@ export const ReportsView: React.FC = () => {
             }`}
           >
             هذا الشهر
+          </button>
+          <button
+            onClick={() => setTimeFilter('year')}
+            className={`px-3 py-1.5 rounded-md transition ${
+              timeFilter === 'year' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
+            }`}
+          >
+            هذه السنة
           </button>
           <button
             onClick={() => setTimeFilter('all')}

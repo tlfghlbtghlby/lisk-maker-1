@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { DateRangeBar, useDateRangeFilter } from './DateRangeFilter';
 import { useApp } from '../context/AppContext';
 import TrashPanel from './TrashPanel';
 import { Invoice, SaleType } from '../types';
@@ -29,6 +30,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
   const { invoices, deleteInvoice, returnInvoice, formatMoney, hasPermission, openInvoiceEditor, requestApproval, clearApprovalGrant } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const dateRange = useDateRangeFilter('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'direct' | 'credit' | 'unpaid' | 'returned'>('all');
   const [returningId, setReturningId] = useState<string | null>(null);
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
@@ -59,9 +61,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
       else if (typeFilter === 'unpaid') matchType = inv.remainingAmount > 0 && inv.status !== 'returned';
       else if (typeFilter === 'returned') matchType = inv.status === 'returned' || !!inv.isPartiallyReturned || inv.status === 'partially_returned';
 
-      return matchSearch && matchType;
+      return matchSearch && matchType && dateRange.matches(inv.date);
     });
-  }, [invoices, searchQuery, typeFilter]);
+  }, [invoices, searchQuery, typeFilter, dateRange.matches]);
 
   const effectivePageSize = pageSize === -1 ? (filteredInvoices.length || 1) : pageSize;
   const totalPages = Math.ceil(filteredInvoices.length / effectivePageSize) || 1;
@@ -75,7 +77,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, typeFilter]);
+  }, [searchQuery, typeFilter, dateRange.matches]);
 
   // Overall financial summary for active invoices (exclude returned from active sales)
   const activeInvoices = useMemo(() => invoices.filter(i => i.status !== 'returned'), [invoices]);
@@ -175,6 +177,10 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
           </div>
         )}
 
+      </div>
+
+      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+        <DateRangeBar state={dateRange} />
       </div>
 
       {/* Search and Filters */}
