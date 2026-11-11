@@ -502,7 +502,7 @@ export interface ModernInvoiceHeaderConfig {
   deliveryNote?: string;
   /** رأس القائمة: مخصص (ألوان ونصوص) أو صورة جاهزة مصممة من الزبون تحل محله بالكامل */
   headerMode?: 'custom' | 'image';
-  headerImageUrl?: string;
+  // ملاحظة: الصورة نفسها تُحفظ محليًا على الجهاز فقط (IndexedDB) ولا تدخل في الإعدادات
 }
 
 export interface StoreSettings {

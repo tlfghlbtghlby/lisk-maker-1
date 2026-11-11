@@ -2,11 +2,14 @@ import React from 'react';
 import { StoreSettings } from '../types';
 import { MapPin, Phone, Send, Facebook, MessageCircle, Instagram, QrCode, Truck } from 'lucide-react';
 import { APP_ICON_URL } from '../utils/assetUrl';
+import { useLocalHeaderImage } from '../utils/localImageStore';
 
 interface ModernInvoiceHeaderProps {
   settings: StoreSettings;
   invoiceNumber?: string | number;
   isThermal?: boolean;
+  /** معاينة صورة غير محفوظة بعد (في الإعدادات فقط) */
+  previewImage?: string;
 }
 
 // Preset Illustrations crafted for commercial retail receipts
@@ -100,14 +103,18 @@ export const ModernInvoiceHeader: React.FC<ModernInvoiceHeaderProps> = ({
   settings,
   invoiceNumber,
   isThermal = false,
+  previewImage,
 }) => {
   const conf = settings.modernHeader || {};
+  // الصورة محفوظة محليًا على هذا الجهاز فقط (لا تُرفع للسحابة). في المعاينة تُمرَّر صورة غير محفوظة بعد.
+  const localHeaderImage = useLocalHeaderImage();
+  const headerImage = previewImage || localHeaderImage;
 
   // صورة رأس جاهزة مصممة من صاحب المتجر: تحل محل الرأس كله (الألوان والنصوص والتوصيل والتواصل)
-  if (conf.headerMode === 'image' && conf.headerImageUrl) {
+  if (conf.headerMode === 'image' && headerImage) {
     return (
       <div className="w-full select-none overflow-hidden mb-3 print:mb-2">
-        <img src={conf.headerImageUrl} alt={settings.storeName || 'ترويسة القائمة'} className="w-full h-auto block" />
+        <img src={headerImage} alt={settings.storeName || 'ترويسة القائمة'} className="w-full h-auto block" />
       </div>
     );
   }
