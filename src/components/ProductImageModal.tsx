@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { X, ImagePlus, Trash2, UploadCloud, Loader2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { X, ImagePlus, Trash2, UploadCloud, Loader2, Camera } from 'lucide-react';
 import { Product } from '../types';
 import { removeProductImage, saveProductImage, useProductImage, useProductImageIds } from '../utils/productImages';
 
@@ -12,6 +12,48 @@ export const ProductImageModal: React.FC<Props> = ({ product, onClose }) => {
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const camInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraOn, setCameraOn] = useState(false);
+
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    setCameraOn(false);
+  };
+  useEffect(() => () => { streamRef.current?.getTracks().forEach(t => t.stop()); }, []);
+
+  const isPhone = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // الهاتف: كاميرا الجهاز مباشرة. الكمبيوتر: معاينة حية داخل النافذة ثم التقاط
+  const openCamera = async () => {
+    setError(null);
+    if (isPhone) { camInputRef.current?.click(); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      streamRef.current = stream;
+      setCameraOn(true);
+      setTimeout(() => {
+        if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}); }
+      }, 0);
+    } catch {
+      // لا توجد كاميرا أو رُفض الإذن: نستخدم اختيار الملف مع خيار الكاميرا إن وُجد
+      camInputRef.current?.click();
+    }
+  };
+
+  const takePhoto = async () => {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return;
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext('2d')!.drawImage(v, 0, 0);
+    stopCamera();
+    c.toBlob(async (blob) => {
+      if (blob) await handleFile(new File([blob], 'camera.jpg', { type: 'image/jpeg' }));
+    }, 'image/jpeg', 0.92);
+  };
 
   if (!product) return null;
   const hasImage = ids.has(product.id);
@@ -48,6 +90,30 @@ export const ProductImageModal: React.FC<Props> = ({ product, onClose }) => {
             </div>
           )}
 
+          {cameraOn && (
+            <div className="rounded-xl overflow-hidden bg-black relative">
+              <video ref={videoRef} playsInline muted className="w-full max-h-[55vh] object-contain" />
+              <div className="absolute bottom-3 inset-x-0 flex items-center justify-center gap-3">
+                <button type="button" onClick={takePhoto} className="px-5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center gap-2 shadow-lg">
+                  <Camera className="w-4 h-4" /> التقاط
+                </button>
+                <button type="button" onClick={stopCamera} className="px-4 py-2.5 rounded-full bg-white/90 text-slate-800 font-bold text-sm">إلغاء</button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={openCamera}
+              disabled={busy || cameraOn}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <Camera className="w-4 h-4" /> التقاط بالكاميرا
+            </button>
+            <input ref={camInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => handleFile(e.target.files?.[0])} />
+          </div>
+
           <div
             onDragOver={e => { e.preventDefault(); setDrag(true); }}
             onDragLeave={() => setDrag(false)}
@@ -73,7 +139,7 @@ export const ProductImageModal: React.FC<Props> = ({ product, onClose }) => {
 
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] text-slate-500">
-              تُحفظ الصورة على هذا الكمبيوتر فقط ولا تُرفع إلى السحابة، فلا تستهلك مساحة التخزين السحابي، ولا تظهر على الأجهزة الأخرى.
+              تُحفظ الصورة على هذا الجهاز فقط ولا تُرفع إلى السحابة، فلا تستهلك مساحة التخزين السحابي، ولا تظهر على الأجهزة الأخرى. لنقلها لجهاز آخر استخدم «حفظ نسخة للصور فقط» من الإعدادات.
             </span>
             {hasImage && (
               <button

@@ -63,3 +63,23 @@ export function useLocalHeaderImage(): string | null {
   }, []);
   return img;
 }
+
+// ---------- وصول عام لمفاتيح التخزين المحلي (صور المواد على الهاتف والمتصفح) ----------
+export async function idbGetRaw(key: string): Promise<string | null> {
+  return idbGet(key);
+}
+export async function idbSetRaw(key: string, value: string | null): Promise<void> {
+  await idbSet(key, value);
+}
+export async function idbListKeys(): Promise<string[]> {
+  try {
+    const db = await openDb();
+    return await new Promise<string[]>((resolve) => {
+      const r = db.transaction(STORE, 'readonly').objectStore(STORE).getAllKeys();
+      r.onsuccess = () => resolve((r.result as IDBValidKey[]).map(String));
+      r.onerror = () => resolve([]);
+    });
+  } catch {
+    return [];
+  }
+}

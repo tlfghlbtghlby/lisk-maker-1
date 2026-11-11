@@ -1,11 +1,43 @@
-// صور المواد: محلية فقط على جهاز ويندوز (تطبيق سطح المكتب)، ولا تُرفع إلى السحابة إطلاقًا.
+// صور المواد: محلية فقط على الجهاز ولا تُرفع إلى السحابة إطلاقًا.
+// ويندوز (تطبيق سطح المكتب): ملفات في مجلد بيانات التطبيق. الهاتف والمتصفح: IndexedDB محلي.
 import { useEffect, useState } from 'react';
+import { idbGetRaw, idbSetRaw, idbListKeys } from './localImageStore';
 
 const api = (): any => (window as any).electronAPI || (window as any).electron;
-
-export const imagesSupported = (): boolean => {
+const useFs = (): boolean => {
   const a = api();
   return !!(a && a.platform === 'win32' && a.saveProductImage && a.getProductImage);
+};
+
+export const imagesSupported = (): boolean => useFs() || typeof indexedDB !== 'undefined';
+
+const FULL = 'pimg_full:';
+const THUMB = 'pimg_thumb:';
+
+const backend = {
+  async list(): Promise<string[]> {
+    if (useFs()) return (await api().listProductImages()) || [];
+    return (await idbListKeys()).filter(k => k.startsWith(FULL)).map(k => k.slice(FULL.length));
+  },
+  async get(id: string, thumb: boolean): Promise<string | null> {
+    if (useFs()) return (await api().getProductImage({ id, thumb })) || null;
+    return idbGetRaw((thumb ? THUMB : FULL) + id);
+  },
+  async save(id: string, full: string, thumb: string): Promise<boolean> {
+    if (useFs()) return !!(await api().saveProductImage({ id, full, thumb }))?.success;
+    try {
+      await idbSetRaw(FULL + id, full);
+      await idbSetRaw(THUMB + id, thumb);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+  async del(id: string): Promise<void> {
+    if (useFs()) { await api().deleteProductImage({ id }); return; }
+    await idbSetRaw(FULL + id, null);
+    await idbSetRaw(THUMB + id, null);
+  },
 };
 
 let ids = new Set<string>();
@@ -18,7 +50,7 @@ async function ensureLoaded() {
   if (loaded || !imagesSupported()) return;
   loaded = true;
   try {
-    const list: string[] = await api().listProductImages();
+    const list: string[] = await backend.list();
     ids = new Set(list || []);
     notify();
   } catch {
@@ -48,7 +80,7 @@ export function useProductImage(id: string | undefined, kind: 'thumb' | 'full'):
     if (!id || !imagesSupported() || !has) { setSrc(null); return; }
     const hit = cache.get(key);
     if (hit) { setSrc(hit); return; }
-    api().getProductImage({ id, thumb: kind === 'thumb' }).then((d: string | null) => {
+    backend.get(id, kind === 'thumb').then((d: string | null) => {
       if (!alive) return;
       if (d) cache.set(key, d);
       setSrc(d || null);
@@ -82,13 +114,12 @@ function renderJpeg(img: HTMLImageElement, maxSide: number, quality: number): st
 }
 
 export async function saveProductImage(id: string, file: File): Promise<void> {
-  if (!imagesSupported()) throw new Error('حفظ الصور متاح فقط في تطبيق ويندوز.');
+  if (!imagesSupported()) throw new Error('هذا الجهاز لا يدعم حفظ الصور محليًا.');
   if (!file.type.startsWith('image/')) throw new Error('الملف المختار ليس صورة.');
   const img = await loadBitmap(file);
   const full = renderJpeg(img, 1280, 0.85);
   const thumb = renderJpeg(img, 160, 0.8);
-  const res = await api().saveProductImage({ id, full, thumb });
-  if (!res?.success) throw new Error('تعذر حفظ الصورة على هذا الجهاز.');
+  if (!(await backend.save(id, full, thumb))) throw new Error('تعذر حفظ الصورة على هذا الجهاز.');
   cache.set(`full:${id}`, full);
   cache.set(`thumb:${id}`, thumb);
   ids = new Set(ids).add(id);
@@ -97,7 +128,7 @@ export async function saveProductImage(id: string, file: File): Promise<void> {
 
 export async function removeProductImage(id: string): Promise<void> {
   if (!imagesSupported()) return;
-  await api().deleteProductImage({ id });
+  await backend.del(id);
   cache.delete(`full:${id}`);
   cache.delete(`thumb:${id}`);
   const next = new Set(ids);
@@ -115,12 +146,12 @@ export async function listProductImageIds(): Promise<string[]> {
 
 export async function readFullProductImage(id: string): Promise<string | null> {
   if (!imagesSupported()) return null;
-  return (await api().getProductImage({ id, thumb: false })) || null;
+  return backend.get(id, false);
 }
 
 /** حفظ صورة من data URL (تُنشأ المصغرة تلقائيًا) دون رفعها لأي سحابة */
 export async function saveProductImageFromDataUrl(id: string, dataUrl: string): Promise<void> {
-  if (!imagesSupported()) throw new Error('حفظ الصور متاح فقط في تطبيق ويندوز.');
+  if (!imagesSupported()) throw new Error('هذا الجهاز لا يدعم حفظ الصور محليًا.');
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new Image();
     i.onload = () => resolve(i);
@@ -129,8 +160,7 @@ export async function saveProductImageFromDataUrl(id: string, dataUrl: string): 
   });
   const full = dataUrl.startsWith('data:image/jpeg') ? dataUrl : renderJpeg(img, 1280, 0.85);
   const thumb = renderJpeg(img, 160, 0.8);
-  const res = await api().saveProductImage({ id, full, thumb });
-  if (!res?.success) throw new Error('تعذر حفظ الصورة على هذا الجهاز.');
+  if (!(await backend.save(id, full, thumb))) throw new Error('تعذر حفظ الصورة على هذا الجهاز.');
   cache.set(`full:${id}`, full);
   cache.set(`thumb:${id}`, thumb);
   ids = new Set(ids).add(id);
