@@ -243,6 +243,70 @@ function createWindowsShortcut({ route, name, title }) {
 }
 
 // IPC Handlers
+// ---------- صور المواد: تُحفظ محليًا فقط داخل مجلد بيانات التطبيق (لا تُرفع للسحابة) ----------
+const productImagesDir = () => {
+  const dir = path.join(app.getPath('userData'), 'product-images');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  return dir;
+};
+const safeImageId = (id) => String(id || '').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 80);
+const dataUrlToBuffer = (d) => {
+  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(d || ''));
+  if (!m) return null;
+  const buf = Buffer.from(m[1], 'base64');
+  return buf.length > 0 && buf.length < 8 * 1024 * 1024 ? buf : null;
+};
+
+ipcMain.handle('product-image-save', (event, { id, full, thumb } = {}) => {
+  try {
+    const safe = safeImageId(id);
+    const f = dataUrlToBuffer(full);
+    const t = dataUrlToBuffer(thumb);
+    if (!safe || !f || !t) return { success: false, error: 'invalid' };
+    const dir = productImagesDir();
+    fs.writeFileSync(path.join(dir, safe + '.jpg'), f);
+    fs.writeFileSync(path.join(dir, safe + '_t.jpg'), t);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e && e.message };
+  }
+});
+
+ipcMain.handle('product-image-get', (event, { id, thumb } = {}) => {
+  try {
+    const safe = safeImageId(id);
+    if (!safe) return null;
+    const file = path.join(productImagesDir(), safe + (thumb ? '_t.jpg' : '.jpg'));
+    if (!fs.existsSync(file)) return null;
+    return 'data:image/jpeg;base64,' + fs.readFileSync(file).toString('base64');
+  } catch (e) {
+    return null;
+  }
+});
+
+ipcMain.handle('product-image-delete', (event, { id } = {}) => {
+  try {
+    const safe = safeImageId(id);
+    if (!safe) return { success: false };
+    const dir = productImagesDir();
+    for (const n of [safe + '.jpg', safe + '_t.jpg']) {
+      const f = path.join(dir, n);
+      if (fs.existsSync(f)) fs.unlinkSync(f);
+    }
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e && e.message };
+  }
+});
+
+ipcMain.handle('product-image-list', () => {
+  try {
+    return fs.readdirSync(productImagesDir()).filter(n => n.endsWith('.jpg') && !n.endsWith('_t.jpg')).map(n => n.slice(0, -4));
+  } catch (e) {
+    return [];
+  }
+});
+
 ipcMain.handle('get-printers', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
   if (!win) return [];

@@ -73,6 +73,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [shelfAmount, setShelfAmount] = useState<string>('');
   const [shelfUnit, setShelfUnit] = useState<ShelfUnit>('month');
   const [showBatches, setShowBatches] = useState(false);
+  const [priceCurrency, setPriceCurrency] = useState<'IQD' | 'USD'>('IQD');
 
   // فحص صلاحية إظهار أسعار التكلفة
   const canViewCost = hasPermission('canViewCostPrice');
@@ -168,21 +169,28 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       const ppc = productToEdit.piecesPerCarton || 1;
       setPiecesPerCarton(ppc);
 
-      const cost = productToEdit.costPrice ?? 0;
+      const isUsd = productToEdit.priceCurrency === 'USD' && !!productToEdit.usdPrices;
+      setPriceCurrency(isUsd ? 'USD' : 'IQD');
+      const u = productToEdit.usdPrices;
+      const rd = (n: number) => (isUsd ? parseFloat(n.toFixed(2)) : Math.round(n));
+
+      const cost = isUsd ? u!.cost : (productToEdit.costPrice ?? 0);
       setPieceCostInput(nz(cost));
-      setCartonCostInput(nz(Math.round(cost * ppc)));
+      setCartonCostInput(nz(rd(cost * ppc)));
 
-      const retail = productToEdit.retailPrice ?? 0;
+      const retail = isUsd ? u!.retail : (productToEdit.retailPrice ?? 0);
       setPieceRetailInput(nz(retail));
-      setCartonRetailInput(nz(Math.round(retail * ppc)));
+      setCartonRetailInput(nz(rd(retail * ppc)));
 
-      const wholesale = productToEdit.wholesalePrice ?? 0;
+      const wholesale = isUsd ? u!.wholesale : (productToEdit.wholesalePrice ?? 0);
       setPieceWholesaleInput(nz(wholesale));
-      setCartonWholesaleInput(nz(Math.round(wholesale * ppc)));
-      setSuperWholesaleInput(productToEdit.superWholesalePrice ? String(productToEdit.superWholesalePrice) : '');
-      setSpecialPriceInput(productToEdit.specialPrice ? String(productToEdit.specialPrice) : '');
-      setCartonSuperInput(productToEdit.superWholesalePrice ? String(Math.round(productToEdit.superWholesalePrice * ppc)) : '');
-      setCartonSpecialInput(productToEdit.specialPrice ? String(Math.round(productToEdit.specialPrice * ppc)) : '');
+      setCartonWholesaleInput(nz(rd(wholesale * ppc)));
+      const sup = isUsd ? (u!.superWholesale || 0) : (productToEdit.superWholesalePrice || 0);
+      const spc = isUsd ? (u!.special || 0) : (productToEdit.specialPrice || 0);
+      setSuperWholesaleInput(sup ? String(sup) : '');
+      setSpecialPriceInput(spc ? String(spc) : '');
+      setCartonSuperInput(sup ? String(rd(sup * ppc)) : '');
+      setCartonSpecialInput(spc ? String(rd(spc * ppc)) : '');
 
       setStock(productToEdit.stock ? productToEdit.stock : '');
       setMinStock(productToEdit.minStock ?? 5);
@@ -192,6 +200,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setExpiryDate(productToEdit.expiryDate || '');
       setShelfAmount('');
     } else {
+      setPriceCurrency('IQD');
       setProductionDate('');
       setExpiryDate('');
       setShelfAmount('');
@@ -401,6 +410,25 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   };
   const expiryDaysLeft = daysUntil(expiryDate);
 
+  const usdRate = settings.usdRate && settings.usdRate > 0 ? settings.usdRate : 1500;
+  const showCurrencyChoice = settings.enableUsdPricing === true || priceCurrency === 'USD';
+  const curLabel = priceCurrency === 'USD' ? '$' : (settings.currency || 'دينار');
+  // تحويل كل حقول الأسعار عند تبديل العملة (دينار ⇄ دولار) حتى لا تتغير قيمتها الفعلية
+  const switchCurrency = (to: 'IQD' | 'USD') => {
+    if (to === priceCurrency) return;
+    const conv = (v: string) => {
+      const n = parseFloat(v);
+      if (!v || isNaN(n)) return v;
+      return to === 'USD' ? String(parseFloat((n / usdRate).toFixed(2))) : String(Math.round(n * usdRate));
+    };
+    setPieceCostInput(conv); setCartonCostInput(conv);
+    setPieceRetailInput(conv); setCartonRetailInput(conv);
+    setPieceWholesaleInput(conv); setCartonWholesaleInput(conv);
+    setSuperWholesaleInput(conv); setCartonSuperInput(conv);
+    setSpecialPriceInput(conv); setCartonSpecialInput(conv);
+    setPriceCurrency(to);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
@@ -425,11 +453,31 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       name: name.trim(),
       category: category.trim() || 'عام',
       unit: unit.trim() || 'قطعة',
-      costPrice: numCost,
-      retailPrice: numRetail,
-      wholesalePrice: numWholesale,
-      superWholesalePrice: numSuperWholesale,
-      specialPrice: numSpecialPrice,
+      ...(priceCurrency === 'USD'
+        ? {
+            costPrice: Math.round(numCost * usdRate),
+            retailPrice: Math.round(numRetail * usdRate),
+            wholesalePrice: Math.round(numWholesale * usdRate),
+            superWholesalePrice: Math.round(numSuperWholesale * usdRate),
+            specialPrice: Math.round(numSpecialPrice * usdRate),
+            priceCurrency: 'USD' as const,
+            usdPrices: {
+              cost: numCost,
+              retail: numRetail,
+              wholesale: numWholesale,
+              ...(numSuperWholesale ? { superWholesale: numSuperWholesale } : {}),
+              ...(numSpecialPrice ? { special: numSpecialPrice } : {}),
+            },
+          }
+        : {
+            costPrice: numCost,
+            retailPrice: numRetail,
+            wholesalePrice: numWholesale,
+            superWholesalePrice: numSuperWholesale,
+            specialPrice: numSpecialPrice,
+            priceCurrency: 'IQD' as const,
+            usdPrices: undefined,
+          }),
       stock: numStock,
       minStock: typeof minStock === 'number' ? minStock : 5,
       piecesPerCarton: numPieces,
@@ -718,14 +766,35 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <div className="flex items-center justify-between text-xs font-bold px-1 text-slate-800 dark:text-slate-200">
                 <span className="flex items-center gap-1.5">
                   <TrendingUp className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>تسعير المادة ({settings.currency || 'د.ع'})</span>
+                  <span>تسعير المادة ({priceCurrency === 'USD' ? 'دولار $' : (settings.currency || 'د.ع')})</span>
+                  {showCurrencyChoice && (
+                    <span className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg mr-2">
+                      {(['IQD', 'USD'] as const).map(c => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => switchCurrency(c)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition ${priceCurrency === c ? 'bg-emerald-600 text-white' : 'text-slate-600 dark:text-slate-300'}`}
+                        >
+                          {c === 'IQD' ? 'دينار' : 'دولار $'}
+                        </button>
+                      ))}
+                    </span>
+                  )}
                 </span>
                 {canViewCost && (
                   <span className="text-[11px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                    الربح: {formatMoney(profitPerPiece)} ({profitMarginPercent}%)
+                    الربح: {priceCurrency === 'USD' ? `$${profitPerPiece.toFixed(2)}` : formatMoney(profitPerPiece)} ({profitMarginPercent}%)
                   </span>
                 )}
               </div>
+
+              {priceCurrency === 'USD' && (
+                <div className="text-[11px] px-2 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-300 font-semibold">
+                  السعر محفوظ بالدولار ويُباع بالدينار بسعر التصريف (1 $ = {usdRate} {settings.currency || 'دينار'}).
+                  {numRetail > 0 && <span> سعر المفرد بالدينار: {formatMoney(Math.round(numRetail * usdRate))}</span>}
+                </div>
+              )}
 
               <div className={`grid grid-cols-1 sm:grid-cols-2 ${canViewCost ? 'xl:grid-cols-5' : 'xl:grid-cols-4'} gap-2.5`}>
                 {/* 1. بطاقة سعر التكلفة / الشراء */}
@@ -753,7 +822,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                             className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-slate-900 dark:text-white font-mono font-semibold focus:outline-none focus:border-emerald-500 text-left"
                           />
                           <span className="absolute left-2.5 top-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                            {settings.currency || 'دينار'}
+                            {curLabel}
                           </span>
                         </div>
                       </div>
@@ -773,7 +842,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           className="w-full bg-white dark:bg-[#060b13] border border-emerald-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-emerald-600 dark:text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-400 text-left"
                         />
                         <span className="absolute left-2.5 top-2 text-[10px] text-emerald-500/80 font-bold">
-                          {settings.currency || 'دينار'}
+                          {curLabel}
                         </span>
                       </div>
                     </div>
@@ -807,7 +876,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-slate-900 dark:text-white font-mono font-semibold focus:outline-none focus:border-emerald-500 text-left"
                         />
                         <span className="absolute left-2.5 top-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                          {settings.currency || 'دينار'}
+                          {curLabel}
                         </span>
                       </div>
                     </div>
@@ -828,7 +897,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         className="w-full bg-white dark:bg-[#060b13] border border-blue-500/50 rounded-lg py-1.5 pr-3 pl-12 text-sm text-blue-600 dark:text-blue-400 font-mono font-bold focus:outline-none focus:border-blue-400 text-left"
                       />
                       <span className="absolute left-2.5 top-2 text-[10px] text-blue-600 dark:text-blue-400 font-bold">
-                        {settings.currency || 'دينار'}
+                        {curLabel}
                       </span>
                     </div>
                   </div>
@@ -862,7 +931,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-slate-900 dark:text-white font-mono font-semibold focus:outline-none focus:border-amber-500 text-left"
                         />
                         <span className="absolute left-2.5 top-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                          {settings.currency || 'دينار'}
+                          {curLabel}
                         </span>
                       </div>
                     </div>
@@ -882,7 +951,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         className="w-full bg-white dark:bg-[#060b13] border border-purple-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-purple-700 dark:text-purple-300 font-mono font-bold focus:outline-none focus:border-purple-400 text-left"
                       />
                       <span className="absolute left-2.5 top-2 text-[10px] text-purple-600 dark:text-purple-400 font-bold">
-                        {settings.currency || 'دينار'}
+                        {curLabel}
                       </span>
                     </div>
                   </div>
@@ -916,7 +985,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-slate-900 dark:text-white font-mono font-semibold focus:outline-none focus:border-orange-500 text-left"
                         />
                         <span className="absolute left-2.5 top-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                          {settings.currency || 'دينار'}
+                          {curLabel}
                         </span>
                       </div>
                     </div>
@@ -936,7 +1005,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         className="w-full bg-white dark:bg-[#060b13] border border-orange-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-orange-700 dark:text-orange-300 font-mono font-bold focus:outline-none focus:border-orange-400 text-left"
                       />
                       <span className="absolute left-2.5 top-2 text-[10px] text-orange-600 dark:text-orange-400 font-bold">
-                        {settings.currency || 'دينار'}
+                        {curLabel}
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 text-right">إن تُرك فارغاً يُباع بسعر الجملة.</p>
@@ -971,7 +1040,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg py-1.5 pr-3 pl-12 text-sm text-slate-900 dark:text-white font-mono font-semibold focus:outline-none focus:border-violet-500 text-left"
                         />
                         <span className="absolute left-2.5 top-2 text-[10px] text-slate-500 dark:text-slate-400 font-bold">
-                          {settings.currency || 'دينار'}
+                          {curLabel}
                         </span>
                       </div>
                     </div>
@@ -991,7 +1060,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         className="w-full bg-white dark:bg-[#060b13] border border-violet-500/40 rounded-lg py-1.5 pr-3 pl-12 text-sm text-violet-700 dark:text-violet-300 font-mono font-bold focus:outline-none focus:border-violet-400 text-left"
                       />
                       <span className="absolute left-2.5 top-2 text-[10px] text-violet-600 dark:text-violet-400 font-bold">
-                        {settings.currency || 'دينار'}
+                        {curLabel}
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 text-right">إن تُرك فارغاً يُباع بسعر المفرد.</p>

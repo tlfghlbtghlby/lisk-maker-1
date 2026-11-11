@@ -26,6 +26,8 @@ import { getCartonBreakdown } from '../utils/cartonUtils';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { DuplicateProductsModal } from './DuplicateProductsModal';
 import { ExcelImportModal } from './ExcelImportModal';
+import { ProductImageModal, ProductThumb, ProductImageButton } from './ProductImageModal';
+import { imagesSupported, useProductImageIds } from '../utils/productImages';
 
 interface InventoryViewProps {
   onOpenNewProduct: () => void;
@@ -55,6 +57,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [movementProduct, setMovementProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
+  const [imageProduct, setImageProduct] = useState<Product | null>(null);
+  const imageIds = useProductImageIds();
+  const canUseImages = imagesSupported();
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
@@ -489,10 +494,17 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       </td>
 
                       <td className="py-3 px-4 font-bold text-slate-900">
-                        <div>{prod.name}</div>
-                        {prod.notes && (
-                          <div className="text-[11px] text-slate-400 font-normal">{prod.notes}</div>
-                        )}
+                        <div className="flex items-center gap-2.5">
+                          {canUseImages && imageIds.has(prod.id) && (
+                            <ProductThumb product={prod} onOpen={() => setImageProduct(prod)} />
+                          )}
+                          <div>
+                            <div>{prod.name}</div>
+                            {prod.notes && (
+                              <div className="text-[11px] text-slate-400 font-normal">{prod.notes}</div>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       <td className="py-3 px-4 text-xs text-slate-600">
@@ -513,6 +525,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                       {/* Retail Price */}
                       <td className="py-3 px-4 font-bold text-slate-900">
                         {formatMoney(prod.retailPrice)}
+                        {prod.priceCurrency === 'USD' && prod.usdPrices && (
+                          <div className="text-[11px] font-semibold text-amber-600">${prod.usdPrices.retail}</div>
+                        )}
                       </td>
 
                       {/* Wholesale Selling Price */}
@@ -672,6 +687,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                           >
                             <Edit3 className="w-4 h-4" />
                           </button>
+                          {canUseImages && (
+                            <ProductImageButton has={imageIds.has(prod.id)} onOpen={() => setImageProduct(prod)} />
+                          )}
                           {sessionRole === 'admin' && (
                             <button
                               onClick={() => handleDelete(prod)}
@@ -772,6 +790,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         title="مسح باركود المادة في المخزن"
       />
 
+      {imageProduct && <ProductImageModal product={imageProduct} onClose={() => setImageProduct(null)} />}
       <ExcelImportModal isOpen={isExcelImportOpen} onClose={() => setIsExcelImportOpen(false)} />
       <DuplicateProductsModal
         isOpen={isDuplicatesModalOpen}

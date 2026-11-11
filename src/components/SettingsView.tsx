@@ -128,7 +128,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     setTheme,
     featureOn,
     priceTypeOn,
-    addSupervisorBiometric
+    addSupervisorBiometric,
+    applyUsdRate
   } = useApp();
 
   const [storeName, setStoreName] = useState(settings.storeName);
@@ -263,6 +264,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
   const [invertEnterShortcuts, setInvertEnterShortcuts] = useState<boolean>(settings.invertEnterShortcuts === true);
   const [enableProductExpiry, setEnableProductExpiry] = useState<boolean>(settings.enableProductExpiry === true);
+  const [enableUsdPricing, setEnableUsdPricing] = useState<boolean>(settings.enableUsdPricing === true);
+  const [usdRateInput, setUsdRateInput] = useState<string>(String(settings.usdRate || 1500));
   const [trackExpiryBatches, setTrackExpiryBatches] = useState<boolean>(settings.trackExpiryBatches !== false);
   const [globalBarcodeCapture, setGlobalBarcodeCapture] = useState<boolean>(settings.globalBarcodeCapture !== false);
   const [promoDiscountDisplay, setPromoDiscountDisplay] = useState<'column' | 'hidden'>(settings.promoDiscountDisplay === 'hidden' ? 'hidden' : 'column');
@@ -423,6 +426,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setQuickQuantityEntry(settings.quickQuantityEntry === true);
       setInvertEnterShortcuts(settings.invertEnterShortcuts === true);
       setEnableProductExpiry(settings.enableProductExpiry === true);
+      setEnableUsdPricing(settings.enableUsdPricing === true);
+      setUsdRateInput(String(settings.usdRate || 1500));
       setTrackExpiryBatches(settings.trackExpiryBatches !== false);
       setGlobalBarcodeCapture(settings.globalBarcodeCapture !== false);
       setAllowMultiDeviceShifts(settings.allowMultiDeviceShifts !== false);
@@ -494,6 +499,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       deliveryNote: modernDeliveryNote.trim(),
     };
 
+    {
+      const newRate = parseFloat(usdRateInput) > 0 ? parseFloat(usdRateInput) : (settings.usdRate || 1500);
+      if (enableUsdPricing && newRate !== (settings.usdRate || 1500)) applyUsdRate(newRate);
+    }
+
     updateSettings({
       storeName: storeName.trim(),
       ownerName: ownerName.trim(),
@@ -512,6 +522,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       quickQuantityEntry,
       invertEnterShortcuts,
       enableProductExpiry,
+      enableUsdPricing,
+      usdRate: parseFloat(usdRateInput) > 0 ? parseFloat(usdRateInput) : (settings.usdRate || 1500),
       trackExpiryBatches,
       globalBarcodeCapture,
       allowMultiDeviceShifts,
@@ -1708,6 +1720,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>
+            <div className="p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 space-y-2">
+              <label className="flex items-start justify-between gap-3 cursor-pointer">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">التسعير بالدولار</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">يتيح إدخال أسعار المادة بالدولار. يبقى السعر محفوظًا بالدولار، ويُباع ويُطبع بالدينار حسب سعر التصريف أدناه.</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={enableUsdPricing}
+                  onChange={(e) => setEnableUsdPricing(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                />
+              </label>
+              {enableUsdPricing && (
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  <span>سعر التصريف: 1 دولار =</span>
+                  <input
+                    type="number"
+                    min="1"
+                    inputMode="decimal"
+                    value={usdRateInput}
+                    onChange={(e) => setUsdRateInput(e.target.value)}
+                    className="w-28 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 bg-white dark:bg-[#060b13] text-slate-900 dark:text-white"
+                  />
+                  <span>{settings.currency || 'دينار'}</span>
+                  <span className="text-[11px] text-slate-500 font-normal">عند حفظ سعر جديد تُحدَّث تلقائيًا أسعار كل المواد المسعّرة بالدولار.</span>
+                </div>
+              )}
+            </div>
             <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
               <div>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">تاريخ الإنتاج وانتهاء الصلاحية للمواد</span>

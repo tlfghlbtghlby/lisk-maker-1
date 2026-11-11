@@ -137,6 +137,7 @@ interface AppContextType {
   activeSupervisorId: string | null;
   activeSupervisorName: string | null;
   addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => Product;
+  applyUsdRate: (rate: number) => number;
   addBulkProducts: (items: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>[], onProgress?: (curr: number, total: number) => void) => Promise<{ success: boolean; count: number; products: Product[] }>;
   updateProduct: (id: string, updates: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
@@ -1747,6 +1748,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await saveStoreToCloud({ products: updated });
     broadcastSyncEvent('PRODUCTS_BATCH_UPDATED', { allProducts: updated }, currentSessionId, currentUser?.uid);
     return { success: true, count: created.length, products: created };
+  };
+
+  // إعادة احتساب أسعار الدينار لكل المواد المسعّرة بالدولار عند تغيير سعر التصريف (تُرجع عدد المواد المتأثرة)
+  const applyUsdRate = (rate: number): number => {
+    const r = Number(rate);
+    if (!(r > 0)) return 0;
+    const now = new Date().toISOString();
+    let count = 0;
+    const updated = products.map(p => {
+      if (p.priceCurrency !== 'USD' || !p.usdPrices) return p;
+      const u = p.usdPrices;
+      count++;
+      return {
+        ...p,
+        costPrice: Math.round(u.cost * r),
+        retailPrice: Math.round(u.retail * r),
+        wholesalePrice: Math.round(u.wholesale * r),
+        superWholesalePrice: u.superWholesale ? Math.round(u.superWholesale * r) : p.superWholesalePrice,
+        specialPrice: u.special ? Math.round(u.special * r) : p.specialPrice,
+        updatedAt: now,
+      };
+    });
+    if (!count) return 0;
+    setProducts(updated);
+    try { localStorage.setItem('cached_pos_products', JSON.stringify(updated)); } catch {}
+    saveStoreToCloud({ products: updated });
+    broadcastSyncEvent('PRODUCTS_BATCH_UPDATED', { allProducts: updated }, currentSessionId, currentUser?.uid);
+    return count;
   };
 
   const updateProduct = (id: string, rawUpdates: Partial<Product> & { stockNote?: string }) => {
@@ -3549,6 +3578,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeSupervisorName,
         addProduct,
         addBulkProducts,
+        applyUsdRate,
         updateProduct,
         deleteProduct,
         batchDeleteProducts,
