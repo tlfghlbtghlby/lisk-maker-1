@@ -70,7 +70,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
 
   // Filter states
   const [selectedRepId, setSelectedRepId] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'last_month' | 'all' | 'custom'>('month');
+  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'last_month' | 'year' | 'all' | 'custom'>('month');
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [activeSubTab, setActiveSubTab] = useState<'products' | 'invoices' | 'profiles'>('products');
@@ -185,6 +185,9 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
     } else if (dateFilter === 'month') {
       start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
       end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    } else if (dateFilter === 'year') {
+      start = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
+      end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
     } else if (dateFilter === 'last_month') {
       start = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
       end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
@@ -501,6 +504,18 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
               }`}
             >
               اليوم
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDateFilter('year')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                dateFilter === 'year'
+                  ? 'bg-white text-indigo-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              هذه السنة
             </button>
 
             <button
