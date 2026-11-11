@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { CustomBackupOptions } from '../context/AppContext';
+import { collectImageBackup } from '../utils/imageBackup';
 import { 
   X, 
   Download, 
@@ -37,7 +38,7 @@ export const ExportBackupModal: React.FC<ExportBackupModalProps> = ({ isOpen, on
 
   if (!isOpen) return null;
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     let options: CustomBackupOptions;
 
     if (selectedScope === 'products_only') {
@@ -66,7 +67,20 @@ export const ExportBackupModal: React.FC<ExportBackupModalProps> = ({ isOpen, on
       };
     }
 
-    const jsonStr = exportCustomBackup(options);
+    let jsonStr = exportCustomBackup(options);
+    // النسخة الشاملة تحفظ الصور المحلية أيضًا (صور المواد وصورة رأس القائمة)
+    if (selectedScope === 'all') {
+      try {
+        const images = await collectImageBackup(products);
+        if (images.header || images.products.length) {
+          const obj = JSON.parse(jsonStr);
+          obj.localImages = images;
+          jsonStr = JSON.stringify(obj, null, 2);
+        }
+      } catch (err) {
+        console.warn('تعذر تضمين الصور في النسخة', err);
+      }
+    }
     const dateStr = new Date().toISOString().split('T')[0];
     
     let fileName = `backup-${dateStr}.json`;

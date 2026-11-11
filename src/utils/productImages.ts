@@ -105,3 +105,34 @@ export async function removeProductImage(id: string): Promise<void> {
   ids = next;
   notify();
 }
+
+// ---------- دعم النسخ الاحتياطي واستعادة الصور ----------
+export async function listProductImageIds(): Promise<string[]> {
+  if (!imagesSupported()) return [];
+  await ensureLoaded();
+  return Array.from(ids);
+}
+
+export async function readFullProductImage(id: string): Promise<string | null> {
+  if (!imagesSupported()) return null;
+  return (await api().getProductImage({ id, thumb: false })) || null;
+}
+
+/** حفظ صورة من data URL (تُنشأ المصغرة تلقائيًا) دون رفعها لأي سحابة */
+export async function saveProductImageFromDataUrl(id: string, dataUrl: string): Promise<void> {
+  if (!imagesSupported()) throw new Error('حفظ الصور متاح فقط في تطبيق ويندوز.');
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error('صورة تالفة في النسخة'));
+    i.src = dataUrl;
+  });
+  const full = dataUrl.startsWith('data:image/jpeg') ? dataUrl : renderJpeg(img, 1280, 0.85);
+  const thumb = renderJpeg(img, 160, 0.8);
+  const res = await api().saveProductImage({ id, full, thumb });
+  if (!res?.success) throw new Error('تعذر حفظ الصورة على هذا الجهاز.');
+  cache.set(`full:${id}`, full);
+  cache.set(`thumb:${id}`, thumb);
+  ids = new Set(ids).add(id);
+  notify();
+}

@@ -75,6 +75,7 @@ import { WipeProductsModal } from './WipeProductsModal';
 import { ModernInvoiceHeader } from './ModernInvoiceHeader';
 import { resizeImageFile } from '../utils/imageResize';
 import { loadLocalHeaderImage, saveLocalHeaderImage } from '../utils/localImageStore';
+import { collectImageBackup, restoreImageBackup, describeRestore } from '../utils/imageBackup';
 import { DuplicateProductsModal } from './DuplicateProductsModal';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { buildCheckerUrl, CHECKER_LEVEL_LABELS, STOCK_COLOR_DEFAULTS } from '../utils/checkerLinks';
@@ -740,17 +741,88 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
     }
   };
 
+  const [isImagesBusy, setIsImagesBusy] = useState(false);
+  const imagesBackupInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportImagesOnly = async () => {
+    setIsImagesBusy(true);
+    setImportError(null);
+    try {
+      const images = await collectImageBackup(products);
+      if (!images.header && images.products.length === 0) {
+        setImportStatus(null);
+        setImportError('لا توجد صور محلية على هذا الجهاز لحفظها.');
+        setTimeout(() => setImportError(null), 5000);
+        return;
+      }
+      const payload = { app: 'pos-store-system', exportType: 'images_only', exportedAt: new Date().toISOString(), localImages: images };
+      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `images-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setImportStatus(`تم حفظ نسخة الصور (${images.products.length} صورة مادة${images.header ? ' + صورة رأس القائمة' : ''}).`);
+      setTimeout(() => setImportStatus(null), 5000);
+    } catch (err: any) {
+      setImportError(err?.message || 'تعذر حفظ نسخة الصور');
+    } finally {
+      setIsImagesBusy(false);
+    }
+  };
+
+  const handleImportImagesFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImagesBusy(true);
+    setImportError(null);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (!parsed?.localImages) throw new Error('هذا الملف لا يحتوي على صور محفوظة.');
+        const r = await restoreImageBackup(parsed.localImages, products);
+        const h = await loadLocalHeaderImage();
+        setModernHeaderImageUrl(h || ''); setSavedHeaderImage(h || '');
+        setImportStatus(describeRestore(r));
+        setTimeout(() => setImportStatus(null), 7000);
+      } catch (err: any) {
+        setImportStatus(null);
+        setImportError(err?.message || 'تعذر قراءة ملف الصور');
+        setTimeout(() => setImportError(null), 6000);
+      } finally {
+        setIsImagesBusy(false);
+        if (imagesBackupInputRef.current) imagesBackupInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const content = event.target?.result as string;
       const res = importDataJSON(content);
       if (res.success) {
         setImportError(null);
-        setImportStatus('تمت استعادة البيانات بنجاح!');
-        setTimeout(() => setImportStatus(null), 3000);
+        let msg = 'تمت استعادة البيانات بنجاح!';
+        // الصور المحفوظة داخل النسخة تُستعاد محليًا فقط ولا تُرفع للسحابة
+        try {
+          const parsed = JSON.parse(content);
+          if (parsed?.localImages) {
+            const r = await restoreImageBackup(parsed.localImages, Array.isArray(parsed.products) ? parsed.products : products);
+            msg += ' ' + describeRestore(r);
+            const h = await loadLocalHeaderImage();
+            setModernHeaderImageUrl(h || ''); setSavedHeaderImage(h || '');
+          }
+        } catch {}
+        setImportStatus(msg);
+        setTimeout(() => setImportStatus(null), 6000);
       } else {
         setImportStatus(null);
         setImportError(res.error || 'فشلت استعادة البيانات من الملف');
@@ -2313,6 +2385,42 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 <div>
                   <div className="font-extrabold text-sm text-slate-900 dark:text-white">استعادة نسخة المواد فقط (إدخال تلقائي للمخزن)</div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">رفع ملف المواد وإدخالها فوراً للمخزن كأنك أدخلتها يدوياً دون المساس ببيانات زبائنك.</div>
+                </div>
+              </div>
+
+              {/* 3.5 نسخة الصور المحلية */}
+              <button
+                type="button"
+                disabled={isImagesBusy}
+                onClick={handleExportImagesOnly}
+                className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-amber-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs disabled:opacity-50"
+              >
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">الصور المحلية 🖼️</span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-slate-900 dark:text-white">حفظ نسخة للصور فقط</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">صور المواد وصورة رأس القائمة المحفوظة على هذا الجهاز، لنقلها إلى جهاز آخر دون إعادة رفعها.</div>
+                </div>
+              </button>
+
+              <div
+                onClick={() => !isImagesBusy && imagesBackupInputRef.current?.click()}
+                className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-amber-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <input type="file" ref={imagesBackupInputRef} onChange={handleImportImagesFile} accept=".json" className="hidden" />
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">محلي فقط</span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-slate-900 dark:text-white">استيراد نسخة الصور</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">يقبل ملف نسخة الصور أو أي نسخة شاملة تحتوي صورًا. تُستعاد على هذا الجهاز فقط ولا تُرفع للسحابة.</div>
                 </div>
               </div>
 
