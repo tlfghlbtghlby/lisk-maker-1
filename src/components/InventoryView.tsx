@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Tag,
   Download,
+  Upload,
   Filter,
   Box,
   Scan,
@@ -24,6 +25,7 @@ import {
 import { getCartonBreakdown } from '../utils/cartonUtils';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { DuplicateProductsModal } from './DuplicateProductsModal';
+import { ExcelImportModal } from './ExcelImportModal';
 
 interface InventoryViewProps {
   onOpenNewProduct: () => void;
@@ -52,6 +54,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
   const [movementProduct, setMovementProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isExcelImportOpen, setIsExcelImportOpen] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
@@ -317,6 +320,16 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                 </span>
               )}
             </button>
+
+            {hasPermission('canAddNewProduct') && (
+              <button
+                onClick={() => setIsExcelImportOpen(true)}
+                className="px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200 flex items-center gap-1.5 transition"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>استيراد من Excel</span>
+              </button>
+            )}
 
             <button
               onClick={handleExportCSV}
@@ -734,6 +747,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         title="مسح باركود المادة في المخزن"
       />
 
+      <ExcelImportModal isOpen={isExcelImportOpen} onClose={() => setIsExcelImportOpen(false)} />
       <DuplicateProductsModal
         isOpen={isDuplicatesModalOpen}
         onClose={() => setIsDuplicatesModalOpen(false)}
