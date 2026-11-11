@@ -266,6 +266,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [giftCostCounted, setGiftCostCounted] = useState<boolean>(settings.giftCostCounted !== false);
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
   const [invertEnterShortcuts, setInvertEnterShortcuts] = useState<boolean>(settings.invertEnterShortcuts === true);
+  const [posKeyboardMode, setPosKeyboardMode] = useState<boolean>(settings.posKeyboardMode === true);
+  const [separateCartonPieces, setSeparateCartonPieces] = useState<boolean>(settings.separateCartonPieces === true);
+  const [cartonHotkey, setCartonHotkey] = useState<string>(settings.cartonHotkey || 'c');
   const [enableProductExpiry, setEnableProductExpiry] = useState<boolean>(settings.enableProductExpiry === true);
   const [enableUsdPricing, setEnableUsdPricing] = useState<boolean>(settings.enableUsdPricing === true);
   const [usdRateInput, setUsdRateInput] = useState<string>(String(settings.usdRate || 1500));
@@ -450,6 +453,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setInvoiceShowPiecePrice(settings.invoiceShowPiecePrice === true);
       setQuickQuantityEntry(settings.quickQuantityEntry === true);
       setInvertEnterShortcuts(settings.invertEnterShortcuts === true);
+      setPosKeyboardMode(settings.posKeyboardMode === true);
+      setSeparateCartonPieces(settings.separateCartonPieces === true);
+      setCartonHotkey(settings.cartonHotkey || 'c');
       setEnableProductExpiry(settings.enableProductExpiry === true);
       setEnableUsdPricing(settings.enableUsdPricing === true);
       setUsdRateInput(String(settings.usdRate || 1500));
@@ -552,6 +558,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       invoiceShowPiecePrice,
       quickQuantityEntry,
       invertEnterShortcuts,
+      posKeyboardMode,
+      separateCartonPieces,
+      cartonHotkey: (cartonHotkey || 'c').trim().slice(0, 1).toLowerCase() || 'c',
       enableProductExpiry,
       enableUsdPricing,
       usdRate: parseFloat(usdRateInput) > 0 ? parseFloat(usdRateInput) : (settings.usdRate || 1500),
@@ -1880,6 +1889,44 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">وضع Enter (التنقل بلوحة المفاتيح في نقطة البيع)</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">بحث ← Enter ← اختيار المادة بالأسهم ← Enter ← قطعة/كرتون ← Enter ← العدد ← Enter يعود للبحث دون مسح ما كُتب. الحفظ يتم بالماوس (أو Ctrl+Enter). عند الإلغاء يبقى وضع الماوس العادي.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={posKeyboardMode}
+                onChange={(e) => setPosKeyboardMode(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <div className="p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 space-y-2">
+              <label className="flex items-start justify-between gap-3 cursor-pointer">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">الفصل بين عدد الكراتين وعدد القطع</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">عند الإضافة تُدخل عدد الكراتين وعدد القطع في مربعين منفصلين (يمكن ترك أيٍّ منهما صفرًا). في الوضع العادي يذهب المؤشر لمربع القطع ويمكن التبديل للكرتون بالحرف المخصص. في وضع Enter يبدأ من الكرتون.</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={separateCartonPieces}
+                  onChange={(e) => setSeparateCartonPieces(e.target.checked)}
+                  className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                />
+              </label>
+              {separateCartonPieces && (
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  <span>حرف التبديل إلى مربع الكرتون:</span>
+                  <input
+                    type="text"
+                    maxLength={1}
+                    value={cartonHotkey}
+                    onChange={(e) => setCartonHotkey(e.target.value.slice(-1))}
+                    className="w-14 text-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0b1728] px-2 py-1 font-bold uppercase"
+                  />
+                </div>
+              )}
+            </div>
             <div className="p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 space-y-2">
               <label className="flex items-start justify-between gap-3 cursor-pointer">
                 <div>

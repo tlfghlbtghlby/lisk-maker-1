@@ -159,6 +159,19 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const [pendingPrintAfterRepSelect, setPendingPrintAfterRepSelect] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
+  // وضع Enter ولوحة الإدخال (كرتون / قطعة / عدد)
+  type EntryStep = 'unit' | 'cartons' | 'pieces' | 'qty';
+  type EntryState = { product: Product; step: EntryStep; unit: 'piece' | 'carton'; cartons: string; pieces: string; qty: string };
+  const [entry, setEntry] = useState<EntryState | null>(null);
+  const entryRef = useRef<EntryState | null>(null);
+  entryRef.current = entry;
+  const [kbZone, setKbZone] = useState<'search' | 'list'>('search');
+  const [kbIndex, setKbIndex] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const entryCartonRef = useRef<HTMLInputElement>(null);
+  const entryPieceRef = useRef<HTMLInputElement>(null);
+  const entryQtyRef = useRef<HTMLInputElement>(null);
+  const entryUnitRef = useRef<HTMLDivElement>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
@@ -498,6 +511,259 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     }
   };
 
+
+  // ===== وضع Enter + الفصل بين الكرتون والقطعة =====
+  const kbMode = settings.posKeyboardMode === true;
+  const sepMode = settings.separateCartonPieces === true;
+  const cartonKey = (settings.cartonHotkey || 'c').toLowerCase();
+
+  const isWeightedProd = (p: Product) => Boolean(p.isWeighted || p.unit === 'كغم' || p.unit === 'كيلو');
+  const entryNum = (v: string) => {
+    const n = parseFloat((v || '').replace(',', '.'));
+    return isFinite(n) && n > 0 ? n : 0;
+  };
+
+  const openEntry = (product: Product, fromKeyboard: boolean) => {
+    const weighted = isWeightedProd(product);
+    const hasCarton = !weighted && (product.piecesPerCarton || 1) > 1;
+    let step: EntryStep = 'qty';
+    if (!weighted) {
+      if (sepMode) step = fromKeyboard && hasCarton ? 'cartons' : 'pieces';
+      else if (hasCarton) step = 'unit';
+    }
+    quickQtyArmedRef.current = null;
+    setEntry({ product, step, unit: 'piece', cartons: '', pieces: '', qty: '1' });
+  };
+
+  // مادة نُقر عليها بالماوس: إن كان الفصل مفعلاً تُفتح لوحة الإدخال، وإلا تُضاف كما كان سابقاً
+  const handleProductClick = (prod: Product) => {
+    if (sepMode) openEntry(prod, false);
+    else addToCart(prod);
+  };
+
+  // إضافة سطر للقائمة بوحدة محددة، مع دمج السطر الموجود لنفس المادة
+  const addEntryLine = (product: Product, unitType: 'piece' | 'carton', q: number) => {
+    const weighted = isWeightedProd(product);
+    const cap = weighted ? 1 : Math.max(1, product.piecesPerCarton || 1);
+    const piecePrice = getPiecePrice(product, globalPriceType);
+    setCartItems((prev) => {
+      const idx = prev.findIndex((it) => it.productId === product.id && !it.isGift);
+      if (idx > -1) {
+        const t = prev[idx];
+        const tCarton = !weighted && t.unitType === 'carton';
+        let base: InvoiceItem = t;
+        let addQ = q;
+        let isCartonLine = tCarton;
+        if (tCarton && unitType === 'piece') {
+          base = { ...t, unitType: 'piece', quantity: t.quantity * cap, unitPrice: t.unitPrice / cap, costPrice: t.costPrice / cap };
+          isCartonLine = false;
+        } else if (!tCarton && unitType === 'carton' && !weighted) {
+          addQ = q * cap;
+        }
+        const newQty = Math.round((base.quantity + addQ) * 1000) / 1000;
+        const updated: InvoiceItem = {
+          ...base,
+          quantity: newQty,
+          isWeighted: weighted,
+          weightGrams: weighted ? Math.round(newQty * 1000) : undefined,
+          deductedPieces: isCartonLine ? newQty * cap : newQty,
+          total: Math.round(newQty * base.unitPrice),
+        };
+        return [updated, ...prev.filter((_, i) => i !== idx)];
+      }
+      const isC = !weighted && unitType === 'carton';
+      const unitPrice = isC ? piecePrice * cap : piecePrice;
+      const newItem: InvoiceItem = {
+        productId: product.id,
+        productName: product.name,
+        code: product.code,
+        unit: weighted ? 'كغم' : product.unit,
+        priceType: globalPriceType,
+        unitType: isC ? 'carton' : 'piece',
+        piecesPerCarton: cap,
+        deductedPieces: isC ? q * cap : q,
+        costPrice: isC ? product.costPrice * cap : product.costPrice,
+        unitPrice,
+        quantity: q,
+        isWeighted: weighted,
+        weightGrams: weighted ? Math.round(q * 1000) : undefined,
+        total: Math.round(q * unitPrice),
+      };
+      return [newItem, ...prev];
+    });
+  };
+
+  const focusSearchBox = () => {
+    setKbZone('search');
+    setTimeout(() => {
+      const el = searchInputRef.current;
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    }, 0);
+  };
+
+  const closeEntry = (committed: boolean) => {
+    setEntry(null);
+    if (kbMode) {
+      if (committed) focusSearchBox();
+      else setKbZone('list');
+    }
+  };
+
+  const commitEntry = () => {
+    const e = entryRef.current;
+    if (!e) return;
+    const p = e.product;
+    const weighted = isWeightedProd(p);
+    const cap = Math.max(1, p.piecesPerCarton || 1);
+    const hasCarton = !weighted && cap > 1;
+    let note = '';
+    if (weighted) {
+      const kg = Math.round((entryNum(e.qty) || 1) * 1000) / 1000;
+      addEntryLine(p, 'piece', kg);
+      note = `${kg} كغم`;
+    } else if (sepMode) {
+      const c = hasCarton ? Math.floor(entryNum(e.cartons)) : 0;
+      let pc = Math.floor(entryNum(e.pieces));
+      if (c === 0 && pc === 0) pc = 1;
+      if (pc === 0) {
+        addEntryLine(p, 'carton', c);
+        note = `${c} كرتون`;
+      } else {
+        addEntryLine(p, 'piece', c * cap + pc);
+        note = c > 0 ? `${c} كرتون + ${pc} قطعة` : `${pc} قطعة`;
+      }
+    } else {
+      const q = Math.max(1, Math.floor(entryNum(e.qty) || 1));
+      addEntryLine(p, hasCarton && e.unit === 'carton' ? 'carton' : 'piece', q);
+      note = `${q} ${hasCarton && e.unit === 'carton' ? 'كرتون' : 'قطعة'}`;
+    }
+    quickQtyArmedRef.current = null;
+    setScanNotice(`تمت إضافة "${p.name}": ${note}`);
+    setTimeout(() => setScanNotice(null), 2500);
+    closeEntry(true);
+  };
+
+  const advanceEntry = () => {
+    const e = entryRef.current;
+    if (!e) return;
+    if (e.step === 'unit') setEntry({ ...e, step: 'qty' });
+    else if (e.step === 'cartons') setEntry({ ...e, step: 'pieces' });
+    else commitEntry();
+  };
+
+  const onEntryKeyDown = (ev: React.KeyboardEvent) => {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') return;
+    ev.stopPropagation();
+    const e = entryRef.current;
+    if (!e) return;
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      advanceEntry();
+      return;
+    }
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      closeEntry(false);
+      return;
+    }
+    if (e.step === 'unit' && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key)) {
+      ev.preventDefault();
+      setEntry({ ...e, unit: e.unit === 'piece' ? 'carton' : 'piece' });
+      return;
+    }
+    if (sepMode && !ev.ctrlKey && !ev.altKey && !ev.metaKey && (e.step === 'cartons' || e.step === 'pieces') && !/\d/.test(cartonKey)) {
+      const isHot = ev.key.toLowerCase() === cartonKey || (/^[a-z]$/.test(cartonKey) && ev.code === `Key${cartonKey.toUpperCase()}`);
+      if (isHot && (p_hasCarton(e.product))) {
+        ev.preventDefault();
+        setEntry({ ...e, step: e.step === 'cartons' ? 'pieces' : 'cartons' });
+      }
+    }
+  };
+  const p_hasCarton = (p: Product) => !isWeightedProd(p) && (p.piecesPerCarton || 1) > 1;
+
+  // التركيز على الحقل المناسب عند تغيّر خطوة الإدخال
+  useEffect(() => {
+    if (!entry) return;
+    const el: HTMLElement | null =
+      entry.step === 'cartons' ? entryCartonRef.current
+      : entry.step === 'pieces' ? entryPieceRef.current
+      : entry.step === 'qty' ? entryQtyRef.current
+      : entryUnitRef.current;
+    if (el) {
+      el.focus();
+      if (el instanceof HTMLInputElement) el.select();
+    }
+  }, [entry?.step, entry?.product.id]);
+
+  // التنقل بالأسهم في قائمة المواد (وضع Enter)
+  useEffect(() => {
+    if (!kbMode || kbZone !== 'list' || entry) return;
+    const onKey = (ev: KeyboardEvent) => {
+      if (showQuickAddModal || isScannerOpen || unfoundBarcodePrompt || productForPriceEdit || isSelectRepModalOpen || showClearConfirmModal || giftMenu) return;
+      const t = ev.target as HTMLElement;
+      if (t && (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(t.tagName) || t.isContentEditable)) return;
+      if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+      const n = visibleProducts.length;
+      const vertical = (dir: 'up' | 'down') => {
+        const els = Array.from(document.querySelectorAll<HTMLElement>('[data-kb-index]'));
+        const cur = els.find((el) => Number(el.dataset.kbIndex) === kbIndex);
+        if (!cur) return kbIndex;
+        const cr = cur.getBoundingClientRect();
+        const cx = cr.left + cr.width / 2;
+        let best: HTMLElement | null = null;
+        let bestScore = Infinity;
+        for (const el of els) {
+          const r = el.getBoundingClientRect();
+          const dy = dir === 'down' ? r.top - cr.top : cr.top - r.top;
+          if (dy <= 4) continue;
+          const score = dy * 1000 + Math.abs(r.left + r.width / 2 - cx);
+          if (score < bestScore) { bestScore = score; best = el; }
+        }
+        return best ? Number((best as HTMLElement).dataset.kbIndex) : kbIndex;
+      };
+      const go = (next: number) => {
+        ev.preventDefault();
+        if (next >= n && filteredProducts.length > displayLimit) setDisplayLimit((d) => d + 48);
+        setKbIndex(Math.max(0, Math.min(Math.max(0, n - 1), next)));
+      };
+      switch (ev.key) {
+        case 'ArrowLeft': go(kbIndex + 1); return;
+        case 'ArrowRight': go(kbIndex - 1); return;
+        case 'ArrowDown': go(vertical('down')); return;
+        case 'ArrowUp': go(vertical('up')); return;
+        case 'Enter': {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const prod = visibleProducts[kbIndex];
+          if (prod) openEntry(prod, true);
+          return;
+        }
+        case 'Escape':
+        case 'Backspace':
+          ev.preventDefault();
+          focusSearchBox();
+          return;
+        default:
+          if (ev.key.length === 1) focusSearchBox(); // الحرف المكتوب يستبدل نص البحث
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
+
+  useEffect(() => {
+    if (!kbMode || kbZone !== 'list') return;
+    const el = document.querySelector<HTMLElement>(`[data-kb-index="${kbIndex}"]`);
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }, [kbMode, kbZone, kbIndex]);
+
+  useEffect(() => {
+    setKbIndex(0);
+  }, [searchQuery, selectedCategory]);
+
   const handleBarcodeScannedRef = useRef(handleBarcodeScanned);
   useEffect(() => {
     handleBarcodeScannedRef.current = handleBarcodeScanned;
@@ -539,6 +805,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         return;
       }
 
+      if (entryRef.current && !((e.ctrlKey || e.metaKey) && e.key === 'Enter')) return;
+
       const target = e.target as HTMLElement;
       const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
 
@@ -568,6 +836,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           return;
         }
 
+        // وضع Enter: لا حفظ ولا طباعة بالزر Enter (الحفظ بالماوس أو Ctrl+Enter)
+        if (settingsRef.current.posKeyboardMode) return;
+
         // إذا كان المستخدم يكتب نصاً في حقل بحث أو إدخال (نترك الحقل لمعالجة نصه أولاً)
         if (isInput) {
           const inputEl = target as HTMLInputElement;
@@ -589,7 +860,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       // إدخال الكمية السريع: بعد إضافة مادة بالنقر، ضغط رقم يحدد كميتها مباشرة
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
         const armed = quickQtyArmedRef.current;
-        if (settingsRef.current.quickQuantityEntry && armed && !isInput) {
+        if (settingsRef.current.quickQuantityEntry && !settingsRef.current.posKeyboardMode && armed && !isInput) {
           if (/^[0-9]$/.test(e.key)) {
             if (quickQtyFor !== armed) { quickQtyBuf = ''; quickQtyFor = armed; }
             if (quickQtyBuf !== '' && now - quickQtyTime > 1500) quickQtyBuf = '';
@@ -966,13 +1237,26 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
+                    ref={searchInputRef}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => { if (kbMode) setKbZone('search'); }}
                     onKeyDown={(e) => {
                       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                         e.preventDefault();
                         if (cartItems.length > 0) {
                           handleSaveInvoice(!!settings.invertEnterShortcuts);
+                        }
+                      } else if (e.key === 'Enter' && kbMode) {
+                        e.preventDefault();
+                        const q = searchQuery.trim();
+                        const exactCode = q && products.some((p) => p.code.toLowerCase() === q.toLowerCase());
+                        if (exactCode || (q && filteredProducts.length === 0)) {
+                          handleBarcodeScanned(q);
+                        } else if (visibleProducts.length > 0) {
+                          setKbIndex((i) => Math.min(i, visibleProducts.length - 1));
+                          setKbZone('list');
+                          e.currentTarget.blur();
                         }
                       } else if (e.key === 'Enter') {
                         if (searchQuery.trim()) {
@@ -1082,6 +1366,119 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
             </div>
 
             <div className="flex-1 pb-24">
+            {entry && (() => {
+              const ep = entry.product;
+              const weighted = isWeightedProd(ep);
+              const cap = Math.max(1, ep.piecesPerCarton || 1);
+              const hasCarton = !weighted && cap > 1;
+              const inputCls = 'w-full text-center text-lg font-black rounded-xl border-2 border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-300 focus:outline-none px-2 py-2 bg-white';
+              const setStep = (st: EntryStep) => setEntry((cur) => (cur && cur.step !== st ? { ...cur, step: st } : cur));
+              return (
+                <div
+                  onKeyDown={onEntryKeyDown}
+                  className="mb-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 p-3 shadow-md"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-slate-800 truncate">{ep.name}</div>
+                      <div className="text-[11px] text-slate-500">
+                        {weighted ? 'يباع بالوزن (كغم)' : hasCarton ? `الكرتون = ${cap} قطعة` : 'قطعة'}
+                        {' · المتوفر: '}{ep.stock}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => closeEntry(false)}
+                      className="text-xs font-bold text-slate-500 hover:text-rose-600 px-2 py-1 cursor-pointer"
+                    >
+                      إلغاء (Esc)
+                    </button>
+                  </div>
+
+                  {entry.step === 'unit' ? (
+                    <div ref={entryUnitRef} tabIndex={0} className="flex gap-2 outline-none">
+                      {(['piece', 'carton'] as const).map((u) => (
+                        <button
+                          key={u}
+                          type="button"
+                          tabIndex={-1}
+                          onClick={() => setEntry({ ...entry, unit: u, step: 'qty' })}
+                          className={`flex-1 py-3 rounded-xl text-sm font-black border-2 transition cursor-pointer ${
+                            entry.unit === u ? 'bg-emerald-600 text-white border-emerald-700 ring-4 ring-emerald-300' : 'bg-white text-slate-700 border-slate-300'
+                          }`}
+                        >
+                          {u === 'piece' ? 'قطعة' : `كرتون (${cap})`}
+                        </button>
+                      ))}
+                    </div>
+                  ) : sepMode && !weighted ? (
+                    <div className="flex gap-2">
+                      {hasCarton && (
+                        <label className="flex-1 text-[11px] font-bold text-slate-600">
+                          عدد الكراتين
+                          <input
+                            ref={entryCartonRef}
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            value={entry.cartons}
+                            placeholder="0"
+                            onFocus={() => setStep('cartons')}
+                            onChange={(e) => setEntry({ ...entry, cartons: e.target.value })}
+                            className={inputCls}
+                          />
+                        </label>
+                      )}
+                      <label className="flex-1 text-[11px] font-bold text-slate-600">
+                        عدد القطع
+                        <input
+                          ref={entryPieceRef}
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          value={entry.pieces}
+                          placeholder="0"
+                          onFocus={() => setStep('pieces')}
+                          onChange={(e) => setEntry({ ...entry, pieces: e.target.value })}
+                          className={inputCls}
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <label className="block text-[11px] font-bold text-slate-600">
+                      {weighted ? 'الوزن (كغم)' : `العدد (${entry.unit === 'carton' ? 'كرتون' : 'قطعة'})`}
+                      <input
+                        ref={entryQtyRef}
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step={weighted ? '0.001' : '1'}
+                        value={entry.qty}
+                        onFocus={() => setStep('qty')}
+                        onChange={(e) => setEntry({ ...entry, qty: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
+                  )}
+
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-slate-500">
+                      Enter = التالي/إضافة
+                      {entry.step === 'unit' ? ' · الأسهم = اختيار الوحدة' : ''}
+                      {sepMode && hasCarton ? ` · ${cartonKey.toUpperCase()} = تبديل كرتون/قطعة` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={commitEntry}
+                      className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black cursor-pointer"
+                    >
+                      إضافة
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
               {filteredProducts.length === 0 ? (
                 <div className="py-12 text-center bg-white rounded-xl border border-slate-200 p-6">
                   <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
@@ -1099,7 +1496,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     return (
                       <div
                         key={`${prod.id}_${pIdx}`}
-                        onClick={() => addToCart(prod)}
+                        data-kb-index={pIdx}
+                        onClick={() => handleProductClick(prod)}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           setGiftMenu({ x: e.clientX, y: e.clientY, product: prod });
@@ -1110,6 +1508,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             : `${prod.name} - ${formatMoney(effectivePrice)}`
                         }
                         className={`group bg-white hover:bg-emerald-50/40 border rounded-xl p-2.5 flex flex-col justify-between transition-all duration-150 select-none cursor-pointer active:scale-97 relative shadow-2xs hover:shadow-xs min-h-[82px] text-right ${
+                          kbMode && kbZone === 'list' && pIdx === kbIndex ? 'ring-4 ring-emerald-500 border-emerald-500 bg-emerald-50 ' : ''
+                        }${
                           isOutOfStock
                             ? 'border-rose-300 bg-rose-50/20 hover:border-rose-400'
                             : 'border-slate-200 hover:border-emerald-500'
@@ -1154,18 +1554,21 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     return (
                       <div
                         key={`${prod.id}_${pIdx}`}
+                        data-kb-index={pIdx}
                         onContextMenu={(e) => {
                           e.preventDefault();
                           setGiftMenu({ x: e.clientX, y: e.clientY, product: prod });
                         }}
                         className={`bg-white rounded-xl border p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition text-right group select-none relative ${
+                          kbMode && kbZone === 'list' && pIdx === kbIndex ? 'ring-4 ring-emerald-500 border-emerald-500 bg-emerald-50 ' : ''
+                        }${
                           isOutOfStock
                             ? 'border-rose-300 bg-rose-50/20 hover:border-rose-500 hover:shadow-xs'
                             : 'border-slate-200 hover:border-emerald-500 hover:shadow-xs'
                         }`}
                       >
                         <div
-                          onClick={() => addToCart(prod)}
+                          onClick={() => handleProductClick(prod)}
                           className="flex-1 min-w-0 cursor-pointer"
                         >
                           <div className="flex items-center flex-wrap gap-1.5 mb-1.5">
@@ -2052,9 +2455,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   >
                     <Printer className="w-3.5 h-3.5 shrink-0" />
                     <span>حفظ وطباعة القائمة</span>
-                    <span className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-black/20 rounded font-mono font-bold">
-                      {settings.invertEnterShortcuts ? 'Ctrl+Enter' : 'Enter ↵'}
-                    </span>
+                    {!(kbMode && !settings.invertEnterShortcuts) && (
+                      <span className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-black/20 rounded font-mono font-bold">
+                        {settings.invertEnterShortcuts ? 'Ctrl+Enter' : 'Enter ↵'}
+                      </span>
+                    )}
                   </button>
 
                   <button
@@ -2066,9 +2471,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                     <span>حفظ فقط</span>
-                    <span className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-white/20 text-slate-200 rounded font-mono font-bold">
-                      {settings.invertEnterShortcuts ? 'Enter ↵' : 'Ctrl+Enter'}
-                    </span>
+                    {!(kbMode && settings.invertEnterShortcuts) && (
+                      <span className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-white/20 text-slate-200 rounded font-mono font-bold">
+                        {settings.invertEnterShortcuts ? 'Enter ↵' : 'Ctrl+Enter'}
+                      </span>
+                    )}
                   </button>
                 </div>
 

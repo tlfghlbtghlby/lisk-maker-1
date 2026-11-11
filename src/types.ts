@@ -525,6 +525,12 @@ export interface StoreSettings {
   invoiceShowPiecePrice?: boolean;
   quickQuantityEntry?: boolean;
   invertEnterShortcuts?: boolean;
+  /** وضع Enter: التنقل في نقطة البيع بلوحة المفاتيح بدون ماوس */
+  posKeyboardMode?: boolean;
+  /** فصل عدد الكراتين عن عدد القطع عند الإضافة */
+  separateCartonPieces?: boolean;
+  /** حرف التبديل إلى مربع الكرتون */
+  cartonHotkey?: string;
   enableProductExpiry?: boolean;
   enableUsdPricing?: boolean;
   /** سعر تصريف الدولار: كم دينارًا يساوي دولار واحد */
