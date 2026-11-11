@@ -74,6 +74,7 @@ import { ExportBackupModal } from './ExportBackupModal';
 import { WipeProductsModal } from './WipeProductsModal';
 import { ModernInvoiceHeader } from './ModernInvoiceHeader';
 import { resizeImageFile } from '../utils/imageResize';
+import { loadLocalHeaderImage, saveLocalHeaderImage } from '../utils/localImageStore';
 import { DuplicateProductsModal } from './DuplicateProductsModal';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { buildCheckerUrl, CHECKER_LEVEL_LABELS, STOCK_COLOR_DEFAULTS } from '../utils/checkerLinks';
@@ -373,7 +374,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [modernShowInstagram, setModernShowInstagram] = useState<boolean>(settings.modernHeader?.showInstagram ?? true);
   const [modernInstagramHandle, setModernInstagramHandle] = useState(settings.modernHeader?.instagramHandle ?? '');
   const [modernHeaderMode, setModernHeaderMode] = useState<'custom' | 'image'>(settings.modernHeader?.headerMode ?? 'custom');
-  const [modernHeaderImageUrl, setModernHeaderImageUrl] = useState(settings.modernHeader?.headerImageUrl ?? '');
+  const [modernHeaderImageUrl, setModernHeaderImageUrl] = useState('');
+  const [savedHeaderImage, setSavedHeaderImage] = useState('');
+  useEffect(() => {
+    loadLocalHeaderImage().then(v => { setModernHeaderImageUrl(v || ''); setSavedHeaderImage(v || ''); });
+  }, []);
   const [headerImageError, setHeaderImageError] = useState<string | null>(null);
   const headerImageInputRef = useRef<HTMLInputElement>(null);
   const [modernDeliveryNote, setModernDeliveryNote] = useState(
@@ -477,7 +482,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         if (m.centerIconCustomUrl !== undefined) setModernCenterIconCustomUrl(m.centerIconCustomUrl);
         if (m.barcodeImageUrl !== undefined) setModernBarcodeImageUrl(m.barcodeImageUrl);
         if (m.headerMode !== undefined) setModernHeaderMode(m.headerMode);
-        if (m.headerImageUrl !== undefined) setModernHeaderImageUrl(m.headerImageUrl);
         if (m.showBarcode !== undefined) setModernShowBarcode(m.showBarcode);
         if (m.showTelegram !== undefined) setModernShowTelegram(m.showTelegram);
         if (m.telegramHandle !== undefined) setModernTelegramHandle(m.telegramHandle);
@@ -519,8 +523,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       instagramHandle: modernInstagramHandle.trim(),
       deliveryNote: modernDeliveryNote.trim(),
       headerMode: modernHeaderMode,
-      headerImageUrl: modernHeaderImageUrl,
     };
+    // صورة الرأس تُحفظ على هذا الجهاز فقط ولا تدخل في إعدادات السحابة
+    if (modernHeaderImageUrl !== savedHeaderImage) {
+      saveLocalHeaderImage(modernHeaderImageUrl || null).then(() => setSavedHeaderImage(modernHeaderImageUrl)).catch(() => {});
+    }
 
     {
       const newRate = parseFloat(usdRateInput) > 0 ? parseFloat(usdRateInput) : (settings.usdRate || 1500);
@@ -1358,11 +1365,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    أثناء تفعيل الصورة لا تؤثر إعدادات الألوان والنصوص والتواصل أدناه على القائمة (تبقى محفوظة للعودة إليها). ارفع صورة جاهزة بعرض الفاتورة (يفضّل عرض 1200 بكسل فأكثر وطول قصير نسبيًا). تظهر بدل الألوان والعنوان والتوصيل والواتساب والإنستغرام. وتُصغَّر تلقائيًا لتوفير المساحة. الأفضل خلفية بيضاء وألوان واضحة للطباعة الحرارية.
+                    أثناء تفعيل الصورة لا تؤثر إعدادات الألوان والنصوص والتواصل أدناه على القائمة (تبقى محفوظة للعودة إليها). ارفع صورة جاهزة بعرض الفاتورة (يفضّل عرض 1200 بكسل فأكثر وطول قصير نسبيًا). تظهر بدل الألوان والعنوان والتوصيل والواتساب والإنستغرام. تُحفظ على هذا الجهاز فقط ولا تُرفع للسحابة (لا تظهر على الأجهزة الأخرى، فارفعها على كل جهاز تطبع منه). الأفضل خلفية بيضاء وألوان واضحة للطباعة الحرارية.
                   </p>
                   {headerImageError && <div className="text-[11px] font-semibold text-red-600">{headerImageError}</div>}
                   {modernHeaderMode === 'image' && !modernHeaderImageUrl && (
-                    <div className="text-[11px] font-semibold text-amber-600">لم تُرفع صورة بعد، لذلك سيُستخدم الرأس المخصص إلى حين رفعها.</div>
+                    <div className="text-[11px] font-semibold text-amber-600">لا توجد صورة محفوظة على هذا الجهاز، لذلك سيُستخدم الرأس المخصص إلى حين رفعها.</div>
                   )}
                 </div>
               )}
@@ -1700,11 +1707,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                         instagramHandle: modernInstagramHandle,
                         deliveryNote: modernDeliveryNote,
                         headerMode: modernHeaderMode,
-                        headerImageUrl: modernHeaderImageUrl,
                       }
                     }}
                     invoiceNumber="1042"
                     isThermal={false}
+                    previewImage={modernHeaderImageUrl}
                   />
                 </div>
               </div>
