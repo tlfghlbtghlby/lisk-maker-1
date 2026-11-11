@@ -103,6 +103,15 @@ export const ModernInvoiceHeader: React.FC<ModernInvoiceHeaderProps> = ({
 }) => {
   const conf = settings.modernHeader || {};
 
+  // صورة رأس جاهزة مصممة من صاحب المتجر: تحل محل الرأس كله (الألوان والنصوص والتوصيل والتواصل)
+  if (conf.headerMode === 'image' && conf.headerImageUrl) {
+    return (
+      <div className="w-full select-none overflow-hidden mb-3 print:mb-2">
+        <img src={conf.headerImageUrl} alt={settings.storeName || 'ترويسة القائمة'} className="w-full h-auto block" />
+      </div>
+    );
+  }
+
   // Color tokens
   const rightBg = conf.rightBannerColor || '#1e40af'; // Royal Blue (اسم المحل)
   const leftBg = conf.leftBannerColor || '#ea580c'; // Warm Orange (المعلومات والأنشطة)

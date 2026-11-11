@@ -73,6 +73,7 @@ import { QuickAddItemsSection } from './QuickAddItemsSection';
 import { ExportBackupModal } from './ExportBackupModal';
 import { WipeProductsModal } from './WipeProductsModal';
 import { ModernInvoiceHeader } from './ModernInvoiceHeader';
+import { resizeImageFile } from '../utils/imageResize';
 import { DuplicateProductsModal } from './DuplicateProductsModal';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { buildCheckerUrl, CHECKER_LEVEL_LABELS, STOCK_COLOR_DEFAULTS } from '../utils/checkerLinks';
@@ -371,6 +372,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [modernWhatsappNumber, setModernWhatsappNumber] = useState(settings.modernHeader?.whatsappNumber ?? settings.phone ?? '');
   const [modernShowInstagram, setModernShowInstagram] = useState<boolean>(settings.modernHeader?.showInstagram ?? true);
   const [modernInstagramHandle, setModernInstagramHandle] = useState(settings.modernHeader?.instagramHandle ?? '');
+  const [modernHeaderMode, setModernHeaderMode] = useState<'custom' | 'image'>(settings.modernHeader?.headerMode ?? 'custom');
+  const [modernHeaderImageUrl, setModernHeaderImageUrl] = useState(settings.modernHeader?.headerImageUrl ?? '');
+  const [headerImageError, setHeaderImageError] = useState<string | null>(null);
+  const headerImageInputRef = useRef<HTMLInputElement>(null);
   const [modernDeliveryNote, setModernDeliveryNote] = useState(
     settings.modernHeader?.deliveryNote ?? 'تتوفر خدمة التوصيل إلى كافة المحافظات'
   );
@@ -391,6 +396,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleHeaderImageUpload = async (file?: File | null) => {
+    if (!file) return;
+    setHeaderImageError(null);
+    try {
+      const data = await resizeImageFile(file, 1600, 0.85);
+      setModernHeaderImageUrl(data);
+      setModernHeaderMode('image');
+    } catch (err: any) {
+      setHeaderImageError(err?.message || 'تعذر رفع الصورة');
+    } finally {
+      if (headerImageInputRef.current) headerImageInputRef.current.value = '';
+    }
   };
 
   const handleCenterIconFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -457,6 +476,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         if (m.centerIconPreset !== undefined) setModernCenterIconPreset(m.centerIconPreset);
         if (m.centerIconCustomUrl !== undefined) setModernCenterIconCustomUrl(m.centerIconCustomUrl);
         if (m.barcodeImageUrl !== undefined) setModernBarcodeImageUrl(m.barcodeImageUrl);
+        if (m.headerMode !== undefined) setModernHeaderMode(m.headerMode);
+        if (m.headerImageUrl !== undefined) setModernHeaderImageUrl(m.headerImageUrl);
         if (m.showBarcode !== undefined) setModernShowBarcode(m.showBarcode);
         if (m.showTelegram !== undefined) setModernShowTelegram(m.showTelegram);
         if (m.telegramHandle !== undefined) setModernTelegramHandle(m.telegramHandle);
@@ -497,6 +518,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       showInstagram: modernShowInstagram,
       instagramHandle: modernInstagramHandle.trim(),
       deliveryNote: modernDeliveryNote.trim(),
+      headerMode: modernHeaderMode,
+      headerImageUrl: modernHeaderImageUrl,
     };
 
     {
@@ -1289,6 +1312,62 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               )}
             </div>
 
+            <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-indigo-200 dark:border-slate-700 space-y-3">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">رأس القائمة (الجزء العلوي)</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModernHeaderMode('custom')}
+                  className={`p-3 rounded-xl border text-xs font-bold text-right transition ${modernHeaderMode === 'custom' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}
+                >
+                  رأس مخصص (ألوان ونصوص ومعلومات التواصل)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModernHeaderMode('image')}
+                  className={`p-3 rounded-xl border text-xs font-bold text-right transition ${modernHeaderMode === 'image' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200'}`}
+                >
+                  صورة جاهزة مصممة (تحل محل الرأس بالكامل)
+                </button>
+              </div>
+              {modernHeaderMode === 'image' && (
+                <div className="space-y-2">
+                  <input
+                    ref={headerImageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleHeaderImageUpload(e.target.files?.[0])}
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => headerImageInputRef.current?.click()}
+                      className="px-3 py-2 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      {modernHeaderImageUrl ? 'تغيير الصورة' : 'رفع صورة الرأس'}
+                    </button>
+                    {modernHeaderImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => { setModernHeaderImageUrl(''); setModernHeaderMode('custom'); }}
+                        className="px-3 py-2 rounded-lg text-xs font-bold border border-rose-200 text-rose-600 hover:bg-rose-50"
+                      >
+                        حذف الصورة والعودة للرأس المخصص
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    أثناء تفعيل الصورة لا تؤثر إعدادات الألوان والنصوص والتواصل أدناه على القائمة (تبقى محفوظة للعودة إليها). ارفع صورة جاهزة بعرض الفاتورة (يفضّل عرض 1200 بكسل فأكثر وطول قصير نسبيًا). تظهر بدل الألوان والعنوان والتوصيل والواتساب والإنستغرام. وتُصغَّر تلقائيًا لتوفير المساحة. الأفضل خلفية بيضاء وألوان واضحة للطباعة الحرارية.
+                  </p>
+                  {headerImageError && <div className="text-[11px] font-semibold text-red-600">{headerImageError}</div>}
+                  {modernHeaderMode === 'image' && !modernHeaderImageUrl && (
+                    <div className="text-[11px] font-semibold text-amber-600">لم تُرفع صورة بعد، لذلك سيُستخدم الرأس المخصص إلى حين رفعها.</div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="border-t border-indigo-100 dark:border-slate-800 pt-5 space-y-5">
               {/* شارة المحل */}
               <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2.5">
@@ -1620,6 +1699,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                         showInstagram: modernShowInstagram,
                         instagramHandle: modernInstagramHandle,
                         deliveryNote: modernDeliveryNote,
+                        headerMode: modernHeaderMode,
+                        headerImageUrl: modernHeaderImageUrl,
                       }
                     }}
                     invoiceNumber="1042"
