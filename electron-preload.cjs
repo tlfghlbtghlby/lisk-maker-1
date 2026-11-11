@@ -1,6 +1,15 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const electronAPI = {
+  // نظام التشغيل (لتفعيل ميزات خاصة بويندوز)
+  platform: process.platform,
+
+  // صور المواد المحلية (لا تُرفع للسحابة)
+  saveProductImage: (payload) => ipcRenderer.invoke('product-image-save', payload),
+  getProductImage: (payload) => ipcRenderer.invoke('product-image-get', payload),
+  deleteProductImage: (payload) => ipcRenderer.invoke('product-image-delete', payload),
+  listProductImages: () => ipcRenderer.invoke('product-image-list'),
+
   // جلب قائمة الطابعات المثبتة في النظام
   getPrinters: () => ipcRenderer.invoke('get-printers'),
 

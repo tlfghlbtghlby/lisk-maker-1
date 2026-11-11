@@ -52,6 +52,9 @@ export interface Product {
   expiryDate?: string;
   /** دفعات المخزون بتواريخ صلاحية مختلفة (الأقدم أولاً) */
   expiryBatches?: ExpiryBatch[];
+  /** عملة إدخال الأسعار: الدولار يُحفظ في usdPrices وتُحسب أسعار الدينار منه بسعر التصريف */
+  priceCurrency?: 'IQD' | 'USD';
+  usdPrices?: { cost: number; retail: number; wholesale: number; superWholesale?: number; special?: number };
   ownerUid?: string;
   /** سجل الإضافات على المخزون (شراء/تعديل) لعرض تاريخ حركة المادة */
   purchaseLog?: StockLogEntry[];
@@ -520,6 +523,9 @@ export interface StoreSettings {
   quickQuantityEntry?: boolean;
   invertEnterShortcuts?: boolean;
   enableProductExpiry?: boolean;
+  enableUsdPricing?: boolean;
+  /** سعر تصريف الدولار: كم دينارًا يساوي دولار واحد */
+  usdRate?: number;
   trackExpiryBatches?: boolean;
   globalBarcodeCapture?: boolean;
   promotions?: Promotion[];
