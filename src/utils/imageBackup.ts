@@ -63,7 +63,7 @@ export const describeRestore = (r: RestoreResult): string => {
   if (r.header) parts.push('صورة رأس القائمة');
   if (r.restored) parts.push(`${r.restored} صورة مادة`);
   let msg = parts.length ? `تمت استعادة ${parts.join(' و')} على هذا الجهاز فقط.` : 'لم تُستعد أي صورة.';
-  if (r.productImagesUnsupported) msg += ' صور المواد تُستعاد في تطبيق ويندوز فقط.';
+  if (r.productImagesUnsupported) msg += ' هذا الجهاز لا يدعم حفظ صور المواد.';
   else if (r.skipped) msg += ` تعذّر مطابقة ${r.skipped} صورة مع مواد موجودة.`;
   return msg;
 };
