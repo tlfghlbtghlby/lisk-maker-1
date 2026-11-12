@@ -2014,12 +2014,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
                           {shownType === 'retail' && (
-                          <div className="flex flex-col gap-1 min-w-[105px] shrink-0">
-                            <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-3 py-1.5 text-right">
+                          <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
+                            <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-2.5 py-1 text-right">
                               <div className="text-[10px] text-emerald-800 font-bold">
                                 {tieredMode ? 'سعر بيع المفرد:' : 'سعر البيع:'}
                               </div>
-                              <div className="text-xs sm:text-base font-black text-emerald-950 font-mono">
+                              <div className="text-xs sm:text-sm font-black text-emerald-950 font-mono">
                                 {formatMoney(prod.retailPrice)}
                               </div>
                             </div>
