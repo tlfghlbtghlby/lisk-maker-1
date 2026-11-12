@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ImagePlus, Trash2, UploadCloud, Loader2, Camera } from 'lucide-react';
 import { Product } from '../types';
 import { removeProductImage, saveProductImage, useProductImage, useProductImageIds } from '../utils/productImages';
@@ -177,3 +178,63 @@ export const ProductImageButton: React.FC<{ onOpen: () => void; has: boolean }> 
     <ImagePlus className="w-4 h-4" />
   </button>
 );
+
+/** مصغرة تعرض الصورة كاملة عند الضغط قرب مؤشر الماوس (عرض فقط بدون تعديل) */
+export const ProductThumbPreview: React.FC<{ product: Product; size?: number }> = ({ product, size = 40 }) => {
+  const thumb = useProductImage(product.id, 'thumb');
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [wantFull, setWantFull] = useState(false);
+  const full = useProductImage(wantFull ? product.id : undefined, 'full');
+
+  useEffect(() => {
+    if (!pos) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setPos(null); setWantFull(false); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pos]);
+
+  if (!thumb) return null;
+
+  const close = () => { setPos(null); setWantFull(false); };
+  const W = 320, H = 340;
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1000;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const left = pos ? Math.max(8, Math.min(pos.x + 14, vw - W - 8)) : 0;
+  const top = pos ? Math.max(8, Math.min(pos.y + 14, vh - H - 8)) : 0;
+
+  return (
+    <>
+      <button
+        type="button"
+        title="عرض الصورة"
+        onClick={(e) => { e.stopPropagation(); e.preventDefault(); setWantFull(true); setPos({ x: e.clientX, y: e.clientY }); }}
+        className="shrink-0 rounded-lg overflow-hidden border border-slate-200 hover:ring-2 hover:ring-emerald-400 transition"
+        style={{ width: size, height: size }}
+      >
+        <img src={thumb} alt="" className="w-full h-full object-cover" draggable={false} />
+      </button>
+      {pos && createPortal(
+        <div className="fixed inset-0 z-[200]" onClick={(e) => { e.stopPropagation(); close(); }} onContextMenu={(e) => { e.preventDefault(); close(); }}>
+          <div
+            className="absolute bg-white rounded-2xl shadow-2xl border border-slate-200 p-2 flex flex-col items-center"
+            style={{ left, top, width: W, maxHeight: H }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex items-center justify-between gap-2 px-1 pb-1.5" dir="rtl">
+              <span className="text-xs font-bold text-slate-800 truncate">{product.name}</span>
+              <button type="button" onClick={close} className="p-1 rounded-md hover:bg-slate-100 text-slate-500"><X className="w-3.5 h-3.5" /></button>
+            </div>
+            <div className="w-full flex-1 flex items-center justify-center bg-slate-50 rounded-xl overflow-hidden" style={{ minHeight: 200 }}>
+              {full || thumb ? (
+                <img src={full || thumb || ''} alt={product.name} className="max-w-full object-contain" style={{ maxHeight: H - 70 }} draggable={false} />
+              ) : (
+                <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};

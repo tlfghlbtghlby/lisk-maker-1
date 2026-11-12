@@ -307,6 +307,41 @@ ipcMain.handle('product-image-list', () => {
   }
 });
 
+// إرسال القائمة PDF عبر واتساب (ويندوز): حفظ الملف مؤقتاً، نسخه للحافظة كملف، وفتح محادثة واتساب ليلصقه المستخدم (Ctrl+V)
+ipcMain.handle('whatsapp-send-pdf', async (event, { base64, fileName, phone } = {}) => {
+  try {
+    if (!base64) return { success: false, error: 'no data' };
+    const dir = path.join(os.tmpdir(), 'mufakkir-share');
+    fs.mkdirSync(dir, { recursive: true });
+    const safe = String(fileName || 'invoice.pdf').replace(/[\\/:*?"<>|'`$%&;]/g, '_');
+    const filePath = path.join(dir, safe.toLowerCase().endsWith('.pdf') ? safe : safe + '.pdf');
+    fs.writeFileSync(filePath, Buffer.from(base64, 'base64'));
+
+    let copied = false;
+    if (process.platform === 'win32') {
+      copied = await new Promise((resolve) => {
+        exec(`powershell -NoProfile -Command "Set-Clipboard -LiteralPath '${filePath.replace(/'/g, "''")}'"`, { windowsHide: true }, (err) => resolve(!err));
+      });
+    }
+    try { shell.showItemInFolder && !copied && shell.showItemInFolder(filePath); } catch (e) {}
+
+    const num = String(phone || '').replace(/[^0-9]/g, '');
+    let opened = false;
+    try {
+      await shell.openExternal(num ? `whatsapp://send?phone=${num}` : 'whatsapp://send');
+      opened = true;
+    } catch (e) {
+      try {
+        await shell.openExternal(num ? `https://wa.me/${num}` : 'https://web.whatsapp.com/');
+        opened = true;
+      } catch (e2) {}
+    }
+    return { success: true, copied, opened, filePath };
+  } catch (e) {
+    return { success: false, error: e && e.message };
+  }
+});
+
 ipcMain.handle('get-printers', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
   if (!win) return [];

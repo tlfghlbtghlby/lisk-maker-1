@@ -344,18 +344,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
   };
 
   const handleShareWhatsApp = async () => {
-    let summaryText = `📋 *فاتورة مبيعات: ${settings.storeName}*\n`;
-    summaryText += `رقم القائمة: ${invoice.invoiceNumber}\n`;
-    summaryText += `التاريخ: ${dayName} ${dateFormatted}\n`;
-    summaryText += `حضرة السيد: ${invoice.customerName}\n`;
-    if (repNameToShow) {
-      summaryText += `المندوب: ${repNameToShow}\n`;
-    }
-    summaryText += `المبلغ المطلوب: ${invoice.total.toLocaleString()} ${currencyLabel}\n`;
-    if (totalRemainingDebt > 0) {
-      summaryText += `مجموع الديون بذمة العميل: ${totalRemainingDebt.toLocaleString()} ${currencyLabel}\n`;
-    }
-
+    // رقم الزبون بصيغة دولية
     let targetPhone = invoice.customerPhone ? invoice.customerPhone.replace(/[^0-9]/g, '') : '';
     if (targetPhone) {
       if (targetPhone.startsWith('00964')) {
@@ -366,14 +355,89 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
         targetPhone = '964' + targetPhone;
       }
     }
+    const shortText = `📋 قائمة مبيعات رقم ${invoice.invoiceNumber} - ${settings.storeName}\nالمبلغ المطلوب: ${invoice.total.toLocaleString()} ${currencyLabel}`;
 
-    const whatsappUrl = targetPhone
-      ? `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(summaryText)}`
-      : `https://api.whatsapp.com/send?text=${encodeURIComponent(summaryText)}`;
+    setIsGeneratingPDF(true);
+    setPdfNotice('جاري تجهيز ملف PDF للإرسال...');
+    try {
+      const pdfData = await generateInvoicePDF();
+      if (!pdfData) throw new Error('pdf');
 
-    window.open(whatsappUrl, '_system');
-    setIsCopied(true);
-    setTimeout(() => setIsCopied(false), 3000);
+      // 1) تطبيق الهاتف: مشاركة الملف ويختار المستخدم واتساب
+      if (Boolean((window as any).Capacitor?.isNativePlatform?.())) {
+        const saved = await Filesystem.writeFile({
+          path: pdfData.fileName,
+          data: pdfData.base64,
+          directory: Directory.Cache,
+          recursive: true,
+        });
+        await Share.share({
+          title: `قائمة ${invoice.invoiceNumber}`,
+          text: shortText,
+          url: saved.uri,
+          dialogTitle: 'اختر واتساب لإرسال القائمة',
+        });
+        setPdfNotice(null);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 3000);
+        return;
+      }
+
+      // 2) المتصفحات التي تدعم مشاركة الملفات (هواتف، بعض الأجهزة)
+      const file = new File([pdfData.blob], pdfData.fileName, { type: 'application/pdf' });
+      const nav: any = navigator;
+      if (nav.canShare && nav.canShare({ files: [file] })) {
+        try {
+          await nav.share({ files: [file], title: `قائمة ${invoice.invoiceNumber}`, text: shortText });
+          setPdfNotice(null);
+          setIsCopied(true);
+          setTimeout(() => setIsCopied(false), 3000);
+          return;
+        } catch (shareErr: any) {
+          if (shareErr?.name === 'AbortError') { setPdfNotice(null); return; }
+        }
+      }
+
+      // 2.5) برنامج ويندوز: نسخ ملف PDF للحافظة وفتح واتساب، فيكفي الضغط على Ctrl+V ثم إرسال
+      const eApi = (window as any).electronAPI;
+      if (eApi?.whatsappSendPdf) {
+        const res = await eApi.whatsappSendPdf({ base64: pdfData.base64, fileName: pdfData.fileName, phone: targetPhone });
+        if (res?.success) {
+          setPdfNotice(res.copied
+            ? 'تم نسخ ملف PDF وفتح واتساب: الصق الملف في المحادثة (Ctrl+V) ثم اضغط إرسال'
+            : 'تم حفظ ملف PDF وفتح واتساب: أرفق الملف من مجلد الملفات المفتوح');
+          setTimeout(() => setPdfNotice(null), 10000);
+          setIsCopied(true);
+          setTimeout(() => setIsCopied(false), 3000);
+          return;
+        }
+      }
+
+      // 3) الكمبيوتر: واتساب لا يقبل إرفاق ملف تلقائياً من رابط، فننزّل الـ PDF ونفتح المحادثة ليُرفق الملف
+      const url = URL.createObjectURL(pdfData.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = pdfData.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+      const waUrl = targetPhone
+        ? `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(shortText)}`
+        : `https://api.whatsapp.com/send?text=${encodeURIComponent(shortText)}`;
+      window.open(waUrl, '_blank');
+      setPdfNotice('تم تنزيل ملف PDF، أرفقه في محادثة واتساب (اسحبه إلى المحادثة أو اضغط 📎)');
+      setTimeout(() => setPdfNotice(null), 8000);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 3000);
+    } catch (err) {
+      console.error(err);
+      setPdfNotice('تعذر تجهيز ملف PDF، حاول مرة أخرى');
+      setTimeout(() => setPdfNotice(null), 4000);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
   };
 
   return (
@@ -503,10 +567,11 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
             <button
               type="button"
               onClick={handleShareWhatsApp}
+              disabled={isGeneratingPDF}
               className="px-3.5 py-1.5 text-xs font-bold text-emerald-700 bg-white hover:bg-emerald-50 border border-emerald-400 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-xs"
             >
-              {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : null}
-              <span>واتساب</span>
+              {isGeneratingPDF ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-700" /> : isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : null}
+              <span>واتساب (PDF)</span>
             </button>
 
             {invoice.status !== 'returned' && (

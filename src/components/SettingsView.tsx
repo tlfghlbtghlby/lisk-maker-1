@@ -267,6 +267,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
   const [invertEnterShortcuts, setInvertEnterShortcuts] = useState<boolean>(settings.invertEnterShortcuts === true);
   const [posKeyboardMode, setPosKeyboardMode] = useState<boolean>(settings.posKeyboardMode === true);
+  const [posClassicCart, setPosClassicCart] = useState<boolean>(settings.posClassicCart === true);
   const [separateCartonPieces, setSeparateCartonPieces] = useState<boolean>(settings.separateCartonPieces === true);
   const [cartonHotkey, setCartonHotkey] = useState<string>(settings.cartonHotkey || 'c');
   const [enableProductExpiry, setEnableProductExpiry] = useState<boolean>(settings.enableProductExpiry === true);
@@ -454,6 +455,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setQuickQuantityEntry(settings.quickQuantityEntry === true);
       setInvertEnterShortcuts(settings.invertEnterShortcuts === true);
       setPosKeyboardMode(settings.posKeyboardMode === true);
+      setPosClassicCart(settings.posClassicCart === true);
       setSeparateCartonPieces(settings.separateCartonPieces === true);
       setCartonHotkey(settings.cartonHotkey || 'c');
       setEnableProductExpiry(settings.enableProductExpiry === true);
@@ -559,6 +561,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       quickQuantityEntry,
       invertEnterShortcuts,
       posKeyboardMode,
+      posClassicCart,
       separateCartonPieces,
       cartonHotkey: (cartonHotkey || 'c').trim().slice(0, 1).toLowerCase() || 'c',
       enableProductExpiry,
@@ -1898,6 +1901,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="checkbox"
                 checked={posKeyboardMode}
                 onChange={(e) => setPosKeyboardMode(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">الشكل الكلاسيكي لقائمة البيع (جدول)</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">يعرض المواد المضافة في نقطة البيع كجدول بخطوط مثل القائمة المطبوعة، وتتبع أعمدته إعدادات الطباعة (أعمدة الكراتين وسعر القطعة). مع وضع Enter ينتقل المؤشر عبر أعمدة السطر بالترتيب (كراتين ← قطع ← السعر) ثم يعود للبحث. عند الإيقاف يبقى الشكل الحالي.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={posClassicCart}
+                onChange={(e) => setPosClassicCart(e.target.checked)}
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>

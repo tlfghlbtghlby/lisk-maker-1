@@ -29,6 +29,9 @@ const electronAPI = {
   // إنشاء اختصار على سطح المكتب (.lnk)
   createDesktopShortcut: (options) => ipcRenderer.invoke('create-desktop-shortcut', options),
 
+  // إرسال ملف PDF عبر واتساب (نسخ للحافظة + فتح المحادثة)
+  whatsappSendPdf: (options) => ipcRenderer.invoke('whatsapp-send-pdf', options),
+
   // استعلام المسار الأولي الممرر عبر الوسائط (--open-route=...)
   getInitialRoute: () => ipcRenderer.invoke('get-initial-route'),
 
