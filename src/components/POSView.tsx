@@ -1804,6 +1804,15 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   {visibleProducts.map((prod, pIdx) => {
                     const isLowStock = prod.stock <= prod.minStock;
                     const isOutOfStock = prod.stock <= 0;
+                    // يظهر سعر واحد وزره فقط: حسب نوع السعر المختار في جهة قائمة البيع (كما في شكل المربعات)
+                    const canShow = (t: string) =>
+                      t === 'retail' ||
+                      (settings.enableWholesale &&
+                        priceTypeOn(t as any) &&
+                        (t === 'wholesale' ||
+                          (t === 'superWholesale' && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale')) ||
+                          (t === 'special' && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special'))));
+                    const shownType: string = canShow(globalPriceType as string) ? (globalPriceType as string) : 'retail';
 
                     return (
                       <div
@@ -1898,7 +1907,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {settings.enableWholesale && priceTypeOn('wholesale') && (
+                          {shownType === 'wholesale' && settings.enableWholesale && priceTypeOn('wholesale') && (
                             <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
                               <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg px-2.5 py-1 text-right">
                                 <div className="text-[10px] text-amber-800 font-bold">
@@ -1927,7 +1936,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {settings.enableWholesale && priceTypeOn('superWholesale') && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
+                          {shownType === 'superWholesale' && settings.enableWholesale && priceTypeOn('superWholesale') && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
                             <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
                               <div className="bg-orange-50/90 border border-orange-200/90 rounded-lg px-2.5 py-1 text-right">
                                 <div className="text-[10px] text-orange-800 font-bold">
@@ -1952,7 +1961,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {settings.enableWholesale && priceTypeOn('special') && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
+                          {shownType === 'special' && settings.enableWholesale && priceTypeOn('special') && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
                             <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
                               <div className="bg-violet-50/90 border border-violet-200/90 rounded-lg px-2.5 py-1 text-right">
                                 <div className="text-[10px] text-violet-800 font-bold">
@@ -1977,6 +1986,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
+                          {shownType === 'retail' && (
                           <div className="flex flex-col gap-1 min-w-[105px] shrink-0">
                             <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-3 py-1.5 text-right">
                               <div className="text-[10px] text-emerald-800 font-bold">
@@ -2003,6 +2013,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               <span>{tieredMode ? 'مفرد' : (isOutOfStock ? 'بيع (رصيد 0)' : 'إضافة للقائمة')}</span>
                             </button>
                           </div>
+                          )}
                         </div>
                       </div>
                     );
