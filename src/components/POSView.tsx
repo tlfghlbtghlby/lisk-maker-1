@@ -1316,14 +1316,29 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     const cols = classicColsOf(item);
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (!(item.quantity > 0)) {
-        removeFromCart(lineKeyOf(item));
-        classicFinish();
+      const i = cols.indexOf(col);
+      if (i >= 0 && i < cols.length - 1) {
+        // الانتقال للعمود التالي حتى لو كان الحقل فارغاً
+        setCellFocus({ id: lineKeyOf(item), col: cols[i + 1] });
         return;
       }
+      // آخر عمود: سطر بلا كمية يُحذف
+      if (!(item.quantity > 0)) removeFromCart(lineKeyOf(item));
+      classicFinish();
+      return;
+    }
+    // Backspace على حقل فارغ: خطوة للوراء (العمود السابق، ومن أول عمود يُحذف السطر ونعود لقائمة المواد)
+    if (e.key === 'Backspace' && (e.currentTarget as HTMLInputElement).value === '') {
       const i = cols.indexOf(col);
-      if (i >= 0 && i < cols.length - 1) setCellFocus({ id: lineKeyOf(item), col: cols[i + 1] });
-      else classicFinish();
+      if (i > 0) {
+        e.preventDefault();
+        setCellFocus({ id: lineKeyOf(item), col: cols[i - 1] });
+      } else if (i === 0) {
+        e.preventDefault();
+        removeFromCart(lineKeyOf(item));
+        (document.activeElement as HTMLElement | null)?.blur();
+        if (kbMode) setKbZone('list');
+      }
       return;
     }
     if (e.key === 'Escape') {
@@ -1710,7 +1725,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   <p className="text-xs text-slate-400 mt-1">تأكد من كتابة الاسم بدقة</p>
                 </div>
               ) : viewMode === 'grid' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
+                <div
+                  className={isMobileMode ? 'grid grid-cols-2 sm:grid-cols-3 gap-2' : 'grid gap-2'}
+                  style={isMobileMode ? undefined : { gridTemplateColumns: 'repeat(auto-fill, minmax(165px, 1fr))' }}
+                >
                   {visibleProducts.map((prod, pIdx) => {
                     const isOutOfStock = prod.stock <= 0;
                     const effectivePrice = tieredMode
