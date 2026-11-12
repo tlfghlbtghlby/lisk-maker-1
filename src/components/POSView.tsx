@@ -1238,7 +1238,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     } else {
       cols.push('q');
     }
-    if (!item.isGift) cols.push('price');
+    // التنقل بـ Enter: كراتين ← قطع فقط (السعر يُعدَّل بالنقر عليه)
     return cols;
   };
 
