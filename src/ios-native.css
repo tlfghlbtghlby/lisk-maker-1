@@ -1,0 +1,6 @@
+/* تعديلات آيفون فقط (داخل تطبيق iOS)، مقيّدة بـ .ios-native فلا أثر لها في أي منصة أخرى */
+html.ios-native { -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+.ios-native body { -webkit-touch-callout: none; overscroll-behavior-y: none; }
+.ios-native input, .ios-native textarea, .ios-native select { font-size: 16px; } /* يمنع تكبير الصفحة تلقائياً عند الكتابة */
+.ios-native button { touch-action: manipulation; }
+.ios-native *::-webkit-scrollbar { display: none; }

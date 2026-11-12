@@ -1,0 +1,88 @@
+name: Build iOS IPA
+
+# يبني ملف IPA غير موقّع (للتثبيت على الآيفون عبر Sideloadly أو AltStore) عند الرفع إلى الفرع ios-app،
+# ويمكن تشغيله يدوياً من تبويب Actions. راجع IOS.md لطريقة التثبيت.
+
+on:
+  push:
+    branches: [ ios-app ]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+
+      - name: Build Web Application
+        run: npm run build
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
+
+      - name: Add iOS Platform
+        run: |
+          if [ ! -d "ios" ]; then
+            npx cap add ios
+          fi
+
+      - name: Generate App Icons
+        continue-on-error: true
+        run: |
+          mkdir -p assets
+          cp public/logo.png assets/icon.png
+          npx --yes @capacitor/assets generate --ios
+
+      - name: Configure iOS Project (permissions)
+        run: node scripts/ios-setup.mjs
+
+      - name: Sync Web Assets to iOS
+        run: npx cap sync ios
+
+      - name: Build unsigned app
+        run: |
+          cd ios/App
+          if [ -d App.xcworkspace ]; then ARGS="-workspace App.xcworkspace"; else ARGS="-project App.xcodeproj"; fi
+          xcodebuild $ARGS -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath "$GITHUB_WORKSPACE/build" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} MARKETING_VERSION=2.0.${{ github.run_number }} \
+            build
+
+      - name: Package IPA
+        run: |
+          APP=$(find build/Build/Products -name "App.app" -maxdepth 3 | head -1)
+          echo "App bundle: $APP"
+          test -n "$APP"
+          mkdir -p out/Payload
+          cp -R "$APP" out/Payload/
+          (cd out && zip -qr AlMufakir-unsigned.ipa Payload)
+          ls -la out
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlMufakir-iOS-unsigned-IPA
+          path: out/AlMufakir-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30

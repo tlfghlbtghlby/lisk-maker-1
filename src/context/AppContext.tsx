@@ -47,7 +47,7 @@ import {
 } from '../utils/telegram';
 import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/invoiceSeal';
 import { netUnitPrice } from '../utils/promotions';
-import { isAndroidPhone } from '../utils/platform';
+import { isNativePhone as isAndroidPhone } from '../utils/platform';
 
 export const CURRENT_APP_VERSION = (pkg as any)?.version || '2.0.0';
 

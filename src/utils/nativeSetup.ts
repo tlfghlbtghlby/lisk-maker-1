@@ -7,6 +7,14 @@ export async function setupNativeApp(): Promise<void> {
     if (cap.getPlatform?.() === 'android') {
       document.documentElement.classList.add('android-native');
     }
+    if (cap.getPlatform?.() === 'ios') {
+      document.documentElement.classList.add('ios-native');
+      try {
+        const { StatusBar, Style } = await import('@capacitor/status-bar');
+        await StatusBar.setStyle({ style: Style.Dark });
+      } catch {}
+      return;
+    }
 
     // شريط الحالة: لون داكن يطابق واجهة البرنامج ولا يتداخل مع المحتوى
     const { StatusBar, Style } = await import('@capacitor/status-bar');

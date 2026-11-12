@@ -10,6 +10,11 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
   },
+  ios: {
+    // المحتوى يبتعد تلقائياً عن النتوء وشريط الحالة وشريط الأسفل
+    contentInset: 'always',
+    backgroundColor: '#0b1728',
+  },
   plugins: {
     StatusBar: {
       style: 'DARK',
