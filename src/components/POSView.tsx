@@ -1252,7 +1252,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     } else {
       cols.push('q');
     }
-    // التنقل بـ Enter: كراتين ← قطع فقط (السعر يُعدَّل بالنقر عليه)
+    // التنقل بـ Enter: كراتين ← قطع ← السعر ← ثم العودة للبحث
+    if (!item.isGift) cols.push('price');
     return cols;
   };
 
@@ -1341,8 +1342,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       classicFinish();
       return;
     }
-    // Backspace على حقل فارغ: خطوة للوراء (العمود السابق، ومن أول عمود يُحذف السطر ونعود لقائمة المواد)
-    if (e.key === 'Backspace' && (e.currentTarget as HTMLInputElement).value === '') {
+    // Backspace (ضغطة منفصلة وليست استمراراً بالإبقاء) على حقل فارغ: خطوة للوراء (العمود السابق، ومن أول عمود يُحذف السطر ونعود لقائمة المواد)
+    if (e.key === 'Backspace' && !e.repeat && (e.currentTarget as HTMLInputElement).value === '') {
       const i = cols.indexOf(col);
       if (i > 0) {
         e.preventDefault();
