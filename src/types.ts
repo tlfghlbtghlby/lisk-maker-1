@@ -548,6 +548,8 @@ export interface StoreSettings {
   allowMultiDeviceShifts?: boolean;
   /** إظهار الكمية المتوفرة للزبون في فاحص الأسعار: none=مخفية، count=الرقم، colors=ألوان */
   /** ما يُعرض للزبون في رابط جملة الجملة إذا لم يكن للمادة سعر جملة جملة */
+  /** ما يُعرض/يُباع إذا لم يكن للمادة سعر جملة (في الروابط ونقطة البيع) */
+  checkerFallbackWholesale?: 'retail' | 'none';
   checkerFallbackSuper?: 'wholesale' | 'retail' | 'none';
   /** ما يُعرض للزبون في رابط السعر الخاص إذا لم يكن للمادة سعر خاص */
   checkerFallbackSpecial?: 'wholesale' | 'retail' | 'none';

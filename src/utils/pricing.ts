@@ -15,20 +15,38 @@ const positive = (n: unknown): number | undefined => {
 
 type PricedProduct = Pick<Product, 'retailPrice' | 'wholesalePrice' | 'superWholesalePrice' | 'specialPrice'>;
 
-// سعر القطعة الواحدة حسب مستوى السعر.
-// إن لم يُحدَّد سعر "جملة الجملة" يُستخدم سعر الجملة، وإن لم يُحدَّد "السعر الخاص" يُستخدم سعر المفرد،
-// حتى لا تُباع مادة بسعر صفر بالخطأ.
-export function getPiecePrice(product: PricedProduct, type: PriceType): number {
+export type PriceFallbackChoice = 'wholesale' | 'retail' | 'none';
+// ما يُستخدم إذا لم يكن للمادة سعر المستوى المطلوب (يحدده صاحب المتجر من الإعدادات، ويسري على الروابط ونقطة البيع)
+export interface PriceFallbacks {
+  wholesale?: 'retail' | 'none';
+  super?: PriceFallbackChoice;
+  special?: PriceFallbackChoice;
+}
+
+// سعر القطعة الواحدة حسب مستوى السعر، أو null إذا لم يوجد سعر واختار صاحب المتجر «لا شيء».
+// الافتراضي: جملة ← المفرد، جملة الجملة ← الجملة، السعر الخاص ← المفرد، حتى لا تُباع مادة بسعر صفر بالخطأ.
+export function resolvePiecePrice(product: PricedProduct, type: PriceType, fb: PriceFallbacks = {}): number | null {
+  const retail = product.retailPrice;
+  const wholesale = positive(product.wholesalePrice) ?? (fb.wholesale === 'none' ? null : retail);
+  const pick = (c: PriceFallbackChoice | undefined, def: PriceFallbackChoice): number | null => {
+    const choice = c || def;
+    return choice === 'none' ? null : choice === 'wholesale' ? wholesale : retail;
+  };
   switch (type) {
     case 'wholesale':
-      return product.wholesalePrice;
+      return wholesale;
     case 'superWholesale':
-      return positive(product.superWholesalePrice) ?? product.wholesalePrice;
+      return positive(product.superWholesalePrice) ?? pick(fb.super, 'wholesale');
     case 'special':
-      return positive(product.specialPrice) ?? product.retailPrice;
+      return positive(product.specialPrice) ?? pick(fb.special, 'retail');
     default:
-      return product.retailPrice;
+      return retail;
   }
+}
+
+// نفس السابق لكن يرجع رقماً دائماً (عند «لا شيء» يُستعمل سعر المفرد) للأماكن التي لا تتعامل مع الغياب
+export function getPiecePrice(product: PricedProduct, type: PriceType, fb: PriceFallbacks = {}): number {
+  return resolvePiecePrice(product, type, fb) ?? product.retailPrice;
 }
 
 // هل حُدِّد سعر فعلي لهذا المستوى (وليس بديلاً احتياطياً)؟

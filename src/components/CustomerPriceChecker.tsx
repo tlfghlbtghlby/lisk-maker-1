@@ -20,6 +20,7 @@ interface StockConfig {
   mode: 'none' | 'count' | 'colors';
   redMax: number;
   yellowMax: number;
+  fallbackWholesale?: 'retail' | 'none';
   fallbackSuper?: 'wholesale' | 'retail' | 'none';
   fallbackSpecial?: 'wholesale' | 'retail' | 'none';
   /** مستويات الأسعار المفعّلة لدى المتجر (المفرد دائماً مفعّل) */
@@ -258,6 +259,7 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
           yellowMax: Number(st.checkerYellowMax) > 0 ? Number(st.checkerYellowMax) : STOCK_COLOR_DEFAULTS.yellowMax,
         };
         if (cfg.yellowMax <= cfg.redMax) cfg.yellowMax = cfg.redMax + 1;
+        cfg.fallbackWholesale = st.checkerFallbackWholesale;
         cfg.fallbackSuper = st.checkerFallbackSuper;
         cfg.fallbackSpecial = st.checkerFallbackSpecial;
         const adminOn = (k: string) =>
@@ -444,7 +446,7 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
       : priceForLevel(
           { retailPrice: p.price, wholesalePrice: p.wholesalePrice, superWholesalePrice: p.superWholesalePrice, specialPrice: p.specialPrice },
           priceLevel,
-          { super: stockCfg.fallbackSuper, special: stockCfg.fallbackSpecial }
+          { wholesale: stockCfg.fallbackWholesale, super: stockCfg.fallbackSuper, special: stockCfg.fallbackSpecial }
         );
   const priceText = (p: ProductItem): string => {
     const v = priceOf(p);
