@@ -40,16 +40,17 @@ export type FallbackChoice = 'wholesale' | 'retail' | 'none';
 export function priceForLevel(
   p: Partial<PricedProduct>,
   level: PriceType,
-  fallbacks: { super?: FallbackChoice; special?: FallbackChoice } = {}
+  fallbacks: { wholesale?: 'retail' | 'none'; super?: FallbackChoice; special?: FallbackChoice } = {}
 ): number | null {
   const retail = Number(p.retailPrice) || 0;
-  const wholesale = pos(p.wholesalePrice) ?? retail;
+  const wholesaleOrNull: number | null = pos(p.wholesalePrice) ?? (fallbacks.wholesale === 'none' ? null : retail);
+  const wholesale = wholesaleOrNull ?? retail;
   const pick = (c: FallbackChoice | undefined, def: FallbackChoice): number | null => {
     const choice = c || def;
     return choice === 'none' ? null : choice === 'wholesale' ? wholesale : retail;
   };
   switch (level) {
-    case 'wholesale': return wholesale;
+    case 'wholesale': return wholesaleOrNull;
     case 'superWholesale': return pos(p.superWholesalePrice) ?? pick(fallbacks.super, 'wholesale');
     case 'special': return pos(p.specialPrice) ?? pick(fallbacks.special, 'retail');
     default: return retail;
