@@ -10,7 +10,7 @@ interface NavigationProps {
   onSelectTab: (tab: TabType) => void;
 }
 
-export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }) => {
+export function useNavItems() {
   const { 
     products, 
     invoices, 
@@ -128,7 +128,12 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
     },
   ];
 
-  const navItems = allNavItems.filter((item) => item.permitted);
+  return allNavItems.filter((item) => item.permitted);
+}
+
+export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }) => {
+  const { settings } = useApp();
+  const navItems = useNavItems();
   const isMobile = settings.deviceMode === 'mobile';
 
   return (

@@ -1,0 +1,100 @@
+/* ===== مظهر تطبيق الأندرويد الأصلي (Material). كل القواعد مقيّدة بـ .android-native فلا أثر لها في الويب أو ويندوز ===== */
+
+html.android-native {
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+.android-native body {
+  overscroll-behavior-y: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.android-native input,
+.android-native textarea,
+.android-native [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+.android-native *::-webkit-scrollbar { display: none; }
+.android-native * { scrollbar-width: none; }
+
+/* ---------- أحجام اللمس (48dp للحقول و40dp للأزرار) ---------- */
+.android-native button,
+.android-native [role="button"],
+.android-native select,
+.android-native summary,
+.android-native label {
+  touch-action: manipulation;
+}
+.android-native button { min-height: 40px; transition: transform .1s ease, filter .1s ease, background-color .15s ease; }
+.android-native button:has(> svg:only-child) { min-width: 40px; }
+.android-native button:active:not(:disabled) { transform: scale(.96); filter: brightness(.93); }
+.android-native button:disabled { opacity: .5; }
+
+.android-native input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+.android-native select,
+.android-native textarea {
+  min-height: 46px;
+  border-radius: 12px;
+}
+.android-native textarea { min-height: 80px; }
+.android-native input[type="checkbox"],
+.android-native input[type="radio"] { width: 22px; height: 22px; }
+
+/* أزرار ملوّنة صلبة بأركان Material */
+.android-native button[class*="bg-emerald-6"],
+.android-native button[class*="bg-emerald-5"],
+.android-native button[class*="bg-blue-6"],
+.android-native button[class*="bg-indigo-6"],
+.android-native button[class*="bg-amber-6"],
+.android-native button[class*="bg-amber-5"],
+.android-native button[class*="bg-rose-6"],
+.android-native button[class*="bg-slate-9"],
+.android-native button[class*="bg-slate-8"] {
+  border-radius: 14px;
+  font-weight: 800;
+  min-height: 44px;
+}
+
+/* ---------- نصوص صغيرة جداً تُكبَّر قليلاً للهاتف ---------- */
+.android-native [class*="text-[9px]"] { font-size: 11px !important; }
+.android-native [class*="text-[10px]"] { font-size: 11.5px !important; }
+
+/* ---------- النوافذ المنبثقة تصبح لوحات سفلية ---------- */
+.android-native .fixed.inset-0[class*="items-center"][class*="justify-center"] {
+  align-items: flex-end;
+  padding: 0;
+}
+.android-native .fixed.inset-0[class*="items-center"][class*="justify-center"] > div {
+  width: 100%;
+  max-width: 100%;
+  max-height: 92dvh;
+  margin: 0;
+  border-radius: 28px 28px 0 0;
+  overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: a-sheet-up .26s cubic-bezier(.2, .8, .2, 1);
+}
+/* لوحات الشريط السفلي والحساب لها تنسيقها الخاص */
+.android-native .android-sheet-panel { animation: a-sheet-up .26s cubic-bezier(.2, .8, .2, 1); }
+.android-native .android-scrim { animation: a-fade .2s ease; }
+
+@keyframes a-sheet-up { from { transform: translateY(40px); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
+@keyframes a-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes a-page-in { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: translateX(0); } }
+.android-native .android-page { animation: a-page-in .2s ease-out; }
+
+/* ---------- الشريط العلوي والسفلي ---------- */
+.android-native .android-icon-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; min-height: 44px; border-radius: 9999px;
+}
+.android-native .android-nav-cell { min-height: 64px; border-radius: 0; filter: none !important; transform: none !important; }
+.android-native .android-nav-cell:active:not(:disabled) > span:first-child { transform: scale(.92); }
+
+/* إخفاء الشريط السفلي أثناء الكتابة كي لا يرتفع فوق لوحة المفاتيح */
+.android-native body:has(input:focus, textarea:focus, select:focus) .android-bottom-nav { display: none; }
+
+/* شريط إجراءات نقطة البيع العائم يرتفع فوق الشريط السفلي */
+.android-native .fixed.bottom-3.left-3.right-3 { bottom: calc(76px + env(safe-area-inset-bottom)); }

@@ -1383,6 +1383,17 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   const isMobileMode = settings.deviceMode === 'mobile';
 
+  // زر الرجوع في أندرويد: من سلة الفاتورة إلى قائمة المواد
+  useEffect(() => {
+    if (!isMobileMode || mobileTab !== 'cart') return;
+    const onBack = (e: Event) => {
+      e.preventDefault();
+      setMobileTab('products');
+    };
+    window.addEventListener('android-back', onBack);
+    return () => window.removeEventListener('android-back', onBack);
+  }, [isMobileMode, mobileTab]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">

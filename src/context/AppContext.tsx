@@ -47,6 +47,7 @@ import {
 } from '../utils/telegram';
 import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/invoiceSeal';
 import { netUnitPrice } from '../utils/promotions';
+import { isAndroidPhone } from '../utils/platform';
 
 export const CURRENT_APP_VERSION = (pkg as any)?.version || '2.0.0';
 
@@ -2948,6 +2949,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateSettings = (newSettings: Partial<StoreSettings>) => {
+    // هاتف أندرويد يعرض واجهة الهاتف محلياً، فلا نحفظ هذا الفرض في إعدادات المتجر المشتركة
+    if (isAndroidPhone && newSettings.deviceMode === 'mobile') {
+      const { deviceMode: _ignored, ...rest } = newSettings;
+      newSettings = rest;
+    }
     setSettings(prev => {
       const u = { ...prev, ...newSettings };
       try {
@@ -3538,6 +3544,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { success: true };
   };
 
+  const exposedSettings = useMemo<StoreSettings>(
+    () => (isAndroidPhone ? { ...settings, deviceMode: 'mobile' } : settings),
+    [settings]
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -3545,7 +3556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         customers,
         invoices,
         payments,
-        settings,
+        settings: exposedSettings,
         storeFeatures,
         draftOrders,
         activeDraftId,

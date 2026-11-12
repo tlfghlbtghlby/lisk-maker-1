@@ -4,6 +4,9 @@ export async function setupNativeApp(): Promise<void> {
   try {
     const cap = (window as any).Capacitor;
     if (!cap?.isNativePlatform?.()) return;
+    if (cap.getPlatform?.() === 'android') {
+      document.documentElement.classList.add('android-native');
+    }
 
     // شريط الحالة: لون داكن يطابق واجهة البرنامج ولا يتداخل مع المحتوى
     const { StatusBar, Style } = await import('@capacitor/status-bar');

@@ -1,0 +1,12 @@
+// كشف منصة التشغيل. لا يعتمد على أي حزمة: Capacitor يحقن window.Capacitor في تطبيق الأندرويد فقط.
+export const isAndroidNative: boolean = (() => {
+  try {
+    const c = (window as any).Capacitor;
+    return !!c?.isNativePlatform?.() && c.getPlatform?.() === 'android';
+  } catch {
+    return false;
+  }
+})();
+
+/** هاتف أندرويد (وليس لوحياً): نفرض عليه واجهة الهاتف دون تغيير الإعداد المحفوظ في السحابة */
+export const isAndroidPhone: boolean = isAndroidNative && typeof window !== 'undefined' && Math.min(window.screen.width, window.screen.height) < 600;

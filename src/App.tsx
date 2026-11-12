@@ -25,6 +25,8 @@ import { AuthView } from './components/AuthView';
 import { SplashScreen } from './components/SplashScreen';
 import { CustomerPriceChecker } from './components/CustomerPriceChecker';
 import { Product, Invoice } from './types';
+import { AndroidTopBar, AndroidBottomNav } from './components/AndroidShell';
+import { isAndroidNative } from './utils/platform';
 import { Boxes, FileText, Users, BarChart3, Settings, ArrowRight, Clock, Briefcase, Tag } from 'lucide-react';
 
 const MainContent: React.FC = () => {
@@ -171,6 +173,77 @@ const MainContent: React.FC = () => {
   const isMobile = settings.deviceMode === 'mobile';
   const isFullComputerMode = !isMobile && (settings.desktopLayout === 'full');
 
+  // ===== تطبيق الأندرويد: زر الرجوع الأصلي =====
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const [backToast, setBackToast] = useState(false);
+  useEffect(() => {
+    if (!isAndroidNative) return;
+    let remove: (() => void) | null = null;
+    let lastBack = 0;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { App: CapApp } = await import('@capacitor/app');
+        const handle = await CapApp.addListener('backButton', () => {
+          // 1) أعلى نافذة/لوحة مفتوحة تُغلق
+          const overlays = Array.from(document.querySelectorAll<HTMLElement>('.fixed.inset-0, [data-sheet-scrim]')).filter(
+            (el) => el.getClientRects().length > 0
+          );
+          if (overlays.length > 0) {
+            const zOf = (el: HTMLElement) => parseInt(getComputedStyle(el.closest('.fixed') || el).zIndex || '0', 10) || 0;
+            const top = overlays.reduce((a, b) => (zOf(b) >= zOf(a) ? b : a));
+            if (top.hasAttribute('data-sheet-scrim')) {
+              top.click();
+              return;
+            }
+            const scrim = top.querySelector<HTMLElement>('[data-sheet-scrim]');
+            if (scrim) {
+              scrim.click();
+              return;
+            }
+            const buttons = Array.from(top.querySelectorAll<HTMLButtonElement>('button'));
+            const closeBtn =
+              buttons.find((b) => /^(إغلاق|اغلاق|إلغاء|الغاء|رجوع|تراجع)/.test((b.textContent || '').trim())) ||
+              buttons.find((b) => b.querySelector('svg.lucide-x'));
+            if (closeBtn) {
+              closeBtn.click();
+              return;
+            }
+            top.click();
+            return;
+          }
+          // 2) شاشة داخلية تتعامل مع الرجوع بنفسها (مثل سلة نقطة البيع)
+          const ev = new Event('android-back', { cancelable: true });
+          window.dispatchEvent(ev);
+          if (ev.defaultPrevented) return;
+          // 3) من أي قسم إلى نقطة البيع
+          if (activeTabRef.current !== 'pos') {
+            setActiveTab('pos');
+            return;
+          }
+          // 4) في نقطة البيع: ضغطتان للخروج
+          const now = Date.now();
+          if (now - lastBack < 2000) {
+            CapApp.exitApp();
+            return;
+          }
+          lastBack = now;
+          setBackToast(true);
+          setTimeout(() => setBackToast(false), 2000);
+        });
+        if (cancelled) handle.remove();
+        else remove = () => handle.remove();
+      } catch (e) {
+        console.warn('back button setup skipped', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      remove?.();
+    };
+  }, []);
+
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [initialBarcodeForNewProduct, setInitialBarcodeForNewProduct] = useState<string | undefined>(undefined);
@@ -295,23 +368,29 @@ const MainContent: React.FC = () => {
     <div className={`min-h-screen flex flex-col bg-slate-100 dark:bg-[#070d18] text-slate-800 dark:text-slate-100 transition-colors duration-200 print:min-h-0 print:h-auto print:block print:bg-white ${isMobile ? 'selection:bg-amber-500' : 'selection:bg-amber-500 selection:text-slate-950'}`}>
       
       {/* 1. الشريط الأسود العلوي (يختفي تماماً في أي نافذة منفصلة لأي خانة) */}
-      {!isStandaloneWindow && (
+      {!isStandaloneWindow && !isAndroidNative && (
         <Header onOpenAuth={() => setIsGuest(false)} />
+      )}
+      {!isStandaloneWindow && isAndroidNative && (
+        <AndroidTopBar
+          title={activeTab === 'pos' ? 'نقطة البيع' : (getActiveTabTitle() || 'المفكر المحاسبي')}
+          onOpenAuth={() => setIsGuest(false)}
+        />
       )}
 
       {/* 2. شريط التبويبات العلوي (يختفي تماماً في أي نافذة منفصلة لأي خانة) */}
-      {!isStandaloneWindow && !isFullComputerMode && (
+      {!isStandaloneWindow && !isFullComputerMode && !isAndroidNative && (
         <Navigation activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
       )}
 
       {/* 3. منطقة المحتوى فقط (تأخذ الشاشة كاملة 100% بدون أي أشرطة مشتتة) */}
-      <main className={`no-print flex-1 w-full mx-auto ${
+      <main key={isAndroidNative ? activeTab : 'main'} className={`no-print flex-1 w-full mx-auto ${isAndroidNative && !isStandaloneWindow ? 'android-page ' : ''}${
         isStandaloneWindow
           ? 'w-full h-full p-2 max-w-full overflow-auto'
           : isMobile 
             ? 'max-w-2xl px-2.5 sm:px-4 py-3 sm:py-4' 
             : 'max-w-[1650px] px-3 sm:px-6 py-3 sm:py-4'
-      }`}>
+      }`} style={isAndroidNative && !isStandaloneWindow ? { paddingBottom: 'calc(84px + env(safe-area-inset-bottom))' } : undefined}>
         {!isStandaloneWindow && isFullComputerMode && activeTab !== 'pos' && (
           <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl flex items-center justify-between mb-4 shadow-sm border border-slate-800">
             <div className="flex items-center gap-2 text-xs font-bold">
@@ -481,6 +560,15 @@ const MainContent: React.FC = () => {
           <SettingsView initialTab={settingsInitialTab} onSaved={() => setActiveTab('pos')} />
         )}
       </main>
+
+      {!isStandaloneWindow && isAndroidNative && (
+        <AndroidBottomNav activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
+      )}
+      {backToast && (
+        <div className="fixed bottom-24 inset-x-0 z-[70] flex justify-center pointer-events-none">
+          <div className="bg-slate-800 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg">اضغط رجوع مرة أخرى للخروج</div>
+        </div>
+      )}
 
       <ProductModal
         isOpen={isProductModalOpen}
