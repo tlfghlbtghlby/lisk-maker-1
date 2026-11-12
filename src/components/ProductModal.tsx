@@ -20,10 +20,13 @@ import {
   HelpCircle,
   Globe2,
   Store,
-  Lock
+  Lock,
+  ImagePlus
 } from 'lucide-react';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { lookupProductDetails, LookupPreference } from '../utils/productLookup';
+import { ProductImageModal } from './ProductImageModal';
+import { saveProductImage, useProductImage, imagesSupported } from '../utils/productImages';
 
 export interface ProductModalProps {
   isOpen: boolean;
@@ -44,6 +47,19 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const { addProduct, updateProduct, products, formatMoney, settings, hasPermission, priceTypeOn } = useApp();
 
   const [code, setCode] = useState('');
+  // الصورة: للمادة الموجودة تُفتح نافذة الصور، وللمادة الجديدة تُختار الصورة وتُحفظ مع المادة
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+  const pendingInputRef = React.useRef<HTMLInputElement>(null);
+  const existingThumb = useProductImage(productToEdit?.id, 'thumb');
+  useEffect(() => {
+    if (!pendingImage) { setPendingPreview(null); return; }
+    const u = URL.createObjectURL(pendingImage);
+    setPendingPreview(u);
+    return () => URL.revokeObjectURL(u);
+  }, [pendingImage]);
+  useEffect(() => { if (!isOpen) setPendingImage(null); }, [isOpen]);
   const [name, setName] = useState('');
   const [category, setCategory] = useState('عام');
   const [unit, setUnit] = useState('قطعة');
@@ -491,7 +507,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     if (productToEdit) {
       updateProduct(productToEdit.id, productData);
     } else {
-      addProduct(productData);
+      const created = addProduct(productData);
+      if (pendingImage && created?.id) {
+        saveProductImage(created.id, pendingImage).catch(() => {});
+      }
     }
 
     onClose();
@@ -525,6 +544,31 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
             </div>
 
+            <div className="flex items-center gap-2">
+            {imagesSupported() && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => (productToEdit ? setImageModalOpen(true) : pendingInputRef.current?.click())}
+                  title={productToEdit ? 'إضافة أو عرض صورة المادة' : 'إضافة صورة للمادة'}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+                >
+                  {(existingThumb || pendingPreview) ? (
+                    <img src={(productToEdit ? existingThumb : pendingPreview) || pendingPreview || ''} alt="" className="w-6 h-6 rounded object-cover" />
+                  ) : (
+                    <ImagePlus className="w-4 h-4" />
+                  )}
+                  <span>{(existingThumb || pendingPreview) ? 'الصورة' : 'إضافة صورة'}</span>
+                </button>
+                <input
+                  ref={pendingInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => { setPendingImage(e.target.files?.[0] || null); e.target.value = ''; }}
+                />
+              </>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -532,6 +576,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             >
               <X className="w-5 h-5" />
             </button>
+            </div>
           </div>
 
           {/* تنبيهات البحث التلقائي والتحقق */}
@@ -1271,6 +1316,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         </div>
       </div>
 
+      {imageModalOpen && productToEdit && (
+        <ProductImageModal product={productToEdit} onClose={() => setImageModalOpen(false)} />
+      )}
       <BarcodeScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}

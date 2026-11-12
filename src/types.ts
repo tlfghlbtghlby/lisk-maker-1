@@ -527,6 +527,8 @@ export interface StoreSettings {
   invertEnterShortcuts?: boolean;
   /** وضع Enter: التنقل في نقطة البيع بلوحة المفاتيح بدون ماوس */
   posKeyboardMode?: boolean;
+  /** الشكل الكلاسيكي لقائمة البيع في نقطة البيع (جدول بخطوط كالقائمة المطبوعة) */
+  posClassicCart?: boolean;
   /** فصل عدد الكراتين عن عدد القطع عند الإضافة */
   separateCartonPieces?: boolean;
   /** حرف التبديل إلى مربع الكرتون */
