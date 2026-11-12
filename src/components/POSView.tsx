@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { registerPosScanHandler } from '../utils/barcodeBus';
 import { Product, SaleType, PriceType, InvoiceItem, Invoice } from '../types';
-import { getPiecePrice, hasOwnPrice, PRICE_TYPE_LABELS } from '../utils/pricing';
+import { getPiecePrice as getPiecePriceBase, resolvePiecePrice, hasOwnPrice, PRICE_TYPE_LABELS } from '../utils/pricing';
 import { applyPromotions } from '../utils/promotions';
 import { 
   Search, 
@@ -377,6 +377,15 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     return ['all', ...Array.from(set)];
   }, [products]);
 
+  // البدائل التي حددها صاحب المتجر عند غياب سعر المستوى (نفس إعدادات روابط الأسعار)
+  const priceFallbacks = {
+    wholesale: settings.checkerFallbackWholesale,
+    super: settings.checkerFallbackSuper,
+    special: settings.checkerFallbackSpecial,
+  };
+  const getPiecePrice = (p: Parameters<typeof getPiecePriceBase>[0], t: PriceType): number => getPiecePriceBase(p, t, priceFallbacks);
+  const resolveFor = (p: Parameters<typeof getPiecePriceBase>[0], t: PriceType): number | null => resolvePiecePrice(p, t, priceFallbacks);
+
   const filteredProducts = useMemo(() => {
     const seen = new Set<string>();
     return products.filter((prod) => {
@@ -509,6 +518,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   };
 
   const addToCartWithPrice = (product: Product, priceType: PriceType, delta = 1) => {
+    if (resolveFor(product, priceType) === null) {
+      setScanNotice(`لا يوجد سعر ${PRICE_TYPE_LABELS[priceType]} للمادة "${product.name}"`);
+      setTimeout(() => setScanNotice(null), 3000);
+      return;
+    }
     quickQtyArmedRef.current = !product.isWeighted ? product.id : null;
     const isWeighted = Boolean(product.isWeighted || product.unit === 'كغم' || product.unit === 'كيلو');
     setCartItems((prev) => {
@@ -1731,9 +1745,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 >
                   {visibleProducts.map((prod, pIdx) => {
                     const isOutOfStock = prod.stock <= 0;
-                    const effectivePrice = tieredMode
-                      ? getPiecePrice(prod, globalPriceType)
+                    const effectivePriceN = tieredMode
+                      ? resolveFor(prod, globalPriceType)
                       : prod.retailPrice;
+                    const effectivePrice = effectivePriceN ?? 0;
 
                     return (
                       <div
@@ -1776,7 +1791,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
                         <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-baseline justify-between gap-1">
                           <span className="text-xs sm:text-sm font-black text-emerald-700 font-mono">
-                            {formatMoney(effectivePrice)}
+                            {effectivePriceN === null ? 'غير متاح' : formatMoney(effectivePrice)}
                           </span>
                           {prod.isWeighted && (
                             <span className="text-[10px] text-slate-400 font-medium">
@@ -1794,14 +1809,32 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     const isLowStock = prod.stock <= prod.minStock;
                     const isOutOfStock = prod.stock <= 0;
                     // يظهر سعر واحد وزره فقط: حسب نوع السعر المختار في جهة قائمة البيع (كما في شكل المربعات)
-                    const canShow = (t: string) =>
+                    const own = (t: string) =>
+                      t === 'wholesale' ? Number(prod.wholesalePrice) > 0
+                      : t === 'superWholesale' ? hasOwnPrice(prod, 'superWholesale')
+                      : t === 'special' ? hasOwnPrice(prod, 'special')
+                      : true;
+                    const typeEnabled = (t: string) =>
                       t === 'retail' ||
-                      (settings.enableWholesale &&
+                      (!!settings.enableWholesale &&
                         priceTypeOn(t as any) &&
                         (t === 'wholesale' ||
-                          (t === 'superWholesale' && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale')) ||
-                          (t === 'special' && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special'))));
-                    const shownType: string = canShow(globalPriceType as string) ? (globalPriceType as string) : 'retail';
+                          (t === 'superWholesale' && settings.showSuperWholesale !== false) ||
+                          (t === 'special' && settings.showSpecialPrice !== false)));
+                    let shownType: string = typeEnabled(globalPriceType as string) ? (globalPriceType as string) : 'retail';
+                    if (shownType !== 'retail' && !own(shownType)) {
+                      // لا يوجد سعر لهذا المستوى: نعرض البديل الذي حدده صاحب المتجر في الإعدادات
+                      const choice =
+                        shownType === 'wholesale' ? (settings.checkerFallbackWholesale || 'retail')
+                        : shownType === 'superWholesale' ? (settings.checkerFallbackSuper || 'wholesale')
+                        : (settings.checkerFallbackSpecial || 'retail');
+                      if (choice === 'none') shownType = 'none';
+                      else if (choice === 'wholesale') {
+                        shownType = own('wholesale') && typeEnabled('wholesale')
+                          ? 'wholesale'
+                          : (settings.checkerFallbackWholesale === 'none' && !own('wholesale') ? 'none' : 'retail');
+                      } else shownType = 'retail';
+                    }
 
                     return (
                       <div
@@ -1903,7 +1936,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                   سعر بيع الجملة:
                                 </div>
                                 <div className="text-xs sm:text-sm font-black text-amber-950 font-mono">
-                                  {formatMoney(prod.wholesalePrice)}
+                                  {formatMoney(getPiecePrice(prod, 'wholesale'))}
                                 </div>
                               </div>
                               <button
@@ -1975,6 +2008,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
+                          {shownType === 'none' && (
+                            <div className="bg-slate-100 border border-dashed border-slate-300 rounded-lg px-3 py-2 text-[11px] font-bold text-slate-500 min-w-[105px] text-center">
+                              السعر غير متاح
+                            </div>
+                          )}
                           {shownType === 'retail' && (
                           <div className="flex flex-col gap-1 min-w-[105px] shrink-0">
                             <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-3 py-1.5 text-right">

@@ -184,6 +184,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
     });
   };
+  const fallbackWholesale = settings.checkerFallbackWholesale || 'retail';
   const fallbackSuper = settings.checkerFallbackSuper || 'wholesale';
   const fallbackSpecial = settings.checkerFallbackSpecial || 'retail';
   const stockMode = settings.checkerStockMode || 'none';
@@ -1172,12 +1173,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     </span>
                   )}
                 </div>
-                {enabled && level !== 'wholesale' && (
+                {enabled && (
                   <div className="flex items-center gap-2 pr-[104px] text-[11px] text-slate-400">
-                    <span>إذا لم يكن للمادة سعر {CHECKER_LEVEL_LABELS[level]} اعرض:</span>
+                    <span>إذا لم يكن للمادة سعر {CHECKER_LEVEL_LABELS[level]} اعرض (في الرابط وفي نقطة البيع):</span>
                     <select
-                      value={level === 'superWholesale' ? fallbackSuper : fallbackSpecial}
-                      onChange={(e) => updateSettings(level === 'superWholesale' ? { checkerFallbackSuper: e.target.value as any } : { checkerFallbackSpecial: e.target.value as any })}
+                      value={level === 'wholesale' ? fallbackWholesale : level === 'superWholesale' ? fallbackSuper : fallbackSpecial}
+                      onChange={(e) => updateSettings(level === 'wholesale' ? { checkerFallbackWholesale: e.target.value as any } : level === 'superWholesale' ? { checkerFallbackSuper: e.target.value as any } : { checkerFallbackSpecial: e.target.value as any })}
                       className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-white font-bold"
                     >
                       {level === 'superWholesale' && <option value="wholesale">سعر الجملة</option>}
