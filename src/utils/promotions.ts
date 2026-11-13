@@ -15,6 +15,7 @@ export function getPromoStatus(p: Promotion, now = new Date()): PromoStatus {
 
 export const PROMO_KIND_LABELS: Record<Promotion['kind'], string> = {
   discount: 'خصم على مادة',
+  qty_discount: 'خصم عند أخذ عدد معين من القطع (نسبة أو مبلغ)',
   bonus_same: 'اشترِ N وخذ M من نفس المادة (تُضاف قطع مجانية)',
   bonus_other: 'اشترِ N وخذ M من مادة أخرى مجاناً',
   nth_free: 'N والتالي مجاني (ضمن نفس الكمية المشتراة)',
@@ -27,6 +28,13 @@ export function describePromotion(p: Promotion): string {
       return p.discountType === 'percent'
         ? `خصم ${p.discountValue || 0}% على ${name}`
         : `خصم ${(p.discountValue || 0).toLocaleString()} د.ع لكل قطعة من ${name}`;
+    case 'qty_discount': {
+      const v = p.discountValue || 0;
+      const how = p.discountType === 'percent'
+        ? `${v}%`
+        : p.discountScope === 'total' ? `${v.toLocaleString()} د.ع` : `${v.toLocaleString()} د.ع لكل قطعة`;
+      return `عند أخذ ${p.buyQty || 0} قطع فأكثر من ${name}: خصم ${how}`;
+    }
     case 'bonus_same':
       return `${p.buyQty || 0}+${p.getQty || 0} من ${name} (قطع مجانية إضافية)`;
     case 'bonus_other':
@@ -85,6 +93,21 @@ export function applyPromotions(
 
   const byProduct = (id: string) => products.find((p) => p.id === id);
 
+  // الخصم حسب الكمية: عند تعدد الشرائح لنفس المادة تُطبَّق أعلى شريحة تحققت فقط (لا تتراكم)
+  const bestTier = new Map<string, string>();
+  {
+    const tiers = new Map<string, { id: string; min: number }>();
+    for (const promo of active) {
+      if (promo.kind !== 'qty_discount') continue;
+      const min = Math.max(1, Math.floor(Number(promo.buyQty) || 0));
+      const pcs = items.filter((it) => it.productId === promo.productId && !it.isGift).reduce((s, it) => s + piecesOf(it), 0);
+      if (pcs < min) continue;
+      const cur = tiers.get(promo.productId);
+      if (!cur || min > cur.min) tiers.set(promo.productId, { id: promo.id, min });
+    }
+    tiers.forEach((v, k) => bestTier.set(k, v.id));
+  }
+
   for (const promo of active) {
     const lines = items.filter((it) => it.productId === promo.productId && !it.isGift);
     if (lines.length === 0) continue;
@@ -102,6 +125,31 @@ export function applyPromotions(
           : value * perPieceDivisor(it) * it.quantity;
         d = Math.min(base, Math.round(d));
         if (d <= 0) continue;
+        it.discount = (it.discount || 0) + d;
+        it.total = Math.max(0, base - it.discount);
+        it.promoLabel = describePromotion(promo);
+        sum += d;
+      }
+      if (sum > 0) notes.push(`${describePromotion(promo)}: -${sum.toLocaleString()}`);
+      continue;
+    }
+
+    if (promo.kind === 'qty_discount') {
+      if (bestTier.get(promo.productId) !== promo.id) continue;
+      const value = Math.max(0, Number(promo.discountValue) || 0);
+      if (value <= 0) continue;
+      let remaining = value; // للمبلغ الثابت «مرة واحدة»
+      let sum = 0;
+      for (const it of lines) {
+        if ((it as any).isCustomPrice) continue;
+        const base = (it as any)._base as number;
+        let d: number;
+        if (promo.discountType === 'percent') d = (base * Math.min(100, value)) / 100;
+        else if (promo.discountScope === 'total') { d = remaining; }
+        else d = value * perPieceDivisor(it) * it.quantity;
+        d = Math.min(base - (it.discount || 0), Math.round(d));
+        if (d <= 0) continue;
+        if (promo.discountType !== 'percent' && promo.discountScope === 'total') remaining -= d;
         it.discount = (it.discount || 0) + d;
         it.total = Math.max(0, base - it.discount);
         it.promoLabel = describePromotion(promo);

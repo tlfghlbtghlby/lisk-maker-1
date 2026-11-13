@@ -23,6 +23,7 @@ interface FormState {
   productId: string;
   discountType: 'percent' | 'amount';
   discountValue: string;
+  discountScope: 'per_piece' | 'total';
   buyQty: string;
   getQty: string;
   rewardProductId: string;
@@ -36,6 +37,7 @@ const emptyForm = (): FormState => ({
   productId: '',
   discountType: 'percent',
   discountValue: '',
+  discountScope: 'per_piece',
   buyQty: '3',
   getQty: '1',
   rewardProductId: '',
@@ -146,6 +148,7 @@ export function OffersView() {
       productId: p.productId,
       discountType: p.discountType || 'percent',
       discountValue: p.discountValue != null ? String(p.discountValue) : '',
+      discountScope: p.discountScope || 'per_piece',
       buyQty: String(p.buyQty ?? 3),
       getQty: String(p.getQty ?? 1),
       rewardProductId: p.rewardProductId || '',
@@ -173,7 +176,13 @@ export function OffersView() {
     if (base.startDate && base.endDate && base.endDate < base.startDate) {
       return setError('تاريخ النهاية يجب أن يكون بعد تاريخ البداية.');
     }
-    if (form.kind === 'discount') {
+    if (form.kind === 'discount' || form.kind === 'qty_discount') {
+      if (form.kind === 'qty_discount') {
+        const minQ = Math.floor(Number(form.buyQty));
+        if (!(minQ >= 2)) return setError('أدخل عدد القطع المطلوب للخصم (2 فأكثر).');
+        base.buyQty = minQ;
+        if (form.discountType === 'amount') base.discountScope = form.discountScope;
+      }
       const v = Number(form.discountValue);
       if (!(v > 0)) return setError('أدخل قيمة الخصم.');
       if (form.discountType === 'percent' && v > 100) return setError('النسبة المئوية لا تتجاوز 100.');
@@ -258,7 +267,7 @@ export function OffersView() {
               <div key={p.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    {p.kind === 'discount' ? (
+                    {p.kind === 'discount' || p.kind === 'qty_discount' ? (
                       <Percent className="w-4 h-4 text-fuchsia-600 shrink-0" />
                     ) : (
                       <Gift className="w-4 h-4 text-fuchsia-600 shrink-0" />
@@ -350,28 +359,56 @@ export function OffersView() {
               </div>
 
               <ProductPicker
-                label={form.kind === 'discount' ? 'المادة' : 'المادة المشتراة'}
+                label={form.kind === 'discount' || form.kind === 'qty_discount' ? 'المادة' : 'المادة المشتراة'}
                 products={products}
                 value={form.productId}
                 onChange={(id) => set('productId', id)}
               />
 
-              {form.kind === 'discount' ? (
+              {form.kind === 'qty_discount' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">عند أخذ (عدد القطع فأكثر)</label>
+                  <input
+                    type="number"
+                    min={2}
+                    value={form.buyQty}
+                    onChange={(e) => set('buyQty', e.target.value)}
+                    placeholder="2"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-900"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    لإضافة شرائح متعددة (مثلاً عند 2 خصم 250 وعند 3 خصم 500) أنشئ عرضاً لكل شريحة؛ يُطبَّق الأعلى المتحقق فقط ولا تتراكم. الكراتين والدرزن تُحسب بعدد قطعها.
+                  </p>
+                </div>
+              )}
+
+              {form.kind === 'discount' || form.kind === 'qty_discount' ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">نوع الخصم</label>
                     <select
-                      value={form.discountType}
-                      onChange={(e) => set('discountType', e.target.value as 'percent' | 'amount')}
+                      value={form.discountType === 'amount' && form.discountScope === 'total' && form.kind === 'qty_discount' ? 'amount_total' : form.discountType}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === 'amount_total') { set('discountType', 'amount'); set('discountScope', 'total'); }
+                        else { set('discountType', v as 'percent' | 'amount'); set('discountScope', 'per_piece'); }
+                      }}
                       className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-900"
                     >
                       <option value="percent">نسبة مئوية %</option>
-                      <option value="amount">مبلغ لكل قطعة (دينار)</option>
+                      {form.kind === 'qty_discount' ? (
+                        <>
+                          <option value="amount">مبلغ لكل قطعة (دينار)</option>
+                          <option value="amount_total">مبلغ ثابت مرة واحدة (دينار)</option>
+                        </>
+                      ) : (
+                        <option value="amount">مبلغ لكل قطعة (دينار)</option>
+                      )}
                     </select>
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      {form.discountType === 'percent' ? 'النسبة %' : 'المبلغ لكل قطعة'}
+                      {form.discountType === 'percent' ? 'النسبة %' : form.discountScope === 'total' && form.kind === 'qty_discount' ? 'المبلغ (دينار)' : 'المبلغ لكل قطعة'}
                     </label>
                     <input
                       type="number"
