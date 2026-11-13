@@ -45,6 +45,8 @@ export interface Product {
   piecesPerCarton?: number;
   /** فئة وسطية اختيارية (درزن): عدد القطع في الدرزن؛ 0/غير موجود = معطّلة */
   piecesPerDozen?: number;
+  /** وحدة البيع الافتراضية عند مسح الباركود فقط (الافتراضي: قطعة) */
+  scanUnit?: 'piece' | 'dozen' | 'carton';
   minStock: number;
   isWeighted?: boolean;
   itemCount?: number;

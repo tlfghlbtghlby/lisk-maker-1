@@ -82,6 +82,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [stock, setStock] = useState<number | ''>(0);
   const [minStock, setMinStock] = useState<number | ''>(5);
   const [piecesPerCarton, setPiecesPerCarton] = useState<number | ''>(1);
+  const [scanUnit, setScanUnit] = useState<'piece' | 'dozen' | 'carton'>('piece');
   const [dozenOn, setDozenOn] = useState(false);
   const [piecesPerDozen, setPiecesPerDozen] = useState<number | ''>(12);
   const [isWeighted, setIsWeighted] = useState(false);
@@ -205,6 +206,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       const ppc = productToEdit.piecesPerCarton || 1;
       setPiecesPerCarton(ppc);
       setDozenOn((productToEdit.piecesPerDozen || 0) > 1);
+      setScanUnit(productToEdit.scanUnit || 'piece');
       setPiecesPerDozen((productToEdit.piecesPerDozen || 0) > 1 ? productToEdit.piecesPerDozen! : 12);
 
       const isUsd = productToEdit.priceCurrency === 'USD' && !!productToEdit.usdPrices;
@@ -250,6 +252,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       
       setPiecesPerCarton(1);
       setDozenOn(false);
+      setScanUnit('piece');
       setPiecesPerDozen(12);
       setCartonCostInput('');
       setPieceCostInput('');
@@ -526,6 +529,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       stock: numStock,
       minStock: typeof minStock === 'number' ? minStock : 5,
       piecesPerCarton: numPieces,
+      scanUnit: (!isWeighted && ((scanUnit === 'dozen' && dozenOn) || (scanUnit === 'carton' && numPieces > 1))) ? scanUnit : 'piece',
       piecesPerDozen: dozenOn && !isWeighted && typeof piecesPerDozen === 'number' && piecesPerDozen > 1 ? piecesPerDozen : 0,
       isWeighted,
       notes: notes.trim(),
@@ -866,6 +870,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     <span className="text-[11px] text-slate-500 dark:text-slate-400">الافتراضي 12 ويمكن تغييره. أزل العلامة لإبقاء فئتين فقط (قطعة وكرتون).</span>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* وحدة البيع الافتراضية عند مسح الباركود */}
+            {!isWeighted && (numPieces > 1 || dozenOn) && (
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#070e1b] px-3 py-2.5 flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">البيع الافتراضي عند مسح الباركود:</span>
+                <select
+                  value={scanUnit === 'dozen' && !dozenOn ? 'piece' : scanUnit === 'carton' && numPieces <= 1 ? 'piece' : scanUnit}
+                  onChange={(e) => setScanUnit(e.target.value as 'piece' | 'dozen' | 'carton')}
+                  className="bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="piece">قطعة</option>
+                  {dozenOn && <option value="dozen">درزن</option>}
+                  {numPieces > 1 && <option value="carton">كرتون</option>}
+                </select>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">يطبَّق عند المسح فقط، أما الضغط على المادة بالماوس فيبقى كما هو.</span>
               </div>
             )}
 
