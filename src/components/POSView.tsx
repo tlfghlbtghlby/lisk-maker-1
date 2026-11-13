@@ -41,6 +41,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
+import { ChangeCalculatorModal } from './ChangeCalculatorModal';
 import { ProductThumbPreview } from './ProductImageModal';
 import { SessionBadgeButton } from './SessionBadgeButton';
 
@@ -246,6 +247,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [mobileTab, setMobileTab] = useState<'products' | 'cart'>('products');
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+  const [showChangeCalc, setShowChangeCalc] = useState(false);
   
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     try {
@@ -789,7 +791,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   useEffect(() => {
     if (!kbMode || kbZone !== 'list' || entry) return;
     const onKey = (ev: KeyboardEvent) => {
-      if (showQuickAddModal || isScannerOpen || unfoundBarcodePrompt || productForPriceEdit || isSelectRepModalOpen || showClearConfirmModal || giftMenu) return;
+      if (showQuickAddModal || isScannerOpen || unfoundBarcodePrompt || productForPriceEdit || isSelectRepModalOpen || showClearConfirmModal || showChangeCalc || giftMenu) return;
       const t = ev.target as HTMLElement;
       if (t && (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(t.tagName) || t.isContentEditable)) return;
       if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
@@ -887,7 +889,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         !!unfoundBarcodePrompt || 
         !!productForPriceEdit || 
         isSelectRepModalOpen || 
-        showClearConfirmModal
+        showClearConfirmModal ||
+        showChangeCalc
       ) {
         return;
       }
@@ -983,7 +986,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [showQuickAddModal, isScannerOpen, unfoundBarcodePrompt, productForPriceEdit, isSelectRepModalOpen, showClearConfirmModal]);
+  }, [showQuickAddModal, isScannerOpen, unfoundBarcodePrompt, productForPriceEdit, isSelectRepModalOpen, showClearConfirmModal, showChangeCalc]);
 
   const updateQuantity = (productId: string, newQty: number) => {
     if (newQty <= 0) {
@@ -1381,6 +1384,28 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     if (fromKeyboard) setCellFocus({ id: prod.id, col: first });
     else if (sepMode) setCellFocus({ id: prod.id, col: first === 'c' ? 'p' : first });
   };
+
+  // F5: فتح حاسبة الباقي (يُمنع تحديث الصفحة ما دامت الميزة مفعّلة)
+  const openChangeCalc = () => {
+    if (settings.enableChangeCalculator === false) return;
+    if (cartItemsRef.current.length === 0) {
+      setCartErrorNotice('أضف مواد إلى القائمة أولاً لتستخدم حاسبة الباقي');
+      setTimeout(() => setCartErrorNotice(null), 3000);
+      return;
+    }
+    setShowChangeCalc(true);
+  };
+  useEffect(() => {
+    const onF5 = (e: KeyboardEvent) => {
+      if (e.key !== 'F5' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (settings.enableChangeCalculator === false) return;
+      e.preventDefault();
+      if (showQuickAddModal || isScannerOpen || unfoundBarcodePrompt || productForPriceEdit || isSelectRepModalOpen || showClearConfirmModal || showChangeCalc) return;
+      openChangeCalc();
+    };
+    window.addEventListener('keydown', onF5);
+    return () => window.removeEventListener('keydown', onF5);
+  });
 
   const handleSaveInvoice = (andPrint: boolean) => {
     if (sessionRole === 'employee' && !activeShift) {
@@ -2855,6 +2880,18 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   </div>
                 )}
 
+                {settings.enableChangeCalculator !== false && cartItems.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={openChangeCalc}
+                    className="py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition cursor-pointer"
+                    title="حاسبة الباقي: اختر فئات النقود المستلمة لمعرفة الباقي"
+                  >
+                    <span>💵 حاسبة الباقي</span>
+                    <span className="hidden sm:inline-block px-1 py-0.2 text-[9px] bg-black/10 rounded font-mono font-bold">F5</span>
+                  </button>
+                )}
+
                 <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                   <button
                     type="button"
@@ -2907,6 +2944,19 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           </div>
         )}
       </div>
+
+      {showChangeCalc && (
+        <ChangeCalculatorModal
+          total={finalTotal}
+          formatMoney={formatMoney}
+          canSave={cartItems.length > 0 && !(saleType === 'credit' && !selectedCustomerId)}
+          onClose={() => setShowChangeCalc(false)}
+          onSave={(print) => {
+            setShowChangeCalc(false);
+            handleSaveInvoice(print);
+          }}
+        />
+      )}
 
       <BarcodeScannerModal
         isOpen={isScannerOpen}
