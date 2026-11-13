@@ -21,6 +21,7 @@ interface FormState {
   id?: string;
   kind: PromotionKind;
   productId: string;
+  productIds: string[];
   discountType: 'percent' | 'amount';
   discountValue: string;
   discountScope: 'per_piece' | 'total';
@@ -36,6 +37,7 @@ interface FormState {
 const emptyForm = (): FormState => ({
   kind: 'discount',
   productId: '',
+  productIds: [],
   discountType: 'percent',
   discountValue: '',
   discountScope: 'per_piece',
@@ -112,6 +114,75 @@ function ProductPicker({
   );
 }
 
+function MultiProductPicker({
+  label,
+  products,
+  values,
+  onChange,
+}: {
+  label: string;
+  products: Product[];
+  values: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [q, setQ] = useState('');
+  const results = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return [];
+    return products
+      .filter((p) => !values.includes(p.id) && (p.name.toLowerCase().includes(t) || String(p.code || '').toLowerCase().includes(t)))
+      .slice(0, 8);
+  }, [q, products, values]);
+
+  return (
+    <div>
+      <label className="block text-xs font-bold text-slate-700 mb-1">{label}</label>
+      {values.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {values.map((id) => {
+            const pr = products.find((p) => p.id === id);
+            return (
+              <span key={id} className="inline-flex items-center gap-1.5 border border-emerald-300 bg-emerald-50 rounded-full ps-3 pe-1.5 py-1 text-xs font-bold text-emerald-900">
+                <span className="truncate max-w-[200px]">{pr?.name || id}</span>
+                <button type="button" onClick={() => onChange(values.filter((x) => x !== id))} className="w-4 h-4 rounded-full text-rose-600 hover:bg-rose-600 hover:text-white leading-none" title="إزالة">×</button>
+              </span>
+            );
+          })}
+        </div>
+      )}
+      <div className="relative">
+        <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={values.length ? 'أضف مادة أخرى إلى نفس العرض...' : 'ابحث باسم المادة أو رمزها...'}
+          className="w-full border border-slate-300 rounded-lg pr-9 pl-3 py-2 text-sm bg-white text-slate-900"
+        />
+        {results.length > 0 && (
+          <div className="absolute z-10 mt-1 w-full bg-white border border-slate-300 rounded-lg shadow-lg max-h-56 overflow-auto">
+            {results.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => { onChange([...values, p.id]); setQ(''); }}
+                className="w-full text-right px-3 py-2 text-sm hover:bg-slate-100 text-slate-900 border-b border-slate-100 last:border-0"
+              >
+                {p.name}
+                {p.code ? <span className="text-slate-400 text-xs mr-2 font-mono">{p.code}</span> : null}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {values.length > 1 && (
+        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+          عدة مواد في عرض واحد: تُحسب كمياتها معاً (مثلاً 2+1 مع ليمون وبرتقال وعنب). والقطعة المجانية تكون الأرخص سعراً بين ما اشتراه الزبون.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function OffersView() {
   const { products, settings, updateSettings } = useApp() as any;
   const promotions: Promotion[] = settings.promotions || [];
@@ -148,6 +219,7 @@ export function OffersView() {
       id: p.id,
       kind: p.kind,
       productId: p.productId,
+      productIds: p.productIds && p.productIds.length ? p.productIds : [p.productId],
       discountType: p.discountType || 'percent',
       discountValue: p.discountValue != null ? String(p.discountValue) : '',
       discountScope: p.discountScope || 'per_piece',
@@ -163,13 +235,15 @@ export function OffersView() {
 
   const submit = () => {
     if (!form) return;
-    if (!form.productId) return setError('اختر المادة أولاً.');
+    if (form.productIds.length === 0) return setError('اختر مادة واحدة على الأقل.');
     const now = new Date().toISOString();
     const base: Promotion = {
       id: form.id || 'promo_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
       kind: form.kind,
-      productId: form.productId,
-      productName: productName(form.productId),
+      productId: form.productIds[0],
+      productName: productName(form.productIds[0]),
+      productIds: form.productIds.length > 1 ? form.productIds : undefined,
+      productNames: form.productIds.length > 1 ? form.productIds.map((id) => productName(id)) : undefined,
       active: form.active,
       startDate: form.startDate || undefined,
       endDate: form.endDate || undefined,
@@ -362,11 +436,11 @@ export function OffersView() {
                 </select>
               </div>
 
-              <ProductPicker
-                label={form.kind === 'discount' || form.kind === 'qty_discount' ? 'المادة' : 'المادة المشتراة'}
+              <MultiProductPicker
+                label={form.kind === 'discount' || form.kind === 'qty_discount' ? 'المادة أو المواد (يمكن إضافة عدة أنواع)' : 'المادة أو المواد المشتراة (يمكن إضافة عدة أنواع)'}
                 products={products}
-                value={form.productId}
-                onChange={(id) => set('productId', id)}
+                values={form.productIds}
+                onChange={(ids) => set('productIds', ids)}
               />
 
               {form.kind === 'qty_discount' && (
