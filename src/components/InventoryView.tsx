@@ -1,3 +1,4 @@
+import { StockAdjustModal } from './StockAdjustModal';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
@@ -62,6 +63,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const canUseImages = imagesSupported();
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'stock' | 'profit' | 'price' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -588,7 +590,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                   {prod.stock} كغم {typeof prod.itemCount === 'number' && prod.itemCount > 0 ? `(${prod.itemCount} عدد/كيس)` : ''}
                                 </span>
 
-                                <div className="flex items-center gap-1 text-[11px] whitespace-nowrap">
+                                <div className="flex flex-wrap items-center justify-center gap-1 text-[11px]">
                                   <button
                                     type="button"
                                     onClick={() => adjustStock(prod.id, -1, { log: true })}
@@ -611,6 +613,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                   >
                                     +5 كغم
                                   </button>
+                                  <span className="text-slate-300">|</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAdjustProduct(prod)}
+                                    className="px-1.5 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 transition"
+                                    title="إضافة أو إنقاص كمية مخصصة مع ملاحظة وتاريخ انتهاء"
+                                  >
+                                    ± مخصص
+                                  </button>
                                 </div>
                               </div>
                             );
@@ -630,7 +641,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                 {breakdown.formatted}
                               </span>
 
-                              <div className="flex items-center gap-1 text-[11px] whitespace-nowrap">
+                              <div className="flex flex-wrap items-center justify-center gap-1 text-[11px]">
                                 <button
                                   type="button"
                                   onClick={() => adjustStock(prod.id, -1, { log: true })}
@@ -664,6 +675,15 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                                     </button>
                                   </>
                                 )}
+                                <span className="text-slate-300">|</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setAdjustProduct(prod)}
+                                  className="px-1.5 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 transition"
+                                  title="إضافة أو إنقاص كمية مخصصة مع ملاحظة وتاريخ انتهاء"
+                                >
+                                  ± مخصص
+                                </button>
                               </div>
                             </div>
                           );
@@ -802,6 +822,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           onClose={() => setMovementProduct(null)}
         />
       )}
+      {adjustProduct && <StockAdjustModal product={adjustProduct} onClose={() => setAdjustProduct(null)} />}
     </div>
   );
 };

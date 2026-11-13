@@ -544,6 +544,9 @@ export interface StoreSettings {
   enableChangeCalculator?: boolean;
   /** أقسام/تصنيفات المواد التي أضافها المستخدم يدوياً */
   productCategories?: string[];
+  /** الموردون (الشركات) وسجل الاستلام والتسديد */
+  suppliers?: Supplier[];
+  supplierTxns?: SupplierTxn[];
   /** الشكل الكلاسيكي لقائمة البيع في نقطة البيع (جدول بخطوط كالقائمة المطبوعة) */
   posClassicCart?: boolean;
   /** فصل عدد الكراتين عن عدد القطع عند الإضافة */
@@ -684,3 +687,62 @@ export const DEFAULT_ADMIN_PERMISSIONS: RolePermissions = {
   canManageSalesReps: true,
   canViewCostPrice: true,
 };
+
+// ---------- الموردون ومندوبو الشركات ----------
+export interface SupplierRep {
+  id: string;
+  name: string;
+  phone?: string;
+  notes?: string;
+}
+
+export interface Supplier {
+  id: string;
+  /** اسم الشركة/المورد */
+  company: string;
+  /** اسم صاحب الحساب أو المسؤول (اختياري) */
+  name?: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+  /** مندوبو الشركة */
+  reps: SupplierRep[];
+  /** دين سابق علينا للمورد قبل استخدام البرنامج */
+  openingDebt?: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface SupplierTxnItem {
+  productId?: string;
+  name: string;
+  /** عدد القطع الفعلي المضاف للمخزون */
+  pieces: number;
+  /** الكمية والوحدة كما أُدخلت */
+  qty: number;
+  unitLabel: string;
+  /** سعر الوحدة المُدخلة */
+  unitCost: number;
+  total: number;
+  expiryDate?: string;
+  productionDate?: string;
+}
+
+export interface SupplierTxn {
+  id: string;
+  supplierId: string;
+  /** purchase: استلام بضاعة (يزيد الدين علينا)، payment: تسديد للمورد (ينقص الدين) */
+  type: 'purchase' | 'payment';
+  /** تاريخ الحركة YYYY-MM-DD */
+  date: string;
+  /** purchase: إجمالي القائمة، payment: المبلغ المسدَّد */
+  total: number;
+  /** purchase: المدفوع وقت الاستلام */
+  paid?: number;
+  repName?: string;
+  invoiceNo?: string;
+  receiptNo?: string;
+  notes?: string;
+  items?: SupplierTxnItem[];
+  createdAt: string;
+}
