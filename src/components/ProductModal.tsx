@@ -876,7 +876,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             {/* وحدة البيع الافتراضية عند مسح الباركود */}
             {!isWeighted && (numPieces > 1 || dozenOn) && (
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#070e1b] px-3 py-2.5 flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">البيع الافتراضي عند مسح الباركود:</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">وحدة البيع الافتراضية (عند الضغط على المادة أو مسح الباركود):</span>
                 <select
                   value={scanUnit === 'dozen' && !dozenOn ? 'piece' : scanUnit === 'carton' && numPieces <= 1 ? 'piece' : scanUnit}
                   onChange={(e) => setScanUnit(e.target.value as 'piece' | 'dozen' | 'carton')}
@@ -886,7 +886,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   {dozenOn && <option value="dozen">درزن</option>}
                   {numPieces > 1 && <option value="carton">كرتون</option>}
                 </select>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">يطبَّق عند المسح فقط، أما الضغط على المادة بالماوس فيبقى كما هو.</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">تُضاف بها المادة أول مرة، ويمكنك تغيير الوحدة لاحقاً من أزرار السطر.</span>
               </div>
             )}
 
