@@ -393,7 +393,7 @@ export interface StoreSupervisor {
   createdAt: string;
 }
 
-export type PromotionKind = 'discount' | 'bonus_same' | 'bonus_other' | 'nth_free';
+export type PromotionKind = 'discount' | 'qty_discount' | 'bonus_same' | 'bonus_other' | 'nth_free';
 
 export interface Promotion {
   id: string;
@@ -404,6 +404,8 @@ export interface Promotion {
   startDate?: string;          // YYYY-MM-DD (فارغ = من الآن)
   endDate?: string;            // YYYY-MM-DD (فارغ = حتى الإيقاف أو الحذف)
   discountType?: 'percent' | 'amount';
+  /** للخصم حسب الكمية بمبلغ ثابت: لكل قطعة أو مرة واحدة على المادة */
+  discountScope?: 'per_piece' | 'total';
   discountValue?: number;      // نسبة مئوية، أو مبلغ لكل قطعة (لكل كغم للمواد الموزونة)
   buyQty?: number;             // اشترِ N
   getQty?: number;             // احصل على M مجاناً
