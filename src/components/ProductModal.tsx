@@ -45,7 +45,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   productToEdit,
   initialCode,
 }) => {
-  const { addProduct, updateProduct, products, formatMoney, settings, hasPermission, priceTypeOn } = useApp();
+  const { addProduct, updateProduct, products, formatMoney, settings, updateSettings, hasPermission, priceTypeOn } = useApp();
 
   const [code, setCode] = useState('');
   // الصورة: للمادة الموجودة تُفتح نافذة الصور، وللمادة الجديدة تُختار الصورة وتُحفظ مع المادة
@@ -118,11 +118,28 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     cats.add('كوزمتك وعناية');
     cats.add('إلكترونيات');
     cats.add('بلاستيك ومنزلي');
+    (settings.productCategories || []).forEach((c) => { if (c && c.trim()) cats.add(c.trim()); });
     products.forEach((p) => {
       if (p.category && p.category.trim()) cats.add(p.category.trim());
     });
     return Array.from(cats);
-  }, [products]);
+  }, [products, settings.productCategories]);
+
+  const BUILTIN_CATS = ['عام','مواد غذائية','منظفات','مشروبات وعصائر','حلويات وشوكولاتة','ألبان وأجبان','قرطاسية','كوزمتك وعناية','إلكترونيات','بلاستيك ومنزلي'];
+  const savedCats = settings.productCategories || [];
+
+  const saveNewCategory = (raw?: string) => {
+    const c = (raw ?? category).trim();
+    if (!c) return;
+    if (!existingCategories.includes(c)) {
+      updateSettings({ productCategories: [...savedCats, c] });
+    }
+    setCategory(c);
+  };
+  const removeSavedCategory = (c: string) => {
+    updateSettings({ productCategories: savedCats.filter((x) => x !== c) });
+  };
+  const canAddCategory = category.trim() !== '' && !existingCategories.includes(category.trim());
 
   // توليد باركود تلقائي فريد
   const generateUniqueBarcode = () => {
@@ -465,6 +482,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       return;
     }
 
+    const catFinal = category.trim();
+    if (catFinal && !BUILTIN_CATS.includes(catFinal) && !savedCats.includes(catFinal)) {
+      updateSettings({ productCategories: [...savedCats, catFinal] });
+    }
+
     const productData = {
       code: finalCode,
       name: name.trim(),
@@ -730,6 +752,25 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     ))}
                   </datalist>
                 </div>
+                {canAddCategory && (
+                  <button
+                    type="button"
+                    onClick={() => saveNewCategory()}
+                    className="w-full text-xs font-bold px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white"
+                  >
+                    ＋ حفظ «{category.trim()}» كقسم جديد
+                  </button>
+                )}
+                {savedCats.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {savedCats.map((c) => (
+                      <span key={c} className="inline-flex items-center gap-1 text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full ps-2 pe-1 py-0.5">
+                        <button type="button" onClick={() => setCategory(c)} className="hover:text-emerald-600">{c}</button>
+                        <button type="button" title="حذف القسم من القائمة" onClick={() => removeSavedCategory(c)} className="w-4 h-4 rounded-full hover:bg-red-500 hover:text-white leading-none">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-1">
