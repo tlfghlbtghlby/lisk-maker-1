@@ -21,8 +21,11 @@ export const PROMO_KIND_LABELS: Record<Promotion['kind'], string> = {
   nth_free: 'N والتالي مجاني (ضمن نفس الكمية المشتراة)',
 };
 
+export const promoIds = (p: Promotion): string[] => (p.productIds && p.productIds.length > 0 ? p.productIds : [p.productId]);
+const groupKey = (p: Promotion): string => [...promoIds(p)].sort().join('|');
+
 export function describePromotion(p: Promotion): string {
-  const name = p.productName || '';
+  const name = p.productNames && p.productNames.length > 1 ? p.productNames.join(' / ') : (p.productName || '');
   switch (p.kind) {
     case 'discount':
       return p.discountType === 'percent'
@@ -102,10 +105,12 @@ export function applyPromotions(
     for (const promo of active) {
       if (promo.kind !== 'qty_discount' || promo.discountRepeat !== false) continue;
       const min = Math.max(1, Math.floor(Number(promo.buyQty) || 0));
-      const pcs = items.filter((it) => it.productId === promo.productId && !it.isGift).reduce((s, it) => s + piecesOf(it), 0);
+      const gids = promoIds(promo);
+      const pcs = items.filter((it) => gids.includes(it.productId) && !it.isGift).reduce((s, it) => s + piecesOf(it), 0);
       if (pcs < min) continue;
-      const cur = tiers.get(promo.productId);
-      if (!cur || min > cur.min) tiers.set(promo.productId, { id: promo.id, min });
+      const gk = groupKey(promo);
+      const cur = tiers.get(gk);
+      if (!cur || min > cur.min) tiers.set(gk, { id: promo.id, min });
     }
     tiers.forEach((v, k) => bestTier.set(k, v.id));
   }
@@ -113,15 +118,19 @@ export function applyPromotions(
   // خصم الباقات: كل مجموعة كاملة من N قطعة تأخذ خصمها، وتُملأ الأكبر أولاً ثم الأصغر بالباقي
   // مثال (سعر 500): عند 2 ← 750، عند 3 ← 1000: الكمية 4 = 1500، و5 = 1750، و6 = 2000
   {
-    const pids = Array.from(new Set(active.filter((p) => p.kind === 'qty_discount' && p.discountRepeat !== false).map((p) => p.productId)));
-    for (const pid of pids) {
-      const lines = items.filter((it) => it.productId === pid && !it.isGift && !(it as any).isCustomPrice);
+    const groups = new Map<string, Promotion[]>();
+    active.filter((p) => p.kind === 'qty_discount' && p.discountRepeat !== false).forEach((p) => {
+      const k = groupKey(p);
+      groups.set(k, [...(groups.get(k) || []), p]);
+    });
+    for (const plist of Array.from(groups.values())) {
+      const gids = promoIds(plist[0]);
+      const lines = items.filter((it) => gids.includes(it.productId) && !it.isGift && !(it as any).isCustomPrice);
       const totalPieces = lines.reduce((s, it) => s + piecesOf(it), 0);
       const totalBase = lines.reduce((s, it) => s + ((it as any)._base as number), 0);
       if (totalPieces <= 0 || totalBase <= 0) continue;
       const avgPiece = totalBase / totalPieces;
-      const tiers = active
-        .filter((p) => p.kind === 'qty_discount' && p.discountRepeat !== false && p.productId === pid)
+      const tiers = plist
         .map((p) => ({ p, min: Math.max(1, Math.floor(Number(p.buyQty) || 0)), v: Math.max(0, Number(p.discountValue) || 0) }))
         .filter((t) => t.v > 0)
         .sort((a, b) => b.min - a.min);
@@ -153,8 +162,10 @@ export function applyPromotions(
   }
 
   for (const promo of active) {
-    const lines = items.filter((it) => it.productId === promo.productId && !it.isGift);
+    const promoGroup = promoIds(promo);
+    const lines = items.filter((it) => promoGroup.includes(it.productId) && !it.isGift);
     if (lines.length === 0) continue;
+    const byPieceAsc = (a: InvoiceItem, b: InvoiceItem) => a.unitPrice / perPieceDivisor(a) - b.unitPrice / perPieceDivisor(b);
     const productName = promo.productName || lines[0].productName;
 
     if (promo.kind === 'discount') {
@@ -180,7 +191,7 @@ export function applyPromotions(
 
     if (promo.kind === 'qty_discount') {
       if (promo.discountRepeat !== false) continue; // عرض الباقات عُولج أعلاه
-      if (bestTier.get(promo.productId) !== promo.id) continue;
+      if (bestTier.get(groupKey(promo)) !== promo.id) continue;
       const value = Math.max(0, Number(promo.discountValue) || 0);
       if (value <= 0) continue;
       let remaining = value; // للمبلغ الثابت «مرة واحدة»
@@ -213,7 +224,7 @@ export function applyPromotions(
       const freeTotal = Math.floor(totalPieces / group) * get;
       if (freeTotal <= 0) continue;
       let left = freeTotal;
-      for (const it of lines) {
+      for (const it of [...lines].sort(byPieceAsc)) { // المجاني يكون الأرخص أولاً عند اختلاف المواد
         if (left <= 0) break;
         const linePieces = piecesOf(it);
         const free = Math.min(left, linePieces);
@@ -235,11 +246,12 @@ export function applyPromotions(
     // bonus_same / bonus_other: قطع مجانية تُضاف إلى القائمة
     const free = Math.floor(totalPieces / buy) * get;
     if (free <= 0) continue;
-    const rewardId = promo.kind === 'bonus_other' ? promo.rewardProductId : promo.productId;
+    const cheapest = [...lines].sort(byPieceAsc)[0];
+    const rewardId = promo.kind === 'bonus_other' ? promo.rewardProductId : cheapest.productId;
     const rewardProduct = rewardId ? byProduct(rewardId) : undefined;
     if (!rewardId) continue;
-    const isSame = rewardId === promo.productId;
-    const refLine = lines[0];
+    const isSame = promo.kind !== 'bonus_other';
+    const refLine = promo.kind === 'bonus_other' ? lines[0] : cheapest;
 
     const gift: InvoiceItem = {
       productId: rewardId,
