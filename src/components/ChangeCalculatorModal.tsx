@@ -2,6 +2,18 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Printer, CheckCircle2, RotateCcw, Minus, Camera, X, ImageIcon } from 'lucide-react';
 import { idbGetRaw, idbSetRaw } from '../utils/localImageStore';
 import { resizeImageFile } from '../utils/imageResize';
+import note250 from '../assets/notes/250.png';
+import note500 from '../assets/notes/500.png';
+import note1000 from '../assets/notes/1000.png';
+import note5000 from '../assets/notes/5000.png';
+import note10000 from '../assets/notes/10000.png';
+import note25000 from '../assets/notes/25000.png';
+import note50000 from '../assets/notes/50000.png';
+
+// صور الأوراق النقدية الجاهزة (قدّمها صاحب المتجر)؛ يمكن استبدالها بصورة أخرى لكل جهاز من زر «صور الفئات»
+const BUILTIN_IMGS: Record<number, string> = {
+  250: note250, 500: note500, 1000: note1000, 5000: note5000, 10000: note10000, 25000: note25000, 50000: note50000,
+};
 
 // فئات النقود العراقية مع ألوان تقريبية تشبه الورقة
 const NOTES: { v: number; bg: string; fg: string }[] = [
@@ -12,10 +24,6 @@ const NOTES: { v: number; bg: string; fg: string }[] = [
   { v: 1000, bg: '#a7c8ec', fg: '#12385f' },
   { v: 500, bg: '#cfe0a0', fg: '#3a5410' },
   { v: 250, bg: '#ecd2a0', fg: '#6b4510' },
-  { v: 100, bg: '#d3dce0', fg: '#2d3d44' },
-  { v: 50, bg: '#dcd0cb', fg: '#4a3a34' },
-  { v: 25, bg: '#cdd2ee', fg: '#2c3266' },
-  { v: 5, bg: '#e3e3e3', fg: '#444444' },
 ];
 
 interface Props {
@@ -31,7 +39,8 @@ export const ChangeCalculatorModal: React.FC<Props> = ({ total, formatMoney, can
   const [taps, setTaps] = useState<number[]>([]);
   const [manual, setManual] = useState('');
   // صور الأوراق النقدية: يضيفها صاحب المتجر من الصور الرسمية، وتُحفظ على هذا الجهاز فقط
-  const [imgs, setImgs] = useState<Record<number, string>>({});
+  const [customImgs, setImgs] = useState<Record<number, string>>({});
+  const imgs = useMemo(() => ({ ...BUILTIN_IMGS, ...customImgs }), [customImgs]);
   const [customize, setCustomize] = useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const pickFor = React.useRef<number | null>(null);
@@ -142,7 +151,7 @@ export const ChangeCalculatorModal: React.FC<Props> = ({ total, formatMoney, can
                     type="button"
                     onClick={() => setTaps((prev) => [...prev, v])}
                     style={imgs[v] ? undefined : { backgroundColor: active ? '#fde047' : bg, color: active ? '#422006' : fg }}
-                    className={`relative overflow-hidden w-full h-20 rounded-xl border-2 flex flex-col items-center justify-center font-black transition cursor-pointer select-none active:scale-95 ${
+                    className={`relative overflow-hidden w-full aspect-[2/1] rounded-xl border-2 flex flex-col items-center justify-center font-black transition cursor-pointer select-none active:scale-95 ${
                       active ? 'border-yellow-500 ring-2 ring-yellow-300 shadow-md' : 'border-black/10 hover:brightness-95'
                     }`}
                   >
@@ -168,7 +177,7 @@ export const ChangeCalculatorModal: React.FC<Props> = ({ total, formatMoney, can
                       >
                         <Camera className="w-3.5 h-3.5" />
                       </button>
-                      {imgs[v] && (
+                      {customImgs[v] && (
                         <button
                           type="button"
                           onClick={() => clearNoteImage(v)}
