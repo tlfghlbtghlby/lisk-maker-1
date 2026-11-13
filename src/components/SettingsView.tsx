@@ -268,6 +268,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
   const [invertEnterShortcuts, setInvertEnterShortcuts] = useState<boolean>(settings.invertEnterShortcuts === true);
   const [posKeyboardMode, setPosKeyboardMode] = useState<boolean>(settings.posKeyboardMode === true);
+  const [enableChangeCalculator, setEnableChangeCalculator] = useState<boolean>(settings.enableChangeCalculator !== false);
   const [posClassicCart, setPosClassicCart] = useState<boolean>(settings.posClassicCart === true);
   const [separateCartonPieces, setSeparateCartonPieces] = useState<boolean>(settings.separateCartonPieces === true);
   const [cartonHotkey, setCartonHotkey] = useState<string>(settings.cartonHotkey || 'c');
@@ -456,6 +457,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setQuickQuantityEntry(settings.quickQuantityEntry === true);
       setInvertEnterShortcuts(settings.invertEnterShortcuts === true);
       setPosKeyboardMode(settings.posKeyboardMode === true);
+      setEnableChangeCalculator(settings.enableChangeCalculator !== false);
       setPosClassicCart(settings.posClassicCart === true);
       setSeparateCartonPieces(settings.separateCartonPieces === true);
       setCartonHotkey(settings.cartonHotkey || 'c');
@@ -562,6 +564,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       quickQuantityEntry,
       invertEnterShortcuts,
       posKeyboardMode,
+      enableChangeCalculator,
       posClassicCart,
       separateCartonPieces,
       cartonHotkey: (cartonHotkey || 'c').trim().slice(0, 1).toLowerCase() || 'c',
@@ -1902,6 +1905,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="checkbox"
                 checked={posKeyboardMode}
                 onChange={(e) => setPosKeyboardMode(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">حاسبة الباقي (F5)</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">عند الانتهاء من القائمة اضغط F5 (أو زر «حاسبة الباقي») فتظهر فئات النقود العراقية: اضغط على الفئة التي استلمتها من الزبون (كل ضغطة تُضيف مرة) فيظهر لك كم الباقي. الإلغاء يغلق الحاسبة فقط دون المساس بالقائمة. عند الإيقاف يعمل F5 كتحديث عادي للصفحة.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={enableChangeCalculator}
+                onChange={(e) => setEnableChangeCalculator(e.target.checked)}
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>

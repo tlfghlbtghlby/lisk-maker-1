@@ -527,6 +527,8 @@ export interface StoreSettings {
   invertEnterShortcuts?: boolean;
   /** وضع Enter: التنقل في نقطة البيع بلوحة المفاتيح بدون ماوس */
   posKeyboardMode?: boolean;
+  /** حاسبة الباقي (F5): اختيار فئات النقود المستلمة لمعرفة الباقي للزبون. مفعّلة افتراضياً */
+  enableChangeCalculator?: boolean;
   /** الشكل الكلاسيكي لقائمة البيع في نقطة البيع (جدول بخطوط كالقائمة المطبوعة) */
   posClassicCart?: boolean;
   /** فصل عدد الكراتين عن عدد القطع عند الإضافة */
