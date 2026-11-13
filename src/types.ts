@@ -529,6 +529,8 @@ export interface StoreSettings {
   posKeyboardMode?: boolean;
   /** حاسبة الباقي (F5): اختيار فئات النقود المستلمة لمعرفة الباقي للزبون. مفعّلة افتراضياً */
   enableChangeCalculator?: boolean;
+  /** أقسام/تصنيفات المواد التي أضافها المستخدم يدوياً */
+  productCategories?: string[];
   /** الشكل الكلاسيكي لقائمة البيع في نقطة البيع (جدول بخطوط كالقائمة المطبوعة) */
   posClassicCart?: boolean;
   /** فصل عدد الكراتين عن عدد القطع عند الإضافة */
