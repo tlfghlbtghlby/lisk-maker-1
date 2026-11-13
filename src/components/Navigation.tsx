@@ -1,9 +1,9 @@
 import React, { useMemo } from 'react';
-import { ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock, Tag } from 'lucide-react';
+import { ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock, Tag, Truck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ContextMenuWrapper } from './ContextMenuWrapper';
 
-export type TabType = 'pos' | 'inventory' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'offers' | 'shifts' | 'settings';
+export type TabType = 'pos' | 'inventory' | 'suppliers' | 'invoices' | 'customers' | 'reports' | 'sales-reps' | 'offers' | 'shifts' | 'settings';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -72,6 +72,14 @@ export function useNavItems() {
       icon: <Boxes className="w-4 h-4" />,
       badge: lowStockCount > 0 ? `${lowStockCount} ناقص` : undefined,
       badgeColor: 'text-rose-600 bg-rose-50',
+      permitted: hasPermission('canAccessInventory'),
+    },
+    {
+      id: 'suppliers',
+      label: 'الموردون والمندوبون',
+      icon: <Truck className="w-4 h-4" />,
+      badge: (settings.suppliers || []).length || undefined,
+      badgeColor: 'text-indigo-700 bg-indigo-50 font-bold',
       permitted: hasPermission('canAccessInventory'),
     },
     {
