@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Printer, CheckCircle2, RotateCcw, Minus } from 'lucide-react';
+import { Printer, CheckCircle2, RotateCcw, Minus, Camera, X, ImageIcon } from 'lucide-react';
+import { idbGetRaw, idbSetRaw } from '../utils/localImageStore';
+import { resizeImageFile } from '../utils/imageResize';
 
 // فئات النقود العراقية مع ألوان تقريبية تشبه الورقة
 const NOTES: { v: number; bg: string; fg: string }[] = [
@@ -28,6 +30,40 @@ interface Props {
 export const ChangeCalculatorModal: React.FC<Props> = ({ total, formatMoney, canSave, onClose, onSave }) => {
   const [taps, setTaps] = useState<number[]>([]);
   const [manual, setManual] = useState('');
+  // صور الأوراق النقدية: يضيفها صاحب المتجر من الصور الرسمية، وتُحفظ على هذا الجهاز فقط
+  const [imgs, setImgs] = useState<Record<number, string>>({});
+  const [customize, setCustomize] = useState(false);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const pickFor = React.useRef<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const out: Record<number, string> = {};
+      for (const n of NOTES) {
+        try {
+          const d = await idbGetRaw(`note_img:${n.v}`);
+          if (d) out[n.v] = d;
+        } catch {}
+      }
+      if (alive) setImgs(out);
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const saveNoteImage = async (v: number, file?: File | null) => {
+    if (!file) return;
+    try {
+      const data = await resizeImageFile(file, 700, 0.88);
+      await idbSetRaw(`note_img:${v}`, data);
+      setImgs((prev) => ({ ...prev, [v]: data }));
+    } catch {}
+    if (fileRef.current) fileRef.current.value = '';
+  };
+  const clearNoteImage = async (v: number) => {
+    try { await idbSetRaw(`note_img:${v}`, null); } catch {}
+    setImgs((prev) => { const n = { ...prev }; delete n[v]; return n; });
+  };
 
   const counts = useMemo(() => {
     const m = new Map<number, number>();
@@ -80,6 +116,7 @@ export const ChangeCalculatorModal: React.FC<Props> = ({ total, formatMoney, can
         </div>
 
         <div className="p-3 sm:p-4 space-y-3">
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { if (pickFor.current != null) saveNoteImage(pickFor.current, e.target.files?.[0]); }} />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {NOTES.map(({ v, bg, fg }) => {
               const c = counts.get(v) || 0;
@@ -104,14 +141,45 @@ export const ChangeCalculatorModal: React.FC<Props> = ({ total, formatMoney, can
                   <button
                     type="button"
                     onClick={() => setTaps((prev) => [...prev, v])}
-                    style={{ backgroundColor: active ? '#fde047' : bg, color: active ? '#422006' : fg }}
-                    className={`w-full h-20 rounded-xl border-2 flex flex-col items-center justify-center font-black transition cursor-pointer select-none active:scale-95 ${
+                    style={imgs[v] ? undefined : { backgroundColor: active ? '#fde047' : bg, color: active ? '#422006' : fg }}
+                    className={`relative overflow-hidden w-full h-20 rounded-xl border-2 flex flex-col items-center justify-center font-black transition cursor-pointer select-none active:scale-95 ${
                       active ? 'border-yellow-500 ring-2 ring-yellow-300 shadow-md' : 'border-black/10 hover:brightness-95'
                     }`}
                   >
-                    <span className="text-xl font-mono leading-none">{v.toLocaleString('en-US')}</span>
-                    <span className="text-[11px] opacity-70 mt-1">دينار</span>
+                    {imgs[v] ? (
+                      <>
+                        <img src={imgs[v]} alt={`${v}`} className="absolute inset-0 w-full h-full object-cover" draggable={false} />
+                        {active && <span className="absolute inset-0 bg-yellow-300/55" />}
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xl font-mono leading-none">{v.toLocaleString('en-US')}</span>
+                        <span className="text-[11px] opacity-70 mt-1">دينار</span>
+                      </>
+                    )}
                   </button>
+                  {customize && (
+                    <div className="absolute bottom-1 inset-x-1 z-10 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => { pickFor.current = v; fileRef.current?.click(); }}
+                        className="w-7 h-7 min-h-0 rounded-full bg-white/95 text-slate-800 border border-slate-300 shadow flex items-center justify-center cursor-pointer"
+                        title="اختيار صورة لهذه الفئة"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                      </button>
+                      {imgs[v] && (
+                        <button
+                          type="button"
+                          onClick={() => clearNoteImage(v)}
+                          className="w-7 h-7 min-h-0 rounded-full bg-white/95 text-rose-600 border border-rose-300 shadow flex items-center justify-center cursor-pointer"
+                          title="حذف الصورة"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -130,8 +198,17 @@ export const ChangeCalculatorModal: React.FC<Props> = ({ total, formatMoney, can
             />
             <button
               type="button"
+              onClick={() => setCustomize((c) => !c)}
+              className={`mr-auto flex items-center gap-1 px-3 py-1.5 rounded-lg border font-bold cursor-pointer ${customize ? 'bg-slate-800 text-white border-slate-800' : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}
+              title="أضف صورة الورقة النقدية لكل فئة (تُحفظ على هذا الجهاز)"
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+              صور الفئات
+            </button>
+            <button
+              type="button"
               onClick={() => { setTaps([]); setManual(''); }}
-              className="mr-auto flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 font-bold text-slate-600 dark:text-slate-300 cursor-pointer"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 font-bold text-slate-600 dark:text-slate-300 cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               مسح الكل
