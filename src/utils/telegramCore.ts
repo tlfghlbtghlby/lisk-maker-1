@@ -59,7 +59,7 @@ const qtyText = (it: InvoiceItem): string => {
   if (it.isWeighted) return `${num(it.quantity)} كغم`;
   if (it.unitType === 'carton') {
     const per = it.piecesPerCarton || 1;
-    return `${num(it.quantity)} كرتون (${per} قطعة/كرتون = ${num(it.quantity * per)} قطعة)`;
+    return `${num(it.quantity)} ${it.packLabel || 'كرتون'} (${per} قطعة/${it.packLabel || 'كرتون'} = ${num(it.quantity * per)} قطعة)`;
   }
   return `${num(it.quantity)} ${esc(it.unit || 'قطعة')}`;
 };

@@ -43,6 +43,8 @@ export interface Product {
   specialPrice?: number;
   stock: number;
   piecesPerCarton?: number;
+  /** فئة وسطية اختيارية (درزن): عدد القطع في الدرزن؛ 0/غير موجود = معطّلة */
+  piecesPerDozen?: number;
   minStock: number;
   isWeighted?: boolean;
   itemCount?: number;
@@ -112,6 +114,8 @@ export interface InvoiceItem {
   priceType: PriceType;
   unitType?: 'piece' | 'carton';
   piecesPerCarton?: number;
+  /** سطر مباع بالفئة الوسطية: يُخزَّن unitType='carton' وpiecesPerCarton=عدد قطع الدرزن، وهذا الحقل للتسمية فقط */
+  packLabel?: string;
   deductedPieces?: number;
   costPrice: number;
   unitPrice: number;
