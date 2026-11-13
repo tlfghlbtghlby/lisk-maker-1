@@ -400,6 +400,9 @@ export interface Promotion {
   kind: PromotionKind;
   productId: string;
   productName?: string;
+  /** عرض على عدة مواد مختلفة: تُحسب كمياتها مجتمعة (الأول هو productId) */
+  productIds?: string[];
+  productNames?: string[];
   active: boolean;             // تشغيل/إيقاف يدوي
   startDate?: string;          // YYYY-MM-DD (فارغ = من الآن)
   endDate?: string;            // YYYY-MM-DD (فارغ = حتى الإيقاف أو الحذف)
