@@ -406,6 +406,8 @@ export interface Promotion {
   discountType?: 'percent' | 'amount';
   /** للخصم حسب الكمية بمبلغ ثابت: لكل قطعة أو مرة واحدة على المادة */
   discountScope?: 'per_piece' | 'total';
+  /** للخصم حسب الكمية: true/غير موجود = يُطبَّق لكل مجموعة كاملة (عرض الباقات)، false = على كل القطع متى بلغ العدد */
+  discountRepeat?: boolean;
   discountValue?: number;      // نسبة مئوية، أو مبلغ لكل قطعة (لكل كغم للمواد الموزونة)
   buyQty?: number;             // اشترِ N
   getQty?: number;             // احصل على M مجاناً

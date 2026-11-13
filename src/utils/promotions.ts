@@ -33,7 +33,9 @@ export function describePromotion(p: Promotion): string {
       const how = p.discountType === 'percent'
         ? `${v}%`
         : p.discountScope === 'total' ? `${v.toLocaleString()} د.ع` : `${v.toLocaleString()} د.ع لكل قطعة`;
-      return `عند أخذ ${p.buyQty || 0} قطع فأكثر من ${name}: خصم ${how}`;
+      return p.discountRepeat === false
+        ? `عند أخذ ${p.buyQty || 0} قطع فأكثر من ${name}: خصم ${how}`
+        : `كل ${p.buyQty || 0} قطع من ${name}: خصم ${p.discountType === 'percent' ? how : p.discountScope === 'total' ? `${v.toLocaleString()} د.ع للمجموعة` : how}`;
     }
     case 'bonus_same':
       return `${p.buyQty || 0}+${p.getQty || 0} من ${name} (قطع مجانية إضافية)`;
@@ -98,7 +100,7 @@ export function applyPromotions(
   {
     const tiers = new Map<string, { id: string; min: number }>();
     for (const promo of active) {
-      if (promo.kind !== 'qty_discount') continue;
+      if (promo.kind !== 'qty_discount' || promo.discountRepeat !== false) continue;
       const min = Math.max(1, Math.floor(Number(promo.buyQty) || 0));
       const pcs = items.filter((it) => it.productId === promo.productId && !it.isGift).reduce((s, it) => s + piecesOf(it), 0);
       if (pcs < min) continue;
@@ -106,6 +108,48 @@ export function applyPromotions(
       if (!cur || min > cur.min) tiers.set(promo.productId, { id: promo.id, min });
     }
     tiers.forEach((v, k) => bestTier.set(k, v.id));
+  }
+
+  // خصم الباقات: كل مجموعة كاملة من N قطعة تأخذ خصمها، وتُملأ الأكبر أولاً ثم الأصغر بالباقي
+  // مثال (سعر 500): عند 2 ← 750، عند 3 ← 1000: الكمية 4 = 1500، و5 = 1750، و6 = 2000
+  {
+    const pids = Array.from(new Set(active.filter((p) => p.kind === 'qty_discount' && p.discountRepeat !== false).map((p) => p.productId)));
+    for (const pid of pids) {
+      const lines = items.filter((it) => it.productId === pid && !it.isGift && !(it as any).isCustomPrice);
+      const totalPieces = lines.reduce((s, it) => s + piecesOf(it), 0);
+      const totalBase = lines.reduce((s, it) => s + ((it as any)._base as number), 0);
+      if (totalPieces <= 0 || totalBase <= 0) continue;
+      const avgPiece = totalBase / totalPieces;
+      const tiers = active
+        .filter((p) => p.kind === 'qty_discount' && p.discountRepeat !== false && p.productId === pid)
+        .map((p) => ({ p, min: Math.max(1, Math.floor(Number(p.buyQty) || 0)), v: Math.max(0, Number(p.discountValue) || 0) }))
+        .filter((t) => t.v > 0)
+        .sort((a, b) => b.min - a.min);
+      let remaining = totalPieces;
+      for (const t of tiers) {
+        const groups = Math.floor(remaining / t.min);
+        if (groups <= 0) continue;
+        remaining -= groups * t.min;
+        const perGroup = t.p.discountType === 'percent'
+          ? (avgPiece * t.min * Math.min(100, t.v)) / 100
+          : t.p.discountScope === 'total' ? t.v : t.v * t.min;
+        let D = Math.round(perGroup * groups);
+        if (D <= 0) continue;
+        let sum = 0;
+        lines.forEach((it, i) => {
+          const base = (it as any)._base as number;
+          const room = base - (it.discount || 0);
+          const share = i === lines.length - 1 ? D - sum : Math.round((D * base) / totalBase);
+          const d = Math.max(0, Math.min(room, share));
+          if (d <= 0) return;
+          it.discount = (it.discount || 0) + d;
+          it.total = Math.max(0, base - it.discount);
+          it.promoLabel = describePromotion(t.p);
+          sum += d;
+        });
+        if (sum > 0) notes.push(`${describePromotion(t.p)} ×${groups}: -${sum.toLocaleString()}`);
+      }
+    }
   }
 
   for (const promo of active) {
@@ -135,6 +179,7 @@ export function applyPromotions(
     }
 
     if (promo.kind === 'qty_discount') {
+      if (promo.discountRepeat !== false) continue; // عرض الباقات عُولج أعلاه
       if (bestTier.get(promo.productId) !== promo.id) continue;
       const value = Math.max(0, Number(promo.discountValue) || 0);
       if (value <= 0) continue;
