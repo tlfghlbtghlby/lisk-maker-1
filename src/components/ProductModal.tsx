@@ -26,7 +26,8 @@ import {
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { lookupProductDetails, LookupPreference } from '../utils/productLookup';
 import { ProductImageModal } from './ProductImageModal';
-import { saveProductImage, useProductImage, imagesSupported } from '../utils/productImages';
+import { saveProductImage, removeProductImage, useProductImage, imagesSupported } from '../utils/productImages';
+import { ProductImageField } from './ProductImageField';
 
 export interface ProductModalProps {
   isOpen: boolean;
@@ -545,30 +546,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
-            {imagesSupported() && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => (productToEdit ? setImageModalOpen(true) : pendingInputRef.current?.click())}
-                  title={productToEdit ? 'إضافة أو عرض صورة المادة' : 'إضافة صورة للمادة'}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-                >
-                  {(existingThumb || pendingPreview) ? (
-                    <img src={(productToEdit ? existingThumb : pendingPreview) || pendingPreview || ''} alt="" className="w-6 h-6 rounded object-cover" />
-                  ) : (
-                    <ImagePlus className="w-4 h-4" />
-                  )}
-                  <span>{(existingThumb || pendingPreview) ? 'الصورة' : 'إضافة صورة'}</span>
-                </button>
-                <input
-                  ref={pendingInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => { setPendingImage(e.target.files?.[0] || null); e.target.value = ''; }}
-                />
-              </>
-            )}
             <button
               type="button"
               onClick={onClose}
@@ -578,6 +555,21 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </button>
             </div>
           </div>
+
+          {imagesSupported() && (
+            <ProductImageField
+              preview={productToEdit ? existingThumb : pendingPreview}
+              onFile={async (file) => {
+                if (productToEdit) await saveProductImage(productToEdit.id, file);
+                else setPendingImage(file);
+              }}
+              onClear={() => {
+                if (productToEdit) removeProductImage(productToEdit.id).catch(() => {});
+                else setPendingImage(null);
+              }}
+              onOpenPreview={productToEdit ? () => setImageModalOpen(true) : undefined}
+            />
+          )}
 
           {/* تنبيهات البحث التلقائي والتحقق */}
           {foundSuccessSource && (
