@@ -48,6 +48,18 @@ import {
 import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/invoiceSeal';
 import { netUnitPrice } from '../utils/promotions';
 import { isNativePhone as isAndroidPhone } from '../utils/platform';
+import { reconcileBatches, addBatch } from '../utils/expiry';
+
+export interface StockChangeInput {
+  id: string;
+  /** موجب = إضافة، سالب = إنقاص (بالقطع) */
+  delta: number;
+  note?: string;
+  productionDate?: string;
+  expiryDate?: string;
+  /** سعر تكلفة القطعة الجديد (يُحدَّث للإضافة فقط) */
+  costPrice?: number;
+}
 
 export const CURRENT_APP_VERSION = (pkg as any)?.version || '2.0.0';
 
@@ -144,6 +156,8 @@ interface AppContextType {
   deleteProduct: (id: string) => void;
   batchDeleteProducts: (productIdsToDelete: string[], stockIncrements?: Record<string, number>) => Promise<{ success: boolean; deletedCount: number; error?: string }>;
   adjustStock: (id: string, delta: number, opts?: { log?: boolean }) => void;
+  /** إضافة/إنقاص مخصص (واحد أو عدة مواد دفعة واحدة) مع ملاحظة وتواريخ صلاحية وسعر تكلفة اختياري */
+  applyStockChanges: (changes: StockChangeInput[]) => void;
   priceTypeOn: (t: PriceType) => boolean;
   featureOn: (key: 'enableTelegram' | 'enableModernDesign' | 'enableCustomerPriceChecker' | 'enableSupervisor' | 'enableEmployee' | 'enableWholesalePrice' | 'enableSpecialPrice') => boolean;
   sendDebtReminder: (customerId: string) => Promise<{ ok: boolean; sent: number; error?: string }>;
@@ -2043,6 +2057,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const applyStockChanges = (changes: StockChangeInput[]) => {
+    const valid = (changes || []).filter(c => c && c.id && Number.isFinite(c.delta) && c.delta !== 0);
+    if (valid.length === 0) return;
+    const trackBatches = settings.enableProductExpiry === true && settings.trackExpiryBatches !== false;
+    const round3 = (n: number) => Math.round(n * 1000) / 1000;
+    setProducts(prev => {
+      let updated = prev;
+      for (const ch of valid) {
+        const t = updated.find(p => p.id === ch.id);
+        if (!t) continue;
+        const newStock = Math.max(0, round3(t.stock + ch.delta));
+        const realDiff = round3(newStock - t.stock);
+        if (realDiff === 0) continue;
+        const newCost = realDiff > 0 && typeof ch.costPrice === 'number' && ch.costPrice > 0 ? ch.costPrice : t.costPrice;
+        const costChanged = newCost !== t.costPrice;
+        const log = appendStockLog(
+          t.purchaseLog,
+          makeStockLog(Math.abs(realDiff), realDiff > 0 ? 'purchase' : 'adjust', ch.note || (realDiff > 0 ? 'إضافة مخصصة' : 'إنقاص مخصص'), newCost, costChanged ? t.costPrice : undefined, { productionDate: ch.productionDate, expiryDate: ch.expiryDate })
+        );
+        let batches = t.expiryBatches;
+        if (trackBatches) {
+          let b = reconcileBatches(t.expiryBatches, t.stock);
+          if (realDiff > 0 && (ch.productionDate || ch.expiryDate)) b = addBatch(b, realDiff, ch.productionDate || '', ch.expiryDate || '');
+          batches = reconcileBatches(b, newStock);
+        }
+        const next: Product = { ...t, stock: newStock, costPrice: newCost, purchaseLog: log, ...(batches !== undefined ? { expiryBatches: batches } : {}), updatedAt: new Date().toISOString() };
+        updated = updated.map(p => (p.id === ch.id ? next : p));
+      }
+      if (updated === prev) return prev;
+      try {
+        localStorage.setItem('cached_pos_products', JSON.stringify(updated));
+      } catch {}
+      saveStoreToCloud({ products: updated });
+      broadcastSyncEvent('PRODUCTS_BATCH_UPDATED', { allProducts: updated }, currentSessionId, currentUser?.uid);
+      return updated;
+    });
+  };
+
   const addCustomer = (data: Omit<Customer, 'id' | 'createdAt' | 'totalDebt'> & { initialDebt?: number }) => {
     const newId = 'cust_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
     const newCust: any = {
@@ -3594,6 +3646,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteProduct,
         batchDeleteProducts,
         adjustStock,
+        applyStockChanges,
         featureOn,
         priceTypeOn,
         sendDebtReminder,
