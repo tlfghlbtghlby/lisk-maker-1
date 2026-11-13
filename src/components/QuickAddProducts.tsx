@@ -1,3 +1,4 @@
+import { generateInternalBarcode } from '../utils/barcodeGen';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
@@ -48,11 +49,7 @@ export const QuickAddProducts: React.FC = () => {
 زيت طعام, 12, 3000, 36000, 3500, 42000, 24ق, 3250, 39000, 890123456789`;
 
   const generateUniqueBarcode = (existingCodes: Set<string>): string => {
-    let code = '';
-    do {
-      const rand = Math.floor(100000000000 + Math.random() * 900000000000);
-      code = rand.toString();
-    } while (existingCodes.has(code));
+    const code = generateInternalBarcode(existingCodes);
     existingCodes.add(code);
     return code;
   };

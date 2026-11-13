@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { shiftDate, daysUntil, reconcileBatches, addBatch, ShelfUnit } from '../utils/expiry';
+import { generateInternalBarcode } from '../utils/barcodeGen';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { 
@@ -146,15 +147,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
   // توليد باركود تلقائي فريد
   const generateUniqueBarcode = () => {
-    const existing = new Set(products.map((p) => p.code));
-    let newCode = '';
-    let attempts = 0;
-    do {
-      const part1 = Math.floor(100000 + Math.random() * 900000);
-      const part2 = Math.floor(100000 + Math.random() * 900000);
-      newCode = `${part1}${part2}`;
-      attempts++;
-    } while (existing.has(newCode) && attempts < 100);
+    const newCode = generateInternalBarcode(new Set(products.map((p) => p.code)));
     setCode(newCode);
   };
 
