@@ -584,11 +584,17 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
     if (matched) {
       playScannerBeep('success');
-      addToCartWithPrice(matched, globalPriceType, 1);
+      const su = matched.scanUnit;
+      const suValid = !isWeightedProd(matched) && ((su === 'dozen' && dozenOf(matched) > 1) || (su === 'carton' && (matched.piecesPerCarton || 1) > 1));
+      if (suValid && su && resolveFor(matched, globalPriceType) !== null) {
+        addEntryLine(matched, su, 1);
+      } else {
+        addToCartWithPrice(matched, globalPriceType, 1);
+      }
       quickQtyArmedRef.current = null;
       setSearchQuery('');
       setUnfoundBarcodePrompt(null);
-      setScanNotice(`تم مسح الباركود #${clean}: زيادة كمية "${matched.name}" في القائمة (+1)`);
+      setScanNotice(`تم مسح الباركود #${clean}: زيادة كمية "${matched.name}" في القائمة (+1${suValid && resolveFor(matched, globalPriceType) !== null ? ' ' + (su === 'dozen' ? 'درزن' : 'كرتون') : ''})`);
       setTimeout(() => setScanNotice(null), 3000);
     } else {
       playScannerBeep('alert');
