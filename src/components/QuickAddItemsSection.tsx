@@ -1,3 +1,4 @@
+import { generateInternalBarcode } from '../utils/barcodeGen';
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
@@ -47,14 +48,7 @@ export const normalizeArabicNumbers = (str: string): string => {
 };
 
 export const generateUnique12DigitBarcode = (existingCodes: Set<string>): string => {
-  let code = '';
-  let attempts = 0;
-  do {
-    const part1 = Math.floor(100000 + Math.random() * 900000);
-    const part2 = Math.floor(100000 + Math.random() * 900000);
-    code = `${part1}${part2}`;
-    attempts++;
-  } while (existingCodes.has(code) && attempts < 100);
+  const code = generateInternalBarcode(existingCodes);
   return code;
 };
 

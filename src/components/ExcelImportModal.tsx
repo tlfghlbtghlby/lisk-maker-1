@@ -1,3 +1,4 @@
+import { generateInternalBarcode } from '../utils/barcodeGen';
 import React, { useMemo, useRef, useState } from 'react';
 import { X, FileSpreadsheet, Upload, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -20,8 +21,7 @@ const invert = (m: Partial<Record<FieldKey, number>>): ColMap => {
 };
 
 const randomCode = (used: Set<string>): string => {
-  let c = '';
-  do { c = String(Math.floor(100000000000 + Math.random() * 900000000000)); } while (used.has(c));
+  const c = generateInternalBarcode(used);
   used.add(c);
   return c;
 };
