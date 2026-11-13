@@ -82,6 +82,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [stock, setStock] = useState<number | ''>(0);
   const [minStock, setMinStock] = useState<number | ''>(5);
   const [piecesPerCarton, setPiecesPerCarton] = useState<number | ''>(1);
+  const [dozenOn, setDozenOn] = useState(false);
+  const [piecesPerDozen, setPiecesPerDozen] = useState<number | ''>(12);
   const [isWeighted, setIsWeighted] = useState(false);
   const [notes, setNotes] = useState('');
   const [stockNote, setStockNote] = useState('');
@@ -202,6 +204,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       
       const ppc = productToEdit.piecesPerCarton || 1;
       setPiecesPerCarton(ppc);
+      setDozenOn((productToEdit.piecesPerDozen || 0) > 1);
+      setPiecesPerDozen((productToEdit.piecesPerDozen || 0) > 1 ? productToEdit.piecesPerDozen! : 12);
 
       const isUsd = productToEdit.priceCurrency === 'USD' && !!productToEdit.usdPrices;
       setPriceCurrency(isUsd ? 'USD' : 'IQD');
@@ -245,6 +249,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setUnit('قطعة');
       
       setPiecesPerCarton(1);
+      setDozenOn(false);
+      setPiecesPerDozen(12);
       setCartonCostInput('');
       setPieceCostInput('');
       setCartonRetailInput('');
@@ -520,6 +526,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       stock: numStock,
       minStock: typeof minStock === 'number' ? minStock : 5,
       piecesPerCarton: numPieces,
+      piecesPerDozen: dozenOn && !isWeighted && typeof piecesPerDozen === 'number' && piecesPerDozen > 1 ? piecesPerDozen : 0,
       isWeighted,
       notes: notes.trim(),
       ...(settings.enableProductExpiry === true ? { productionDate: productionDate || undefined, expiryDate: expiryDate || undefined } : {}),
@@ -838,6 +845,29 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </p>
               </div>
             </div>
+
+            {/* فئة وسطية اختيارية: الدرزن */}
+            {!isWeighted && (
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#070e1b] px-3 py-2.5 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <input type="checkbox" checked={dozenOn} onChange={(e) => setDozenOn(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
+                  <span>تفعيل فئة وسطية ثالثة (قطعة ← درزن ← كرتون)</span>
+                </label>
+                {dozenOn && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">عدد القطع في الدرزن:</span>
+                    <input
+                      type="number"
+                      min="2"
+                      value={piecesPerDozen}
+                      onChange={(e) => setPiecesPerDozen(e.target.value === '' ? '' : Math.max(2, parseInt(e.target.value) || 2))}
+                      className="w-24 bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">الافتراضي 12 ويمكن تغييره. أزل العلامة لإبقاء فئتين فقط (قطعة وكرتون).</span>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* بطاقات التسعير */}
             <div className="space-y-2">

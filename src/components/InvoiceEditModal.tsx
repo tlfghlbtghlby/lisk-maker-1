@@ -208,7 +208,7 @@ const Editor: React.FC<{ invoice: Invoice; onClose: () => void }> = ({ invoice, 
                     <div className="text-xs font-black text-slate-900 truncate">
                       {r.item.productName || r.item.name}
                       {r.item.isGift && <span className="mr-1 text-[10px] text-pink-700 bg-pink-50 border border-pink-200 rounded px-1">هدية</span>}
-                      {r.item.unitType === 'carton' && <span className="mr-1 text-[10px] text-slate-500">(كرتون)</span>}
+                      {r.item.unitType === 'carton' && <span className="mr-1 text-[10px] text-slate-500">({r.item.packLabel || 'كرتون'})</span>}
                     </div>
                     <button type="button" onClick={() => setRows(prev => prev.filter(x => x.key !== r.key))} className="p-1 rounded-lg text-rose-600 hover:bg-rose-50 cursor-pointer" title="حذف السطر">
                       <Trash2 className="w-4 h-4" />
