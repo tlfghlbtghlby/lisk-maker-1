@@ -24,6 +24,7 @@ interface FormState {
   discountType: 'percent' | 'amount';
   discountValue: string;
   discountScope: 'per_piece' | 'total';
+  discountRepeat: boolean;
   buyQty: string;
   getQty: string;
   rewardProductId: string;
@@ -38,6 +39,7 @@ const emptyForm = (): FormState => ({
   discountType: 'percent',
   discountValue: '',
   discountScope: 'per_piece',
+  discountRepeat: true,
   buyQty: '3',
   getQty: '1',
   rewardProductId: '',
@@ -149,6 +151,7 @@ export function OffersView() {
       discountType: p.discountType || 'percent',
       discountValue: p.discountValue != null ? String(p.discountValue) : '',
       discountScope: p.discountScope || 'per_piece',
+      discountRepeat: p.discountRepeat !== false,
       buyQty: String(p.buyQty ?? 3),
       getQty: String(p.getQty ?? 1),
       rewardProductId: p.rewardProductId || '',
@@ -181,6 +184,7 @@ export function OffersView() {
         const minQ = Math.floor(Number(form.buyQty));
         if (!(minQ >= 2)) return setError('أدخل عدد القطع المطلوب للخصم (2 فأكثر).');
         base.buyQty = minQ;
+        base.discountRepeat = form.discountRepeat;
         if (form.discountType === 'amount') base.discountScope = form.discountScope;
       }
       const v = Number(form.discountValue);
@@ -376,8 +380,15 @@ export function OffersView() {
                     placeholder="2"
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-900"
                   />
+                  <label className="flex items-center gap-2 mt-2 text-xs font-bold text-slate-700 cursor-pointer">
+                    <input type="checkbox" checked={form.discountRepeat} onChange={(e) => set('discountRepeat', e.target.checked)} className="w-4 h-4 accent-fuchsia-600" />
+                    <span>الخصم لكل مجموعة كاملة (باقات)</span>
+                  </label>
                   <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                    لإضافة شرائح متعددة (مثلاً عند 2 خصم 250 وعند 3 خصم 500) أنشئ عرضاً لكل شريحة؛ يُطبَّق الأعلى المتحقق فقط ولا تتراكم. الكراتين والدرزن تُحسب بعدد قطعها.
+                    {form.discountRepeat
+                      ? 'مثال (سعر القطعة 500): عند 2 خصم 250 مبلغ ثابت، وعند 3 خصم 500 مبلغ ثابت ← الكمية 2 = 750، 3 = 1000، 4 = 1500، 5 = 1750، 6 = 2000. أنشئ عرضاً لكل شريحة؛ تُملأ الأكبر أولاً ثم الأصغر بالباقي.'
+                      : 'يُخصم على كل القطع متى بلغ العدد المطلوب أو تجاوزه، وعند تعدد الشرائح تُطبَّق الأعلى فقط.'}
+                    {' '}الكراتين والدرزن تُحسب بعدد قطعها.
                   </p>
                 </div>
               )}
@@ -399,7 +410,7 @@ export function OffersView() {
                       {form.kind === 'qty_discount' ? (
                         <>
                           <option value="amount">مبلغ لكل قطعة (دينار)</option>
-                          <option value="amount_total">مبلغ ثابت مرة واحدة (دينار)</option>
+                          <option value="amount_total">مبلغ ثابت للمجموعة (دينار)</option>
                         </>
                       ) : (
                         <option value="amount">مبلغ لكل قطعة (دينار)</option>
