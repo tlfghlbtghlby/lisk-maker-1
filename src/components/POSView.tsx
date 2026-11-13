@@ -575,6 +575,21 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     addToCartWithPrice(product, globalPriceType, delta);
   };
 
+  // إضافة مادة بوحدتها الافتراضية (قطعة/درزن/كرتون) عند الضغط عليها أو مسح باركودها؛ يرجع اسم الوحدة إن لم تكن قطعة
+  const addWithDefaultUnit = (prod: Product): string | null => {
+    const su = prod.scanUnit;
+    const weighted = Boolean(prod.isWeighted || prod.unit === 'كغم' || prod.unit === 'كيلو');
+    const dz = !weighted && (prod.piecesPerDozen || 0) > 1;
+    const ok = !weighted && ((su === 'dozen' && dz) || (su === 'carton' && (prod.piecesPerCarton || 1) > 1));
+    if (ok && su && resolveFor(prod, globalPriceType) !== null) {
+      quickQtyArmedRef.current = null;
+      addEntryLine(prod, su, 1);
+      return su === 'dozen' ? 'درزن' : 'كرتون';
+    }
+    addToCartWithPrice(prod, globalPriceType, 1);
+    return null;
+  };
+
   const handleBarcodeScanned = (scannedCode: string) => {
     const clean = scannedCode.trim();
     if (!clean) return;
@@ -584,17 +599,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
     if (matched) {
       playScannerBeep('success');
-      const su = matched.scanUnit;
-      const suValid = !isWeightedProd(matched) && ((su === 'dozen' && dozenOf(matched) > 1) || (su === 'carton' && (matched.piecesPerCarton || 1) > 1));
-      if (suValid && su && resolveFor(matched, globalPriceType) !== null) {
-        addEntryLine(matched, su, 1);
-      } else {
-        addToCartWithPrice(matched, globalPriceType, 1);
-      }
+      const usedUnit = addWithDefaultUnit(matched);
       quickQtyArmedRef.current = null;
       setSearchQuery('');
       setUnfoundBarcodePrompt(null);
-      setScanNotice(`تم مسح الباركود #${clean}: زيادة كمية "${matched.name}" في القائمة (+1${suValid && resolveFor(matched, globalPriceType) !== null ? ' ' + (su === 'dozen' ? 'درزن' : 'كرتون') : ''})`);
+      setScanNotice(`تم مسح الباركود #${clean}: زيادة كمية "${matched.name}" في القائمة (+1${usedUnit ? ' ' + usedUnit : ''})`);
       setTimeout(() => setScanNotice(null), 3000);
     } else {
       playScannerBeep('alert');
@@ -634,7 +643,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const handleProductClick = (prod: Product) => {
     if (classicMode) classicAddAndFocus(prod, false);
     else if (sepMode) openEntry(prod, false);
-    else addToCart(prod);
+    else addWithDefaultUnit(prod);
   };
 
   // إضافة سطر للقائمة بوحدة محددة، مع دمج السطر الموجود لنفس المادة
