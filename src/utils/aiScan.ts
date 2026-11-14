@@ -18,6 +18,7 @@ export interface ScanItem {
 export interface ScanResult {
   items: ScanItem[];
   invoiceTotal?: number;
+  supplierName?: string;
   documentType?: string;
 }
 
@@ -72,7 +73,7 @@ export async function scanImageFile(file: File, storeId: string, onStatus?: (m: 
     const base = ERRORS[data?.error] || `تعذرت قراءة الصورة (${res.status}).`;
     throw new Error(data?.error === 'provider_error' ? `${base} (رمز ${data?.status ?? ''})` : base);
   }
-  return { items: data.items as ScanItem[], invoiceTotal: data.invoiceTotal, documentType: data.documentType };
+  return { items: data.items as ScanItem[], invoiceTotal: data.invoiceTotal, supplierName: data.supplierName, documentType: data.documentType };
 }
 
 // ---------------- مطابقة الأسماء مع المخزون ----------------
@@ -154,3 +155,6 @@ export function matchProduct(item: { name: string; barcode?: string }, products:
   if (top.score >= 0.5) return { level: 'possible', candidates: scored };
   return { level: 'none', candidates: scored };
 }
+
+/** مفتاح تذكّر اسم المادة عند المورد (أو '*' لأي مورد) */
+export const aliasKey = (supplierId: string, name: string) => `${supplierId || '*'}|${normalizeName(name)}`;
