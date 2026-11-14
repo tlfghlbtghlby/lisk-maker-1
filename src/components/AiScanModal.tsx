@@ -40,7 +40,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
   const showDates = settings.enableProductExpiry === true;
   const trackBatches = showDates && settings.trackExpiryBatches !== false;
 
-  const [step, setStep] = useState<'pick' | 'reading' | 'review' | 'done'>('pick');
+  const [step, setStep] = useState<'pick' | 'reading' | 'review' | 'confirm' | 'done'>('pick');
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [progress, setProgress] = useState('');
@@ -226,6 +226,12 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
   const confirmAllSuggestions = () => setRows((prev) => prev.map((r) => (r.choice !== 'new' ? { ...r, confirmed: true } : r)));
 
   // ---------- الحفظ ----------
+  const goConfirm = () => {
+    if (hasErrors || included.length === 0) return;
+    if (dest === 'supplier' && !supplierId) { alert('اختر المورد أو اختر «المخزون فقط».'); return; }
+    setStep('confirm');
+  };
+
   const save = () => {
     if (hasErrors || included.length === 0) return;
     if (dest === 'supplier' && !supplierId) { alert('اختر المورد أو اختر «المخزون فقط».'); return; }
@@ -265,7 +271,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
           wholesalePrice: retail,
           stock: info.pieces,
           minStock: 5,
-          piecesPerCarton: r.unit === 'carton' ? parseInt(r.newPerCarton) : 1,
+          piecesPerCarton: Math.max(1, parseInt(r.newPerCarton) || 1),
           ...(r.unit === 'dozen' ? { piecesPerDozen: parseInt(r.newPerDozen) } : {}),
           isWeighted: weighted,
           ...(showDates && r.expiry ? { expiryDate: r.expiry } : {}),
@@ -534,6 +540,58 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
             </>
           )}
 
+          {step === 'confirm' && (
+            <>
+              <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 text-xs font-bold text-amber-900 leading-relaxed">
+                قائمة التأكيد قبل الإضافة: راجع كل مادة بدقة (الاسم والكمية والتعبئة) لأن القراءة بالذكاء الاصطناعي قد تخطئ. تعبئة الكرتون قابلة للتعديل للمواد الجديدة فقط، أما المواد الموجودة فتبقى تعبئتها كما هي ولا تتغير.
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-100 text-[11px] text-slate-600">
+                    <tr>
+                      <th className="px-2 py-2 text-right">#</th>
+                      <th className="px-2 py-2 text-right">المادة</th>
+                      <th className="px-2 py-2">الحالة</th>
+                      <th className="px-2 py-2">العدد</th>
+                      <th className="px-2 py-2">تعبئة الكرتون</th>
+                      <th className="px-2 py-2">يُضاف (قطعة)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {included.map((r, i) => {
+                      const isNew = r.choice === 'new';
+                      const p = isNew ? undefined : productOf(r.choice);
+                      const info = rowPieces(r);
+                      const weighted = isNew ? r.unit === 'kg' : isWeightedProduct(p);
+                      const unitLbl = r.unit === 'carton' ? 'كرتون' : r.unit === 'dozen' ? 'درزن' : weighted ? 'كغم' : 'قطعة';
+                      return (
+                        <tr key={r.key} className="border-t border-slate-100">
+                          <td className="px-2 py-2 text-slate-500">{i + 1}</td>
+                          <td className="px-2 py-2 font-bold">{isNew ? r.newName.trim() : p?.name}</td>
+                          <td className="px-2 py-2 text-center">
+                            {isNew
+                              ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">جديدة</span>
+                              : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">موجودة</span>}
+                          </td>
+                          <td className="px-2 py-2 text-center font-mono font-bold whitespace-nowrap">{r.qty} {unitLbl}</td>
+                          <td className="px-2 py-2 text-center">
+                            {weighted ? <span className="text-slate-400">—</span> : isNew ? (
+                              <input type="number" min="1" value={r.newPerCarton} onChange={(e) => patch(r.key, { newPerCarton: e.target.value })} placeholder="بدون" className="w-20 border border-slate-300 rounded-lg px-2 py-1 text-center font-mono text-sm" />
+                            ) : (
+                              <span className="font-mono text-slate-600" title="لا تتغير للمواد الموجودة">{(p?.piecesPerCarton || 1) > 1 ? p?.piecesPerCarton : 'بدون'} 🔒</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-center font-mono font-extrabold text-emerald-700">{info ? info.pieces : '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {errors.some((x) => x.e) && <p className="text-xs font-bold text-rose-600">{errors.find((x) => x.e)?.e}</p>}
+            </>
+          )}
+
           {step === 'done' && (
             <div className="py-14 text-center space-y-3">
               <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center"><Check className="w-8 h-8" /></div>
@@ -545,10 +603,18 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
 
         {step === 'review' && (
           <div className="px-4 py-3 border-t border-slate-200 flex gap-2 shrink-0">
-            <button onClick={save} disabled={hasErrors || included.length === 0} className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-extrabold disabled:opacity-40">
-              {hasErrors ? `أكمل الأسطر المطلوبة (${errors.filter((x) => x.e).length})` : `إضافة ${included.length} مادة للمخزون`}
+            <button onClick={goConfirm} disabled={hasErrors || included.length === 0} className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-extrabold disabled:opacity-40">
+              {hasErrors ? `أكمل الأسطر المطلوبة (${errors.filter((x) => x.e).length})` : `متابعة للتأكيد (${included.length} مادة)`}
             </button>
             <button onClick={() => { setStep('pick'); setRows([]); }} className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-sm font-bold text-slate-700">صور أخرى</button>
+          </div>
+        )}
+        {step === 'confirm' && (
+          <div className="px-4 py-3 border-t border-slate-200 flex gap-2 shrink-0">
+            <button onClick={save} disabled={hasErrors} className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-extrabold disabled:opacity-40">
+              أؤكد، أضف {included.length} مادة للمخزون
+            </button>
+            <button onClick={() => setStep('review')} className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-sm font-bold text-slate-700">رجوع للتعديل</button>
           </div>
         )}
       </div>
