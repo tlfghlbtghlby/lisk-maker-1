@@ -68,7 +68,8 @@ export async function scanImageFile(file: File, storeId: string, onStatus?: (m: 
   let data: any = null;
   try { data = await res.json(); } catch { /* ignore */ }
   if (!res.ok || !data || !Array.isArray(data.items)) {
-    throw new Error(ERRORS[data?.error] || `تعذرت قراءة الصورة (${res.status}).`);
+    const base = ERRORS[data?.error] || `تعذرت قراءة الصورة (${res.status}).`;
+    throw new Error(data?.error === 'provider_error' ? `${base} (رمز ${data?.status ?? ''})` : base);
   }
   return { items: data.items as ScanItem[], invoiceTotal: data.invoiceTotal, documentType: data.documentType };
 }

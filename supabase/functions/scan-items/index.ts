@@ -130,7 +130,12 @@ Deno.serve(async (req) => {
     lastStatus = res.status;
     if (res.status === 429) { await refund(storeId); return json({ error: 'provider_rate_limited' }, 429); }
     if (res.status === 404 || res.status === 400) continue; // نموذج غير متاح: جرّب التالي
-    if (!res.ok) { await refund(storeId); return json({ error: 'provider_error', status: res.status }, 502); }
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => '')).slice(0, 300);
+      console.error('gemini_error', model, res.status, detail);
+      await refund(storeId);
+      return json({ error: 'provider_error', status: res.status, detail }, 502);
+    }
 
     const data = await res.json().catch(() => null);
     const text: string = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || '').join('') || '';
