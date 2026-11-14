@@ -32,6 +32,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
     addCustomer, 
     updateCustomer, 
     recordPayment, 
+    addManualDebt,
     getUnappliedDebts,
     reconcileCustomerDebts,
     formatMoney,
@@ -81,6 +82,14 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
   };
   const periodActive = !!(periodFrom || periodTo);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  // إضافة دين بمبلغ محدد (ليس من مشتريات)
+  const [debtFor, setDebtFor] = useState<Customer | null>(null);
+  const [debtAmount, setDebtAmount] = useState('');
+  const [debtNotes, setDebtNotes] = useState('');
+  const [debtError, setDebtError] = useState('');
+  const debtEntries: any[] = (settings as any).customerDebtEntries || [];
+  const customerDebtEntriesInPeriod = (cust: Customer) =>
+    debtEntries.filter((d) => d.customerId === cust.id && inPeriod(d.date));
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   
   // Payment modal state
@@ -144,6 +153,16 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
     payments.filter((p) => p.customerId === cust.id && inPeriod(p.date));
   const periodDebtOf = (cust: Customer) =>
     customerInvoicesInPeriod(cust).filter((i) => i.status !== 'returned').reduce((sum, i) => sum + (Number(i.remainingAmount) || 0), 0);
+
+  const submitManualDebt = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!debtFor) return;
+    const amt = parseFloat(debtAmount);
+    if (!(amt > 0)) { setDebtError('أدخل مبلغاً أكبر من الصفر'); return; }
+    const r = addManualDebt(debtFor.id, amt, debtNotes.trim() || 'دين مضاف يدوياً');
+    if (!r) { setDebtError('تعذرت إضافة الدين'); return; }
+    setDebtFor(null); setDebtAmount(''); setDebtNotes(''); setDebtError('');
+  };
 
   // Handle open statement
   const handleOpenStatement = (cust: Customer) => {
@@ -421,6 +440,16 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                             <span>سداد دين</span>
                           </button>
 
+                          {/* Add manual debt */}
+                          <button
+                            onClick={() => { setDebtFor(cust); setDebtAmount(''); setDebtNotes(''); setDebtError(''); }}
+                            className="px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg border border-rose-200 flex items-center gap-1 transition"
+                            title="إضافة دين على الزبون بمبلغ محدد (ليس من مشتريات)"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>إضافة دين</span>
+                          </button>
+
                           {/* Statement Button */}
                           <button
                             onClick={() => handleOpenStatement(cust)}
@@ -639,6 +668,38 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                 )}
               </div>
 
+              {/* Manual debts */}
+              {customerDebtEntriesInPeriod(selectedCustomer).length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                    <Plus className="w-4 h-4 text-rose-600" />
+                    ديون مضافة بمبلغ محدد (بدون قائمة مشتريات):
+                  </h4>
+                  <div className="border border-slate-200 rounded-lg overflow-hidden text-xs">
+                    <table className="w-full text-right">
+                      <thead className="bg-slate-100 font-bold text-slate-700">
+                        <tr>
+                          <th className="py-2 px-3">الرقم</th>
+                          <th className="py-2 px-3">التاريخ والوقت</th>
+                          <th className="py-2 px-3">المبلغ المضاف</th>
+                          <th className="py-2 px-3">ملاحظات</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {customerDebtEntriesInPeriod(selectedCustomer).map((d) => (
+                          <tr key={d.id} className="hover:bg-slate-50">
+                            <td className="py-2 px-3 font-mono font-bold text-rose-800">{d.receiptNumber}</td>
+                            <td className="py-2 px-3 text-slate-500">{new Date(d.date).toLocaleString('ar-EG')}</td>
+                            <td className="py-2 px-3 font-black text-rose-700 text-sm">{formatMoney(d.amount)}</td>
+                            <td className="py-2 px-3 text-slate-600">{d.notes || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               {/* Payments by this customer */}
               <div>
                 <h4 className="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
@@ -824,6 +885,37 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
               </form>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* إضافة دين بمبلغ محدد */}
+      {debtFor && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setDebtFor(null); }}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-base text-slate-900">إضافة دين بمبلغ محدد</h3>
+                <p className="text-xs text-slate-500">الزبون: {debtFor.name} · الدين الحالي: {formatMoney(debtFor.totalDebt)}</p>
+              </div>
+              <button onClick={() => setDebtFor(null)} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 transition"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={submitManualDebt} className="p-5 space-y-4">
+              {debtError && <p className="text-xs font-bold text-rose-600 bg-rose-50 rounded-lg px-3 py-2">{debtError}</p>}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">مبلغ الدين المضاف ({settings.currency})</label>
+                <input type="number" min="1" value={debtAmount} onChange={(e) => setDebtAmount(e.target.value)} placeholder="0" autoFocus className="w-full px-3 py-2 text-base font-bold border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500 bg-white" />
+                {parseFloat(debtAmount) > 0 && <p className="text-[11px] text-slate-500 mt-1">الدين بعد الإضافة: <b className="text-rose-700">{formatMoney((Number(debtFor.totalDebt) || 0) + parseFloat(debtAmount))}</b></p>}
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">ملاحظات (سبب الدين)</label>
+                <input type="text" value={debtNotes} onChange={(e) => setDebtNotes(e.target.value)} placeholder="مثال: سلفة، دين قديم، بضاعة خارج البرنامج..." className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500" />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => setDebtFor(null)} className="flex-1 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition">إلغاء</button>
+                <button type="submit" className="flex-1 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm transition">تأكيد وإضافة الدين</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

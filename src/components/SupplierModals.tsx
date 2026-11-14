@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { dozenName } from '../utils/packLabel';
 import { X, Plus, Trash2, Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Product, Supplier, SupplierRep, SupplierTxn, SupplierTxnItem } from '../types';
@@ -215,7 +216,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
     const bad = valid.find((l) => !l.productId ? false : ((parseFloat(l.qty) * multOf(l)) !== Math.floor(parseFloat(l.qty) * multOf(l)) && !(products as Product[]).find((x) => x.id === l.productId)?.isWeighted));
     if (bad) return setError(`الكمية للمادة «${bad.name}» يجب أن تكون عدداً صحيحاً.`);
     if (paidN > total) return setError('المدفوع أكبر من إجمالي القائمة.');
-    const unitLabel = (l: Line) => (l.unit === 'carton' ? 'كرتون' : l.unit === 'dozen' ? 'درزن' : 'قطعة');
+    const unitLabel = (l: Line) => (l.unit === 'carton' ? 'كرتون' : l.unit === 'dozen' ? dozenName((products as Product[]).find((x) => x.id === l.productId)) : 'قطعة');
     const items: SupplierTxnItem[] = valid.map((l) => {
       const m = multOf(l);
       const qty = parseFloat(l.qty);
@@ -313,7 +314,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
                     <label className="block text-[11px] font-bold text-slate-600 mb-0.5">الوحدة</label>
                     <select value={l.unit} onChange={(e) => changeUnit(l, e.target.value as Line['unit'])} className={inputCls} disabled={!p || (!hasCarton && !hasDozen)}>
                       <option value="piece">{p?.isWeighted ? 'كغم' : 'قطعة'}</option>
-                      {hasDozen && <option value="dozen">درزن ({p?.piecesPerDozen})</option>}
+                      {hasDozen && <option value="dozen">{dozenName(p)} ({p?.piecesPerDozen})</option>}
                       {hasCarton && <option value="carton">كرتون ({p?.piecesPerCarton})</option>}
                     </select>
                   </div>

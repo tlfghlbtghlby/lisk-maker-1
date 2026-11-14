@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { dozenName } from '../utils/packLabel';
 import { X, Plus, Minus } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
@@ -80,7 +81,7 @@ export function StockAdjustModal({ product, onClose }: { product: Product; onClo
                 <label className="block text-xs font-bold text-slate-700 mb-1">الوحدة</label>
                 <select value={unit} onChange={(e) => setUnit(e.target.value as any)} className={input}>
                   <option value="piece">قطعة</option>
-                  {dz > 1 && <option value="dozen">درزن ({dz})</option>}
+                  {dz > 1 && <option value="dozen">{dozenName(product)} ({dz})</option>}
                   {ppc > 1 && <option value="carton">كرتون ({ppc})</option>}
                 </select>
               </div>
