@@ -101,6 +101,12 @@ Deno.serve(async (req) => {
       if (Number.isFinite(ps) && ps >= 0) perStore = Math.min(ps, 1000);
       if (Number.isFinite(gl) && gl >= 0) global = Math.min(gl, 20000);
       if (c.globalWindow === '5h') hours = 5;
+      const o = c.perStore?.[storeId];
+      if (o) {
+        if (o.enabled === false) return json({ error: 'store_disabled' }, 403);
+        const d = Number(o.daily);
+        if (o.daily !== undefined && o.daily !== null && Number.isFinite(d) && d >= 0) perStore = Math.min(d, 1000);
+      }
     }
   } catch (_) { /* استخدم الافتراضي */ }
   const { data: hit, error: hitErr } = await sb.rpc('ai_scan_hit2', { p_store: storeId, p_store_limit: perStore, p_global_limit: global, p_global_hours: hours });

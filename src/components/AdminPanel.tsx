@@ -77,6 +77,8 @@ export const AdminPanel: React.FC = () => {
   const [editEnableModernDesign, setEditEnableModernDesign] = useState(true);
   const [editEnableWholesalePrice, setEditEnableWholesalePrice] = useState(true);
   const [editEnableSpecialPrice, setEditEnableSpecialPrice] = useState(true);
+  const [editAiEnabled, setEditAiEnabled] = useState(true);
+  const [editAiDaily, setEditAiDaily] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [actionLoadingUid, setActionLoadingUid] = useState<string | null>(null);
 
@@ -225,6 +227,15 @@ export const AdminPanel: React.FC = () => {
     setEditEnableModernDesign(client.enableModernDesign !== false);
     setEditEnableWholesalePrice(client.enableWholesalePrice !== false);
     setEditEnableSpecialPrice(client.enableSpecialPrice !== false);
+    setEditAiEnabled(true);
+    setEditAiDaily('');
+    getDocument('config', 'ai_scan_limits').then((d: any) => {
+      const o = d?.perStore?.[client.uid];
+      if (o) {
+        setEditAiEnabled(o.enabled !== false);
+        setEditAiDaily(o.daily !== undefined && o.daily !== null ? String(o.daily) : '');
+      }
+    }).catch(() => {});
     
     if (client.trialExpiresAt) {
       try {
@@ -305,6 +316,17 @@ export const AdminPanel: React.FC = () => {
         }
       } catch (e) {
         console.warn('Could not sync restrictions directly to store document:', e);
+      }
+
+      try {
+        const cfg: any = (await getDocument('config', 'ai_scan_limits')) || {};
+        const per = { ...(cfg.perStore || {}) };
+        const dn = editAiDaily.trim() === '' ? undefined : Math.max(0, Math.min(1000, Math.floor(Number(editAiDaily) || 0)));
+        if (editAiEnabled && dn === undefined) delete per[editingClient.uid];
+        else per[editingClient.uid] = { enabled: editAiEnabled, ...(dn !== undefined ? { daily: dn } : {}) };
+        await setDocument('config', 'ai_scan_limits', { ...cfg, perStore: per });
+      } catch (e) {
+        console.warn('Could not save AI scan limits for store:', e);
       }
 
       if (editIsPermanent) {
@@ -1181,6 +1203,29 @@ export const AdminPanel: React.FC = () => {
                     />
                     <span className="font-bold text-violet-300">السعر الخاص</span>
                   </label>
+
+                  <div className="col-span-2 flex flex-wrap items-center gap-3 p-2 rounded-lg bg-slate-900/60 border border-violet-500/40">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editAiEnabled}
+                        onChange={(e) => setEditAiEnabled(e.target.checked)}
+                        className="accent-violet-500 w-3.5 h-3.5"
+                      />
+                      <span className="font-bold text-violet-300">قراءة الصور بالذكاء الاصطناعي</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 text-[11px] text-slate-300 font-bold">
+                      الحد اليومي لهذا المتجر:
+                      <input
+                        type="number"
+                        min="0"
+                        value={editAiDaily}
+                        onChange={(e) => setEditAiDaily(e.target.value)}
+                        placeholder="الافتراضي"
+                        className="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-center text-white font-mono"
+                      />
+                    </label>
+                  </div>
                 </div>
               </div>
 
