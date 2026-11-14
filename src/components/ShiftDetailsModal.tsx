@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { soldPieces } from '../utils/soldPieces';
 import { 
   X, 
   Printer, 
@@ -68,7 +69,7 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
 
         const existing = itemsMap.get(key);
         if (existing) {
-          existing.quantity += item.quantity;
+          existing.quantity += soldPieces(item);
           existing.totalSales += itemSales;
           existing.totalCost += itemCost;
           existing.totalProfit += itemProfit;
@@ -77,8 +78,8 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
             productId: item.productId || key,
             productName: item.productName || (item as any).name || 'مادة',
             code: item.code || '',
-            unit: item.unit || 'قطعة',
-            quantity: item.quantity,
+            unit: (!item.isWeighted && item.unitType === 'carton') ? 'قطعة' : (item.unit || 'قطعة'),
+            quantity: soldPieces(item),
             unitPrice: item.unitPrice,
             costPrice: item.costPrice || 0,
             totalSales: itemSales,

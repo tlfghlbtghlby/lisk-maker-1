@@ -85,6 +85,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [piecesPerCarton, setPiecesPerCarton] = useState<number | ''>(1);
   const [scanUnit, setScanUnit] = useState<'piece' | 'dozen' | 'carton'>('piece');
   const [dozenOn, setDozenOn] = useState(false);
+  const [dozenLabel, setDozenLabel] = useState('درزن');
   const [piecesPerDozen, setPiecesPerDozen] = useState<number | ''>(12);
   const [isWeighted, setIsWeighted] = useState(false);
   const [notes, setNotes] = useState('');
@@ -199,6 +200,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       const ppc = productToEdit.piecesPerCarton || 1;
       setPiecesPerCarton(ppc);
       setDozenOn((productToEdit.piecesPerDozen || 0) > 1);
+      setDozenLabel((productToEdit.dozenLabel || '').trim() || 'درزن');
       setScanUnit(productToEdit.scanUnit || 'piece');
       setPiecesPerDozen((productToEdit.piecesPerDozen || 0) > 1 ? productToEdit.piecesPerDozen! : 12);
 
@@ -523,6 +525,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       minStock: typeof minStock === 'number' ? minStock : 5,
       piecesPerCarton: numPieces,
       scanUnit: (!isWeighted && ((scanUnit === 'dozen' && dozenOn) || (scanUnit === 'carton' && numPieces > 1))) ? scanUnit : 'piece',
+      dozenLabel: dozenOn && !isWeighted && dozenLabel.trim() && dozenLabel.trim() !== 'درزن' ? dozenLabel.trim() : undefined,
       piecesPerDozen: dozenOn && !isWeighted && typeof piecesPerDozen === 'number' && piecesPerDozen > 1 ? piecesPerDozen : 0,
       isWeighted,
       notes: notes.trim(),
@@ -848,11 +851,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#070e1b] px-3 py-2.5 space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-800 dark:text-slate-200">
                   <input type="checkbox" checked={dozenOn} onChange={(e) => setDozenOn(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
-                  <span>تفعيل فئة وسطية ثالثة (قطعة ← درزن ← كرتون)</span>
+                  <span>تفعيل فئة وسطية ثالثة (قطعة ← {dozenLabel.trim() || 'درزن'} ← كرتون)</span>
                 </label>
                 {dozenOn && (
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">عدد القطع في الدرزن:</span>
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">اسم الفئة:</span>
+                    <input
+                      type="text"
+                      list="dozen-label-options"
+                      value={dozenLabel}
+                      onChange={(e) => setDozenLabel(e.target.value)}
+                      maxLength={20}
+                      placeholder="درزن"
+                      className="w-24 bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <datalist id="dozen-label-options">
+                      {['درزن', 'علبة', 'باكيت', 'شد', 'ربطة', 'طبقة', 'حزمة', 'نصف كرتون'].map((x) => <option key={x} value={x} />)}
+                    </datalist>
+                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">عدد القطع في {dozenLabel.trim() || 'الدرزن'}:</span>
                     <input
                       type="number"
                       min="2"
@@ -876,7 +892,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   className="bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
                 >
                   <option value="piece">قطعة</option>
-                  {dozenOn && <option value="dozen">درزن</option>}
+                  {dozenOn && <option value="dozen">{dozenLabel.trim() || 'درزن'}</option>}
                   {numPieces > 1 && <option value="carton">كرتون</option>}
                 </select>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">تُضاف بها المادة أول مرة، ويمكنك تغيير الوحدة لاحقاً من أزرار السطر.</span>

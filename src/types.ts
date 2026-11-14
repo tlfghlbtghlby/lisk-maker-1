@@ -43,6 +43,8 @@ export interface Product {
   specialPrice?: number;
   stock: number;
   piecesPerCarton?: number;
+  /** اسم الفئة الوسطية (الافتراضي «درزن»): مثل علبة، باكيت، شد... */
+  dozenLabel?: string;
   /** فئة وسطية اختيارية (درزن): عدد القطع في الدرزن؛ 0/غير موجود = معطّلة */
   piecesPerDozen?: number;
   /** وحدة البيع الافتراضية عند مسح الباركود فقط (الافتراضي: قطعة) */
@@ -439,6 +441,17 @@ export interface CreateInvoiceInput {
   showRepOnInvoice?: boolean;
 }
 
+/** دين مضاف يدوياً على زبون بمبلغ محدد (ليس من مشتريات) */
+export interface CustomerDebtEntry {
+  id: string;
+  customerId: string;
+  customerName: string;
+  amount: number;
+  date: string;
+  notes?: string;
+  receiptNumber: string;
+}
+
 export interface PaymentRecord {
   id: string;
   customerId: string;
@@ -547,6 +560,8 @@ export interface StoreSettings {
   /** الموردون (الشركات) وسجل الاستلام والتسديد */
   suppliers?: Supplier[];
   supplierTxns?: SupplierTxn[];
+  /** ديون أُضيفت يدوياً على الزبائن بمبلغ محدد */
+  customerDebtEntries?: CustomerDebtEntry[];
   /** أسماء المواد كما تظهر عند الموردين مربوطة بمواد المخزون (قراءة الصور): مفتاح 'معرّف المورد|الاسم المنظَّف' */
   aiScanAliases?: Record<string, string>;
   /** الشكل الكلاسيكي لقائمة البيع في نقطة البيع (جدول بخطوط كالقائمة المطبوعة) */
