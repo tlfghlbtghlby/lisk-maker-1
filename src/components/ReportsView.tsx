@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { soldPieces } from '../utils/soldPieces';
 import { useApp } from '../context/AppContext';
 import { 
   TrendingUp, 
@@ -128,7 +129,7 @@ export const ReportsView: React.FC = () => {
             profit: 0,
           };
         }
-        map[item.productId].quantity += item.quantity;
+        map[item.productId].quantity += soldPieces(item);
         map[item.productId].revenue += item.total;
         map[item.productId].profit += item.total - item.costPrice * item.quantity;
       });

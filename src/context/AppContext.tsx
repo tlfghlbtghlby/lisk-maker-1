@@ -7,7 +7,7 @@ import {
   Invoice, 
   InvoiceItem, 
   InvoiceStatus, 
-  PaymentRecord, 
+  PaymentRecord, CustomerDebtEntry, 
   StoreSettings, 
   CreateInvoiceInput, 
   SessionRole, 
@@ -188,6 +188,8 @@ interface AppContextType {
   ) => Promise<{ success: boolean; error?: string }>;
   applyBulkPriceAdjustment: (percentage: number, priceTargets: { retail: boolean; wholesale: boolean; cost: boolean }, roundToHundreds?: boolean) => Promise<{ updatedCount: number }>;
   recordPayment: (customerId: string, amount: number, notes?: string) => PaymentRecord;
+  /** إضافة دين بمبلغ محدد على زبون (يزيد رصيده ويُسجَّل في كشف حسابه) */
+  addManualDebt: (customerId: string, amount: number, notes?: string) => CustomerDebtEntry | null;
   trash: TrashEntry[];
   restoreTrashEntry: (id: string) => boolean;
   purgeTrashEntry: (id: string) => void;
@@ -2971,6 +2973,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return p;
   };
 
+  const addManualDebt = (customerId: string, amount: number, notes?: string): CustomerDebtEntry | null => {
+    const amt = Math.round((Number(amount) || 0) * 1000) / 1000;
+    const cust = customers.find(c => c.id === customerId);
+    if (!cust || !(amt > 0)) return null;
+    const nowIso = new Date().toISOString();
+    const entry: CustomerDebtEntry = {
+      id: 'dbt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+      customerId,
+      customerName: cust.name || '',
+      amount: amt,
+      date: nowIso,
+      notes: (notes || '').trim(),
+      receiptNumber: `DBT-${Date.now()}`,
+    };
+    const updatedCustomers = customers.map(c =>
+      c.id === customerId ? { ...c, updatedAt: nowIso, totalDebt: (Number(c.totalDebt) || 0) + amt } : c
+    );
+    setCustomers(updatedCustomers);
+    try { localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers)); } catch {}
+    saveStoreToCloud({ customers: updatedCustomers });
+    broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomers }, currentSessionId, currentUser?.uid);
+    updateSettings({ customerDebtEntries: [entry, ...((stateRef.current.settings?.customerDebtEntries as CustomerDebtEntry[]) || [])] });
+    return entry;
+  };
+
   // يحسب الديون القديمة غير المضافة لرصيد الزبائن (قوائم آجلة قبل هذا التحديث)
   const getUnappliedDebts = (): { customerId: string; customerName: string; amount: number; invoices: number }[] => {
     const map = new Map<string, { customerId: string; customerName: string; amount: number; invoices: number }>();
@@ -3256,9 +3283,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const itemCost = (item.costPrice || 0) * netQty;
         const itemProfit = itemSales - itemCost;
 
+        // الكمية بالقطع (الدرزن/الكرتون تُحوَّل إلى قطع، والوزني كما هو)
+        const pcsMult = (!item.isWeighted && item.unitType === 'carton') ? Math.max(1, item.piecesPerCarton || 1) : 1;
         const existing = itemsMap.get(key);
         if (existing) {
-          existing.quantity += netQty;
+          existing.quantity += netQty * pcsMult;
           existing.totalSales += itemSales;
           existing.totalCost += itemCost;
           existing.totalProfit += itemProfit;
@@ -3267,8 +3296,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             productId: item.productId || key,
             productName: item.productName || (item as any).name || 'مادة',
             code: item.code || '',
-            unit: item.unit || 'قطعة',
-            quantity: netQty,
+            unit: pcsMult > 1 ? (item.isWeighted ? (item.unit || 'قطعة') : 'قطعة') : (item.unit || 'قطعة'),
+            quantity: netQty * pcsMult,
             unitPrice: item.unitPrice,
             costPrice: item.costPrice || 0,
             totalSales: itemSales,
@@ -3678,6 +3707,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         returnPartialInvoice,
         applyBulkPriceAdjustment,
         recordPayment,
+        addManualDebt,
         trash,
         restoreTrashEntry,
         purgeTrashEntry,

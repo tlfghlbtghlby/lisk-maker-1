@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { dozenName } from '../utils/packLabel';
 import { useApp } from '../context/AppContext';
 import { registerPosScanHandler } from '../utils/barcodeBus';
 import { Product, SaleType, PriceType, InvoiceItem, Invoice } from '../types';
@@ -324,7 +325,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           item.priceType
         );
         const isCarton = item.unitType === 'carton';
-        const lineCap = item.packLabel === 'درزن' ? Math.max(1, item.piecesPerCarton || 1) : newCarton;
+        const lineCap = item.packLabel ? Math.max(1, item.piecesPerCarton || 1) : newCarton;
         const effectiveUnit = isCarton ? basePiece * lineCap : basePiece;
         return {
           ...item,
@@ -584,7 +585,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     if (ok && su && resolveFor(prod, globalPriceType) !== null) {
       quickQtyArmedRef.current = null;
       addEntryLine(prod, su, 1);
-      return su === 'dozen' ? 'درزن' : 'كرتون';
+      return su === 'dozen' ? dozenName(prod) : 'كرتون';
     }
     addToCartWithPrice(prod, globalPriceType, 1);
     return null;
@@ -662,7 +663,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         const t = prev[idx];
         const tPack = !weighted && t.unitType === 'carton';
         const tCap = Math.max(1, t.piecesPerCarton || cap);
-        const sameKind = tPack && reqIsPack && ((t.packLabel === 'درزن') === useDz);
+        const sameKind = tPack && reqIsPack && ((!!t.packLabel) === useDz);
         let base: InvoiceItem = t;
         let isPackLine = tPack;
         if (tPack && !sameKind) {
@@ -689,7 +690,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         unit: weighted ? 'كغم' : product.unit,
         priceType: globalPriceType,
         unitType: reqIsPack ? 'carton' : 'piece',
-        packLabel: useDz ? 'درزن' : undefined,
+        packLabel: useDz ? dozenName(product) : undefined,
         piecesPerCarton: reqIsPack ? reqCap : cap,
         deductedPieces: reqIsPack ? q * reqCap : q,
         costPrice: reqIsPack ? product.costPrice * reqCap : product.costPrice,
@@ -749,7 +750,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       const q = Math.max(1, Math.floor(entryNum(e.qty) || 1));
       const uu = hasCarton ? e.unit : 'piece';
       addEntryLine(p, uu, q);
-      note = `${q} ${uu === 'carton' ? 'كرتون' : uu === 'dozen' ? 'درزن' : 'قطعة'}`;
+      note = `${q} ${uu === 'carton' ? 'كرتون' : uu === 'dozen' ? dozenName(p) : 'قطعة'}`;
     }
     quickQtyArmedRef.current = null;
     setScanNotice(`تمت إضافة "${p.name}": ${note}`);
@@ -1077,7 +1078,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     const isDz = newUnitType === 'dozen' && dozenOf(prod) > 1;
     const cartonCapacity = isDz ? dozenOf(prod) : Math.max(1, prod.piecesPerCarton || 1);
     const storedUnit: 'piece' | 'carton' = newUnitType === 'piece' ? 'piece' : 'carton';
-    const packLabel = isDz ? 'درزن' : undefined;
+    const packLabel = isDz ? dozenName(prod) : undefined;
 
     setCartItems((prev) =>
       prev.map((item) => {
@@ -1713,7 +1714,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             entry.unit === u ? 'bg-emerald-600 text-white border-emerald-700 ring-4 ring-emerald-300' : 'bg-white text-slate-700 border-slate-300'
                           }`}
                         >
-                          {u === 'piece' ? 'قطعة' : u === 'dozen' ? `درزن (${dozenOf(entry.product)})` : `كرتون (${cap})`}
+                          {u === 'piece' ? 'قطعة' : u === 'dozen' ? `${dozenName(entry.product)} (${dozenOf(entry.product)})` : `كرتون (${cap})`}
                         </button>
                       ))}
                     </div>
@@ -1752,7 +1753,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     </div>
                   ) : (
                     <label className="block text-[11px] font-bold text-slate-600">
-                      {weighted ? 'الوزن (كغم)' : `العدد (${entry.unit === 'carton' ? 'كرتون' : entry.unit === 'dozen' ? 'درزن' : 'قطعة'})`}
+                      {weighted ? 'الوزن (كغم)' : `العدد (${entry.unit === 'carton' ? 'كرتون' : entry.unit === 'dozen' ? dozenName(entry.product) : 'قطعة'})`}
                       <input
                         ref={entryQtyRef}
                         type="number"
@@ -2428,7 +2429,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 ) : (
                   cartItems.map((item, index) => {
                     const cartonCapacity = item.piecesPerCarton || 1;
-                    const isDozenLine = item.packLabel === 'درزن';
+                    const isDozenLine = !!item.packLabel;
                     const isCarton = !item.isWeighted && item.unitType === 'carton' && !isDozenLine;
                     const isCartonOrDozen = !item.isWeighted && item.unitType === 'carton';
                     const prodRef = products.find(p => p.id === item.productId);
@@ -2475,7 +2476,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               {item.isWeighted ? (
                                 <span>سعر الكيلو الواحد: <strong className="font-mono text-slate-700">{formatMoney(item.unitPrice)}</strong></span>
                               ) : (
-                                <span>الوحدة: {isDozenLine ? `درزن (${cartonCapacity} ق)` : isCarton ? `كرتون (${cartonCapacity} ق)` : (item.unit || 'قطعة')}</span>
+                                <span>الوحدة: {isDozenLine ? `${item.packLabel} (${cartonCapacity} ق)` : isCarton ? `كرتون (${cartonCapacity} ق)` : (item.unit || 'قطعة')}</span>
                               )}
                               {canViewCost && (
                                 <>
@@ -2523,9 +2524,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                                         ? 'bg-sky-600 text-white shadow-2xs font-extrabold'
                                         : 'text-slate-600 hover:text-slate-900'
                                     }`}
-                                    title={`بيع بالدرزن (${prodRef?.piecesPerDozen} قطعة)`}
+                                    title={`بيع بـ${dozenName(prodRef)} (${prodRef?.piecesPerDozen} قطعة)`}
                                   >
-                                    درزن
+                                    {dozenName(prodRef)}
                                   </button>
                                 )}
                                 <button
@@ -2735,7 +2736,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                               </div>
 
                               <span className="text-[12px] font-bold text-slate-600">
-                                {isDozenLine ? 'درزن' : isCarton ? 'كرتون' : item.unit || 'قطعة'}
+                                {isDozenLine ? (item.packLabel || 'درزن') : isCarton ? 'كرتون' : item.unit || 'قطعة'}
                               </span>
                             </div>
 
