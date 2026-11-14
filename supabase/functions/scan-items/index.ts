@@ -22,7 +22,11 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
 // ترتيب النماذج: الأدق أولاً ثم الأخف عند التعثر أو الازدحام
-const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-flash-lite-latest', 'gemini-flash-latest'];
+const FALLBACK_MODELS = [
+  'gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-3-flash-preview',
+  'gemini-3.5-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.1-flash-lite',
+  'gemini-3.7-flash', 'gemini-3.8-flash',
+];
 
 const PROMPT = `You read photos for a small shop in Iraq: supplier invoices, delivery notes, handwritten or typed product lists, shelf/stock sheets, or photos of the goods themselves. Text is mostly Arabic (may include English brand names and Arabic-Indic digits).
 
@@ -37,6 +41,7 @@ Strict rules:
 - confidence from 0 to 1: lower it whenever any part of the line (name, number) is blurry, cut, ambiguous or guessed.
 - If the photo shows physical goods and not a document, list each distinct product you can read from its packaging and count the visible units; use confidence at most 0.6.
 - invoiceTotal: the grand total only if clearly printed, otherwise omit.
+- supplierName: the name of the supplier / wholesaler / company that issued the document (usually the header, letterhead or stamp), copied exactly as written; omit if not clearly written. Do not use the shop's own name or a person's phone number.
 - Ignore headers, phone numbers, dates, signatures and totals rows as items.
 - If nothing is readable return an empty items array.`;
 
@@ -45,6 +50,7 @@ const SCHEMA = {
   properties: {
     documentType: { type: 'STRING' },
     invoiceTotal: { type: 'NUMBER' },
+    supplierName: { type: 'STRING' },
     items: {
       type: 'ARRAY',
       items: {
@@ -148,7 +154,7 @@ Deno.serve(async (req) => {
           contents: [{ parts: [{ text: PROMPT }, { inline_data: { mime_type: mime, data: image } }] }],
           generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: SCHEMA },
         }),
-        signal: AbortSignal.timeout(35000),
+        signal: AbortSignal.timeout(25000),
       });
     } catch (e) { lastStatus = 0; console.error('gemini_fetch_failed', model, String(e).slice(0, 200)); continue; }
     lastStatus = res.status;
@@ -188,6 +194,7 @@ Deno.serve(async (req) => {
     return json({
       items,
       invoiceTotal: num(parsed.invoiceTotal),
+      supplierName: typeof parsed.supplierName === 'string' && parsed.supplierName.trim() ? parsed.supplierName.trim().slice(0, 120) : undefined,
       documentType: typeof parsed.documentType === 'string' ? parsed.documentType.slice(0, 60) : undefined,
       model,
     });

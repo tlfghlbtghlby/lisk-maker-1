@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Camera, Image as ImageIcon, Sparkles, Trash2, Check, AlertTriangle, Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import type { Product, SupplierTxn, SupplierTxnItem } from '../types';
-import { scanImageFile, matchProduct, MatchLevel, MatchCandidate, ScanItem, scoreNames } from '../utils/aiScan';
+import type { Product, Supplier, SupplierTxn, SupplierTxnItem } from '../types';
+import { scanImageFile, matchProduct, MatchLevel, MatchCandidate, ScanItem, scoreNames, normalizeName, aliasKey } from '../utils/aiScan';
 import { generateInternalBarcode } from '../utils/barcodeGen';
 import { addBatch } from '../utils/expiry';
 import { newId, todayIso, nextReceiptNo } from '../utils/suppliers';
@@ -15,6 +15,7 @@ interface Row {
   include: boolean;
   choice: string; // معرّف مادة موجودة أو 'new'
   confirmed: boolean;
+  touched?: boolean;
   level: MatchLevel;
   candidates: MatchCandidate[];
   qty: string;
@@ -49,8 +50,10 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
   const [invoiceTotal, setInvoiceTotal] = useState<number | undefined>();
   const [margin, setMargin] = useState('20');
   const [updateCost, setUpdateCost] = useState(true);
-  const [dest, setDest] = useState<'stock' | 'supplier'>('stock');
-  const [supplierId, setSupplierId] = useState('');
+  const [supplierChoice, setSupplierChoice] = useState(''); // '' بدون | معرّف مورد | 'new'
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [detectedSupplier, setDetectedSupplier] = useState('');
+  const [recordTxn, setRecordTxn] = useState(true);
   const [paid, setPaid] = useState('');
   const [invoiceNo, setInvoiceNo] = useState('');
   const [searchRow, setSearchRow] = useState<string | null>(null);
@@ -59,7 +62,10 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
   const [dragOver, setDragOver] = useState(false);
   const camRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const suppliers = settings.suppliers || [];
+  const suppliers: Supplier[] = settings.suppliers || [];
+  const aliases: Record<string, string> = settings.aiScanAliases || {};
+  const supplierId = supplierChoice !== 'new' ? supplierChoice : '';
+  const supplierLabel = supplierChoice === 'new' ? newSupplierName.trim() : (suppliers.find((x) => x.id === supplierChoice)?.company || '');
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && step !== 'reading') onClose(); };
@@ -91,11 +97,13 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     const all: ScanItem[] = [];
     const errs: string[] = [];
     let total: number | undefined;
+    let supName = '';
     for (let i = 0; i < files.length; i++) {
       setProgress(`جارٍ قراءة الصورة ${i + 1} من ${files.length}...`);
       try {
         const r = await scanImageFile(files[i], storeId, (m) => setProgress(`الصورة ${i + 1} من ${files.length}: ${m}`));
         all.push(...r.items);
+        if (!supName && r.supplierName) supName = r.supplierName;
         if (r.invoiceTotal && files.length === 1) total = r.invoiceTotal;
       } catch (e: any) {
         errs.push(`الصورة ${i + 1}: ${e?.message || 'تعذرت القراءة'}`);
@@ -105,12 +113,26 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     setReadErrors(errs);
     if (!all.length) { setStep('pick'); if (!errs.length) setReadErrors(['لم يتم العثور على مواد مقروءة في الصور. جرّب صورة أوضح.']); return; }
     setInvoiceTotal(total);
-    setRows(all.map((it, i) => buildRow(it, i)));
+    // مطابقة اسم المورد المقروء مع الموردين المسجلين
+    let sid = '';
+    if (supName) {
+      const best = suppliers.map((x) => ({ x, s: scoreNames(supName, x.company) })).sort((a, b) => b.s - a.s)[0];
+      setDetectedSupplier(supName);
+      if (best && best.s >= 0.6) { sid = best.x.id; setSupplierChoice(best.x.id); }
+      else { setSupplierChoice('new'); setNewSupplierName(supName); }
+    }
+    setRows(all.map((it, i) => buildRow(it, i, sid)));
     setStep('review');
   };
 
-  const buildRow = (it: ScanItem, i: number): Row => {
-    const m = matchProduct(it, prods);
+  const aliasProduct = (name: string, sid: string): Product | undefined => {
+    const id = aliases[aliasKey(sid, name)] || aliases[aliasKey('', name)];
+    return id ? prods.find((x) => x.id === id) : undefined;
+  };
+
+  const buildRow = (it: ScanItem, i: number, sid: string): Row => {
+    const al = aliasProduct(it.name, sid);
+    const m = al ? { level: 'exact' as MatchLevel, best: al, candidates: [{ product: al, score: 1 }] } : matchProduct(it, prods);
     const choice = m.level === 'exact' || m.level === 'strong' ? m.best!.id : m.level === 'possible' ? m.candidates[0].product.id : 'new';
     const p = prods.find((x) => x.id === choice);
     let unit: RowUnit = it.unit === 'dozen' ? 'dozen' : it.unit === 'carton' ? 'carton' : it.unit === 'kg' ? 'kg' : 'piece';
@@ -157,7 +179,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
       if (unit === 'carton' && (p.piecesPerCarton || 1) <= 1) unit = 'piece';
       if (unit === 'dozen' && (p.piecesPerDozen || 0) <= 1) unit = 'piece';
     }
-    patch(r.key, { choice, unit, confirmed: choice === 'new' ? true : false });
+    patch(r.key, { choice, unit, touched: true, confirmed: choice === 'new' ? true : false });
   };
 
   // ---------- التحقق والحساب ----------
@@ -223,25 +245,36 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     return new Set(Array.from(seen.entries()).filter(([, n]) => n > 1).map(([k]) => k));
   }, [included]);
 
+  const changeSupplier = (v: string) => {
+    setSupplierChoice(v);
+    const sid = v === 'new' ? '' : v;
+    setRows((prev) => prev.map((r) => {
+      if (r.touched) return r;
+      const al = aliasProduct(r.src.name, sid);
+      return al && al.id !== r.choice ? { ...r, choice: al.id, confirmed: true } : r;
+    }));
+  };
+
   const confirmAllSuggestions = () => setRows((prev) => prev.map((r) => (r.choice !== 'new' ? { ...r, confirmed: true } : r)));
 
   // ---------- الحفظ ----------
   const goConfirm = () => {
     if (hasErrors || included.length === 0) return;
-    if (dest === 'supplier' && !supplierId) { alert('اختر المورد أو اختر «المخزون فقط».'); return; }
+    if (supplierChoice === 'new' && !newSupplierName.trim()) { alert('اكتب اسم المورد الجديد أو اختر «بدون مورد».'); return; }
     setStep('confirm');
   };
 
   const save = () => {
     if (hasErrors || included.length === 0) return;
-    if (dest === 'supplier' && !supplierId) { alert('اختر المورد أو اختر «المخزون فقط».'); return; }
-    const note = dest === 'supplier'
-      ? `استلام من ${(suppliers.find((s: any) => s.id === supplierId) || {}).company || 'مورد'} (قراءة صورة بالذكاء الاصطناعي)`
+    if (supplierChoice === 'new' && !newSupplierName.trim()) { alert('اكتب اسم المورد الجديد أو اختر «بدون مورد».'); return; }
+    const note = supplierLabel
+      ? `استلام من ${supplierLabel} (قراءة صورة بالذكاء الاصطناعي)`
       : 'إضافة بالذكاء الاصطناعي (قراءة صورة)';
     const used = new Set<string>(takenCodes);
     const created: Product[] = [];
     const changes: { id: string; delta: number; note: string; expiryDate?: string; costPrice?: number }[] = [];
     const txnItems: SupplierTxnItem[] = [];
+    const aliasPairs: { name: string; productId: string; productName: string }[] = [];
     const nowIso = new Date().toISOString();
     const unitLabel = (u: RowUnit) => (u === 'carton' ? 'كرتون' : u === 'dozen' ? 'درزن' : u === 'kg' ? 'كغم' : 'قطعة');
 
@@ -290,6 +323,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
           ...(updateCost && pieceCost > 0 ? { costPrice: pieceCost } : {}),
         });
       }
+      aliasPairs.push({ name: r.src.name, productId, productName: name });
       txnItems.push({
         productId,
         name,
@@ -304,17 +338,38 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
 
     applyStockChanges(changes, created);
 
-    if (dest === 'supplier') {
+    // مورد جديد عند الحاجة
+    let newSup: Supplier | undefined;
+    let sid = supplierId;
+    if (supplierChoice === 'new' && newSupplierName.trim()) {
+      newSup = { id: newId('sup'), company: newSupplierName.trim(), reps: [], createdAt: nowIso, updatedAt: nowIso } as Supplier;
+      sid = newSup.id;
+    }
+    // تذكّر اسم المادة عند المورد حتى لا يُعدَّل في كل مرة
+    const merged: Record<string, string> = { ...aliases };
+    for (const ap of aliasPairs) {
+      const n = normalizeName(ap.name);
+      if (!n || n === normalizeName(ap.productName)) continue;
+      delete merged[aliasKey(sid, ap.name)];
+      merged[aliasKey(sid, ap.name)] = ap.productId;
+      if (sid) { delete merged[aliasKey('', ap.name)]; merged[aliasKey('', ap.name)] = ap.productId; }
+    }
+    const keys = Object.keys(merged);
+    if (keys.length > 3000) for (const k of keys.slice(0, keys.length - 3000)) delete merged[k];
+
+    const patchSettings: any = { aiScanAliases: merged };
+    if (newSup) patchSettings.suppliers = [...suppliers, newSup];
+    if (sid && recordTxn) {
       const total = txnItems.reduce((s, i) => s + i.total, 0);
       const paidN = Math.min(total, Math.max(0, parseFloat(paid) || 0));
       const txns: SupplierTxn[] = settings.supplierTxns || [];
-      const txn: SupplierTxn = {
-        id: newId('stx'), supplierId, type: 'purchase', date: todayIso(), total,
+      patchSettings.supplierTxns = [...txns, {
+        id: newId('stx'), supplierId: sid, type: 'purchase', date: todayIso(), total,
         paid: paidN || undefined, invoiceNo: invoiceNo.trim() || undefined,
         receiptNo: nextReceiptNo(txns), notes: 'مُدخَل بقراءة صورة', items: txnItems, createdAt: nowIso,
-      };
-      updateSettings({ supplierTxns: [...txns, txn] });
+      } as SupplierTxn];
     }
+    updateSettings(patchSettings);
     setDoneMsg(`تمت إضافة ${included.length} مادة إلى المخزون (${created.length} مادة جديدة، ${changes.length} مادة موجودة زادت كميتها).`);
     setStep('done');
   };
@@ -521,18 +576,28 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
                   </div>
                 )}
                 <label className="flex items-center gap-2 text-xs font-bold cursor-pointer"><input type="checkbox" checked={updateCost} onChange={(e) => setUpdateCost(e.target.checked)} className="w-4 h-4 accent-violet-600" />تحديث سعر تكلفة المواد الموجودة بسعر الشراء المقروء</label>
-                <div className="flex flex-wrap items-center gap-3 text-xs font-bold">
-                  <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" checked={dest === 'stock'} onChange={() => setDest('stock')} className="accent-violet-600" />المخزون فقط</label>
-                  <label className="flex items-center gap-1.5 cursor-pointer"><input type="radio" checked={dest === 'supplier'} onChange={() => setDest('supplier')} className="accent-violet-600" />تسجيلها كاستلام من مورد (دين علينا)</label>
-                </div>
-                {dest === 'supplier' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div><label className={lbl}>المورد</label><select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className={input}><option value="">— اختر —</option>{suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.company}</option>)}</select></div>
-                    <div><label className={lbl}>المدفوع الآن</label><input type="number" min="0" value={paid} onChange={(e) => setPaid(e.target.value)} className={`${input} text-center`} /></div>
-                    <div><label className={lbl}>رقم قائمة المورد</label><input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} className={input} /></div>
-                    {suppliers.length === 0 && <p className="sm:col-span-3 text-[11px] text-amber-700 font-bold">لا يوجد موردون. أضف مورداً من تبويب «الموردون» أولاً.</p>}
+                <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-2.5 space-y-2">
+                  <div className="text-xs font-extrabold text-violet-900">المورد / صاحب الجملة / الشركة {detectedSupplier && <span className="font-bold text-slate-600">(قُرئ من الصورة: «{detectedSupplier}»)</span>}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <select value={supplierChoice} onChange={(e) => changeSupplier(e.target.value)} className={input}>
+                      <option value="">— بدون مورد —</option>
+                      {suppliers.map((x) => <option key={x.id} value={x.id}>{x.company}</option>)}
+                      <option value="new">＋ مورد جديد</option>
+                    </select>
+                    {supplierChoice === 'new' && <input value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} placeholder="اسم المورد الجديد" className={input} />}
                   </div>
-                )}
+                  {supplierChoice !== '' && (
+                    <>
+                      <label className="flex items-center gap-2 text-xs font-bold cursor-pointer"><input type="checkbox" checked={recordTxn} onChange={(e) => setRecordTxn(e.target.checked)} className="w-4 h-4 accent-violet-600" />تسجيلها كاستلام من هذا المورد (دين علينا) في قسم الموردين</label>
+                      {recordTxn && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div><label className={lbl}>المدفوع الآن</label><input type="number" min="0" value={paid} onChange={(e) => setPaid(e.target.value)} className={`${input} text-center`} /></div>
+                          <div><label className={lbl}>رقم قائمة المورد</label><input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} className={input} /></div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
                 {totalMismatch && (
                   <p className="text-xs font-bold text-amber-800 bg-amber-100 rounded-lg px-3 py-2 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4 shrink-0" />مجموع الأسطر ({formatMoney(sumCost)}) يختلف عن إجمالي القائمة المقروء ({formatMoney(invoiceTotal || 0)}). قد تكون هناك مادة ناقصة أو رقم مقروء خطأ، راجع الأسطر.</p>
                 )}
@@ -545,6 +610,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
               <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 text-xs font-bold text-amber-900 leading-relaxed">
                 قائمة التأكيد قبل الإضافة: راجع كل مادة بدقة (الاسم والكمية والتعبئة) لأن القراءة بالذكاء الاصطناعي قد تخطئ. تعبئة الكرتون قابلة للتعديل للمواد الجديدة فقط، أما المواد الموجودة فتبقى تعبئتها كما هي ولا تتغير.
               </div>
+              {supplierLabel && <p className="text-xs font-bold text-slate-700">المورد: <span className="text-violet-700">{supplierLabel}</span>{supplierChoice === 'new' ? ' (جديد)' : ''}{recordTxn ? ' · سيُسجَّل استلام ودين' : ''}</p>}
               <div className="overflow-x-auto rounded-xl border border-slate-200">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-100 text-[11px] text-slate-600">
