@@ -37,7 +37,8 @@ export const AiScanLimitsCard: React.FC<{ clients: { uid: string; storeName?: st
         globalLimit: Math.max(0, Math.min(20000, Math.floor(Number(lim.globalLimit) || 0))),
         globalWindow: lim.globalWindow,
       };
-      await setDocument('config', 'ai_scan_limits', v);
+      const cur: any = (await getDocument('config', 'ai_scan_limits')) || {};
+      await setDocument('config', 'ai_scan_limits', { ...cur, ...v });
       setLim(v);
       setMsg('تم الحفظ. يسري فوراً على كل المتاجر.');
       loadStats(v.globalWindow);
