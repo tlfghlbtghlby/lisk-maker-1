@@ -156,7 +156,7 @@ interface AppContextType {
   batchDeleteProducts: (productIdsToDelete: string[], stockIncrements?: Record<string, number>) => Promise<{ success: boolean; deletedCount: number; error?: string }>;
   adjustStock: (id: string, delta: number, opts?: { log?: boolean }) => void;
   /** إضافة/إنقاص مخصص (واحد أو عدة مواد دفعة واحدة) مع ملاحظة وتواريخ صلاحية وسعر تكلفة اختياري */
-  applyStockChanges: (changes: StockChangeInput[]) => void;
+  applyStockChanges: (changes: StockChangeInput[], newProducts?: Product[]) => void;
   priceTypeOn: (t: PriceType) => boolean;
   featureOn: (key: 'enableTelegram' | 'enableModernDesign' | 'enableCustomerPriceChecker' | 'enableSupervisor' | 'enableEmployee' | 'enableWholesalePrice' | 'enableSpecialPrice') => boolean;
   sendDebtReminder: (customerId: string) => Promise<{ ok: boolean; sent: number; error?: string }>;
@@ -2056,13 +2056,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  const applyStockChanges = (changes: StockChangeInput[]) => {
+  const applyStockChanges = (changes: StockChangeInput[], newProducts?: Product[]) => {
     const valid = (changes || []).filter(c => c && c.id && Number.isFinite(c.delta) && c.delta !== 0);
-    if (valid.length === 0) return;
+    const created = (newProducts || []).filter(p => p && p.id);
+    if (valid.length === 0 && created.length === 0) return;
     const trackBatches = settings.enableProductExpiry === true && settings.trackExpiryBatches !== false;
     const round3 = (n: number) => Math.round(n * 1000) / 1000;
     setProducts(prev => {
       let updated = prev;
+      if (created.length) {
+        const nowIso = new Date().toISOString();
+        const fresh = created
+          .filter(np => !prev.some(p => p.id === np.id))
+          .map(np => ({
+            ...np,
+            ownerUid: np.ownerUid || currentUser?.uid || 'offline_store',
+            createdAt: np.createdAt || nowIso,
+            updatedAt: nowIso,
+            ...((np.stock || 0) > 0 && !(np.purchaseLog && np.purchaseLog.length)
+              ? { purchaseLog: [makeStockLog(np.stock, 'purchase', 'إضافة بالذكاء الاصطناعي (صورة)', np.costPrice, undefined, { productionDate: np.productionDate, expiryDate: np.expiryDate })] }
+              : {}),
+          } as Product));
+        if (fresh.length) updated = [...fresh, ...prev];
+      }
       for (const ch of valid) {
         const t = updated.find(p => p.id === ch.id);
         if (!t) continue;

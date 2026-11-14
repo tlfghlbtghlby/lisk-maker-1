@@ -1,4 +1,6 @@
 import { StockAdjustModal } from './StockAdjustModal';
+import { AiScanModal } from './AiScanModal';
+import { Sparkles as SparklesIcon } from 'lucide-react';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
@@ -64,6 +66,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
+  const [aiScanOpen, setAiScanOpen] = useState(false);
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'stock' | 'profit' | 'price' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -345,6 +348,14 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
             >
               <Download className="w-3.5 h-3.5" />
               <span>تصدير Excel</span>
+            </button>
+
+            <button
+              onClick={() => setAiScanOpen(true)}
+              className="px-3 py-2 text-xs font-bold text-white bg-gradient-to-l from-violet-600 to-fuchsia-600 hover:opacity-90 rounded-lg shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <SparklesIcon className="w-4 h-4" />
+              <span>إضافة من صورة (AI)</span>
             </button>
 
             <button
@@ -822,6 +833,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           onClose={() => setMovementProduct(null)}
         />
       )}
+      {aiScanOpen && <AiScanModal onClose={() => setAiScanOpen(false)} />}
       {adjustProduct && <StockAdjustModal product={adjustProduct} onClose={() => setAdjustProduct(null)} />}
     </div>
   );
