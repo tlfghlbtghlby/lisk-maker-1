@@ -3,8 +3,7 @@
 //
 // أسرار اختيارية:
 //   GEMINI_MODEL           : اسم النموذج (الافتراضي gemini-2.5-flash مع بدائل احتياطية)
-//   AI_SCAN_PER_STORE_DAILY: الحد اليومي لكل متجر (الافتراضي 40)
-//   AI_SCAN_GLOBAL_DAILY   : الحد اليومي الكلي لكل المتاجر (الافتراضي 400) كي لا تتجاوز الطبقة المجانية
+//   AI_SCAN_PER_STORE_DAILY / AI_SCAN_GLOBAL_DAILY: قيم افتراضية (40 / 400) تُتجاوز بما تضبطه الإدارة من لوحة التحكم
 //
 // الطلب POST JSON: { image: base64 بدون بادئة, mime?: 'image/jpeg', storeId: string }
 
@@ -70,7 +69,7 @@ const num = (v: unknown): number | undefined => {
 };
 
 async function refund(storeId: string) {
-  try { await sb.rpc('ai_scan_refund', { p_store: storeId }); } catch (_) { /* ignore */ }
+  try { await sb.rpc('ai_scan_refund2', { p_store: storeId }); } catch (_) { /* ignore */ }
 }
 
 Deno.serve(async (req) => {
@@ -89,11 +88,24 @@ Deno.serve(async (req) => {
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) return json({ error: 'no_api_key' }, 503);
 
-  const perStore = Number(Deno.env.get('AI_SCAN_PER_STORE_DAILY') ?? 40);
-  const global = Number(Deno.env.get('AI_SCAN_GLOBAL_DAILY') ?? 400);
-  const { data: hit, error: hitErr } = await sb.rpc('ai_scan_hit', { p_store: storeId, p_store_limit: perStore, p_global_limit: global });
+  // الحدود تُضبط من لوحة تحكم الإدارة (documents: config/ai_scan_limits) وإلا فالقيم الافتراضية من الأسرار
+  let perStore = Number(Deno.env.get('AI_SCAN_PER_STORE_DAILY') ?? 40);
+  let global = Number(Deno.env.get('AI_SCAN_GLOBAL_DAILY') ?? 400);
+  let hours = 24;
+  try {
+    const { data: cfg } = await sb.from('documents').select('data').eq('collection', 'config').eq('id', 'ai_scan_limits').maybeSingle();
+    const c: any = cfg?.data;
+    if (c) {
+      if (c.enabled === false) return json({ error: 'disabled' }, 403);
+      const ps = Number(c.perStoreDaily), gl = Number(c.globalLimit);
+      if (Number.isFinite(ps) && ps >= 0) perStore = Math.min(ps, 1000);
+      if (Number.isFinite(gl) && gl >= 0) global = Math.min(gl, 20000);
+      if (c.globalWindow === '5h') hours = 5;
+    }
+  } catch (_) { /* استخدم الافتراضي */ }
+  const { data: hit, error: hitErr } = await sb.rpc('ai_scan_hit2', { p_store: storeId, p_store_limit: perStore, p_global_limit: global, p_global_hours: hours });
   if (hitErr) return json({ error: 'usage_check_failed' }, 500);
-  if (hit !== 'ok') return json({ error: hit }, 429);
+  if (hit !== 'ok') return json({ error: hit, window: hours }, 429);
 
   const models = Array.from(new Set([Deno.env.get('GEMINI_MODEL') || '', 'gemini-2.5-flash', 'gemini-flash-latest'].filter(Boolean)));
   let lastStatus = 0;
