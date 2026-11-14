@@ -42,6 +42,8 @@ import {
   Zap
 } from 'lucide-react';
 
+import { AiScanLimitsCard } from './AiScanLimitsCard';
+
 export const AdminPanel: React.FC = () => {
   const [clients, setClients] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -434,6 +436,8 @@ export const AdminPanel: React.FC = () => {
   return (
     <div className="bg-slate-900 text-white rounded-2xl border border-emerald-500/40 shadow-xl p-5 sm:p-6 space-y-6">
       
+      <AiScanLimitsCard clients={clients as any} />
+
       {/* Admin Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">
         <div className="flex items-center gap-3">
