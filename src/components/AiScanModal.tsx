@@ -94,7 +94,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     for (let i = 0; i < files.length; i++) {
       setProgress(`جارٍ قراءة الصورة ${i + 1} من ${files.length}...`);
       try {
-        const r = await scanImageFile(files[i], storeId);
+        const r = await scanImageFile(files[i], storeId, (m) => setProgress(`الصورة ${i + 1} من ${files.length}: ${m}`));
         all.push(...r.items);
         if (r.invoiceTotal && files.length === 1) total = r.invoiceTotal;
       } catch (e: any) {
