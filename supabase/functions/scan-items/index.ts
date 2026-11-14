@@ -16,10 +16,13 @@ const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SE
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+
+// ترتيب النماذج: الأدق أولاً ثم الأخف عند التعثر أو الازدحام
+const FALLBACK_MODELS = ['gemini-3.8-flash', 'gemini-flash-lite-latest', 'gemini-flash-latest'];
 
 const PROMPT = `You read photos for a small shop in Iraq: supplier invoices, delivery notes, handwritten or typed product lists, shelf/stock sheets, or photos of the goods themselves. Text is mostly Arabic (may include English brand names and Arabic-Indic digits).
 
@@ -74,6 +77,25 @@ async function refund(storeId: string) {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method === 'GET') {
+    const key = Deno.env.get('GEMINI_API_KEY');
+    if (!key) return json({ diag: true, hasKey: false });
+    const out: any[] = [];
+    for (const model of ['gemini-2.5-flash', 'gemini-flash-latest']) {
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+          body: JSON.stringify({ contents: [{ parts: [{ text: 'Reply with the word OK' }] }] }),
+          signal: AbortSignal.timeout(15000),
+        });
+        const t = (await r.text().catch(() => '')).replaceAll(key, '***').slice(0, 400);
+        out.push({ model, status: r.status, body: t });
+      } catch (e) { out.push({ model, error: String(e).slice(0, 200) }); }
+    }
+    return json({ diag: true, hasKey: true, keyLen: key.length, keyPrefix: key.slice(0, 3), results: out });
+  }
+
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
   let body: any;
@@ -113,8 +135,9 @@ Deno.serve(async (req) => {
   if (hitErr) return json({ error: 'usage_check_failed' }, 500);
   if (hit !== 'ok') return json({ error: hit, window: hours }, 429);
 
-  const models = Array.from(new Set([Deno.env.get('GEMINI_MODEL') || '', 'gemini-2.5-flash', 'gemini-flash-latest'].filter(Boolean)));
+  const models = Array.from(new Set([Deno.env.get('GEMINI_MODEL') || '', ...FALLBACK_MODELS].filter(Boolean)));
   let lastStatus = 0;
+  let busy = false;
   for (const model of models) {
     let res: Response;
     try {
@@ -125,11 +148,13 @@ Deno.serve(async (req) => {
           contents: [{ parts: [{ text: PROMPT }, { inline_data: { mime_type: mime, data: image } }] }],
           generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: SCHEMA },
         }),
+        signal: AbortSignal.timeout(35000),
       });
-    } catch (_) { lastStatus = 0; continue; }
+    } catch (e) { lastStatus = 0; console.error('gemini_fetch_failed', model, String(e).slice(0, 200)); continue; }
     lastStatus = res.status;
     if (res.status === 429) { await refund(storeId); return json({ error: 'provider_rate_limited' }, 429); }
-    if (res.status === 404 || res.status === 400) continue; // نموذج غير متاح: جرّب التالي
+    if (res.status === 503 || res.status === 500 || res.status === 504) { busy = true; console.error('gemini_busy', model, res.status); continue; }
+    if (res.status === 404 || res.status === 400) { console.error('gemini_skip', model, res.status); continue; }
     if (!res.ok) {
       const detail = (await res.text().catch(() => '')).slice(0, 300);
       console.error('gemini_error', model, res.status, detail);
@@ -168,5 +193,5 @@ Deno.serve(async (req) => {
     });
   }
   await refund(storeId);
-  return json({ error: 'model_unavailable', status: lastStatus }, 502);
+  return json({ error: busy ? 'provider_busy' : 'model_unavailable', status: lastStatus }, 503);
 });

@@ -32,6 +32,7 @@ const ERRORS: Record<string, string> = {
   no_image: 'لم تصل الصورة. أعد المحاولة.',
   unreadable_response: 'تعذرت قراءة الصورة. جرّب صورة أوضح وإضاءة أفضل.',
   model_unavailable: 'نموذج القراءة غير متاح حالياً. حاول لاحقاً.',
+  provider_busy: 'خدمة Gemini مشغولة الآن (ازدحام مؤقت عندهم). انتظر دقيقة وأعد المحاولة.',
   provider_error: 'حدث خطأ في خدمة القراءة. حاول لاحقاً.',
 };
 
@@ -46,7 +47,7 @@ export async function scanImageFile(file: File, storeId: string, onStatus?: (m: 
   for (let attempt = 1; attempt <= 2 && !res; attempt++) {
     onStatus?.(attempt === 1 ? `جارٍ رفع الصورة (${Math.round(body.length / 1024)} KB) وقراءتها...` : 'الاتصال بطيء، إعادة المحاولة...');
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 75000);
+    const timer = setTimeout(() => ctrl.abort(), 130000);
     try {
       res = await fetch(`${supabaseUrl}/functions/v1/scan-items`, {
         method: 'POST',
