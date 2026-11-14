@@ -3,6 +3,7 @@ import { Truck, Users, Plus, Search, Phone, Package, Wallet, Pencil, Trash2 } fr
 import { useApp } from '../context/AppContext';
 import { Supplier, SupplierTxn } from '../types';
 import { owedTo, txnsOf, txnEffect, fmtDate } from '../utils/suppliers';
+import { AiScanModal } from './AiScanModal';
 import { SupplierFormModal, SupplierPaymentModal, ReceiveGoodsModal } from './SupplierModals';
 
 /** الموردون: استلام البضاعة وتسجيل الدين علينا والتسديد، مع تبويب خاص بمندوبي الشركات */
@@ -16,6 +17,7 @@ export function SuppliersView() {
   const [onlyDebt, setOnlyDebt] = useState(false);
   const [formFor, setFormFor] = useState<Supplier | 'new' | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [aiScanOpen, setAiScanOpen] = useState(false);
   const [receiveFor, setReceiveFor] = useState<Supplier | 'any' | null>(null);
   const [payFor, setPayFor] = useState<Supplier | null>(null);
 
@@ -79,6 +81,7 @@ export function SuppliersView() {
           </div>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setAiScanOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-l from-violet-600 to-fuchsia-600 text-white text-xs font-extrabold">✨ استلام من صورة (AI)</button>
           <button onClick={() => setReceiveFor('any')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold"><Package className="w-4 h-4" />استلام بضاعة</button>
           <button onClick={() => setFormFor('new')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold"><Plus className="w-4 h-4" />مورد جديد</button>
         </div>
@@ -242,6 +245,7 @@ export function SuppliersView() {
         />
       )}
 
+      {aiScanOpen && <AiScanModal onClose={() => setAiScanOpen(false)} />}
       {receiveFor && (
         <ReceiveGoodsModal
           supplier={receiveFor === 'any' ? null : receiveFor}
