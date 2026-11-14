@@ -36,18 +36,34 @@ const ERRORS: Record<string, string> = {
 };
 
 /** يصغّر الصورة ويرسلها لدالة القراءة ويعيد المواد المقروءة (تحتاج دائماً لمراجعة بشرية) */
-export async function scanImageFile(file: File, storeId: string): Promise<ScanResult> {
-  const dataUrl = await resizeImageFile(file, 1800, 0.85);
+export async function scanImageFile(file: File, storeId: string, onStatus?: (m: string) => void): Promise<ScanResult> {
+  // صورة أصغر = رفع أسرع على الاتصال البطيء. 1400px تكفي لقراءة القوائم.
+  const dataUrl = await resizeImageFile(file, 1400, 0.72);
   const image = dataUrl.split(',')[1] || '';
-  let res: Response;
-  try {
-    res = await fetch(`${supabaseUrl}/functions/v1/scan-items`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: supabaseAnonKey },
-      body: JSON.stringify({ image, mime: 'image/jpeg', storeId }),
-    });
-  } catch {
-    throw new Error('تعذر الاتصال بالإنترنت. تحقق من الاتصال وأعد المحاولة.');
+  const body = JSON.stringify({ image, mime: 'image/jpeg', storeId });
+  let res: Response | null = null;
+  let lastErr = '';
+  for (let attempt = 1; attempt <= 2 && !res; attempt++) {
+    onStatus?.(attempt === 1 ? `جارٍ رفع الصورة (${Math.round(body.length / 1024)} KB) وقراءتها...` : 'الاتصال بطيء، إعادة المحاولة...');
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 75000);
+    try {
+      res = await fetch(`${supabaseUrl}/functions/v1/scan-items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: supabaseAnonKey },
+        body,
+        signal: ctrl.signal,
+      });
+    } catch (e: any) {
+      lastErr = e?.name === 'AbortError' ? 'timeout' : 'network';
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  if (!res) {
+    throw new Error(lastErr === 'timeout'
+      ? 'انتهت المهلة أثناء رفع الصورة. الاتصال بطيء: جرّب شبكة أسرع أو صورة أصغر.'
+      : 'تعذر الاتصال بخادم القراءة. تحقق من الاتصال وأعد المحاولة.');
   }
   let data: any = null;
   try { data = await res.json(); } catch { /* ignore */ }
