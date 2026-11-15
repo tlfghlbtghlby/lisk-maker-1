@@ -60,6 +60,8 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
   const [newSupplierName, setNewSupplierName] = useState('');
   const [detectedSupplier, setDetectedSupplier] = useState('');
   const [recordTxn, setRecordTxn] = useState(true);
+  const [printed, setPrintedState] = useState<boolean>(() => { try { return localStorage.getItem('ai_scan_printed') === '1'; } catch { return false; } });
+  const setPrinted = (v: boolean) => { setPrintedState(v); try { localStorage.setItem('ai_scan_printed', v ? '1' : '0'); } catch {} };
   const [paid, setPaid] = useState('');
   const [invoiceNo, setInvoiceNo] = useState('');
   const [searchRow, setSearchRow] = useState<string | null>(null);
@@ -107,7 +109,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     for (let i = 0; i < files.length; i++) {
       setProgress(`جارٍ قراءة الصورة ${i + 1} من ${files.length}...`);
       try {
-        const r = await scanImageFile(files[i], storeId, (m) => setProgress(`الصورة ${i + 1} من ${files.length}: ${m}`));
+        const r = await scanImageFile(files[i], storeId, (m) => setProgress(`الصورة ${i + 1} من ${files.length}: ${m}`), printed);
         all.push(...r.items);
         if (!supName && r.supplierName) supName = r.supplierName;
         if (r.invoiceTotal && files.length === 1) total = r.invoiceTotal;
@@ -456,6 +458,14 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
 
               <p className="text-[11px] text-slate-500 leading-relaxed">تُرسل الصورة إلى خدمة Gemini من Google لقراءتها عبر خادم المتجر. لا تصوّر معلومات شخصية. النتيجة اقتراح فقط، ولن يُضاف شيء قبل مراجعتك وموافقتك.</p>
 
+              <label className="flex items-start gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 cursor-pointer">
+                <input type="checkbox" checked={printed} onChange={(e) => setPrinted(e.target.checked)} className="mt-0.5 w-4 h-4 accent-violet-600" />
+                <span className="text-xs leading-relaxed">
+                  <b className="text-slate-900">القائمة مطبوعة (جدول واضح)</b>
+                  <span className="block text-slate-500">يقرأ الذكاء الاصطناعي الجدول سطراً بسطر دون تفسير، ثم يفرز البرنامج الأعمدة (الاسم، العدد، السعر، المجموع) بنفسه. أزل العلامة للقوائم المكتوبة بخط اليد أو الصور غير المنتظمة.</span>
+                </span>
+              </label>
+
               <button type="button" onClick={startReading} disabled={!files.length} className="w-full py-3 rounded-xl bg-gradient-to-l from-violet-600 to-fuchsia-600 text-white text-sm font-extrabold disabled:opacity-40">
                 قراءة {files.length ? `${files.length} صورة` : 'الصور'}
               </button>
@@ -505,6 +515,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
                         <input type="checkbox" checked={r.include} onChange={(e) => patch(r.key, { include: e.target.checked })} className="mt-1 w-4 h-4 accent-violet-600" />
                         <div className="min-w-0 grow">
                           <div className="flex flex-wrap items-center gap-1.5">
+                            {r.src.line !== undefined && <span className="text-[10px] font-bold text-slate-400">#{r.src.line}</span>}
                             <span className="font-extrabold text-sm">{r.src.name}</span>
                             {r.fromAlias && r.choice !== 'new' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-800">محفوظ سابقاً ← {prods.find((x) => x.id === r.choice)?.name}</span>}
                             {lowConf && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 flex items-center gap-0.5"><AlertTriangle className="w-3 h-3" />قراءة غير مؤكدة</span>}
@@ -515,6 +526,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
                                 : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">اقتراح: يحتاج تأكيدك</span>}
                             {duplicates.has(dupKey) && r.include && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800">تكرار لنفس المادة</span>}
                           </div>
+                          {r.src.raw && <div className="text-[10px] text-slate-400 font-mono mt-0.5 truncate" dir="auto" title="السطر كما قُرئ من الصورة">السطر: {r.src.raw}</div>}
                         </div>
                         <button type="button" onClick={() => setRows(rows.filter((x) => x.key !== r.key))} className="p-1 text-rose-600 hover:bg-rose-50 rounded shrink-0" title="حذف السطر"><Trash2 className="w-4 h-4" /></button>
                       </div>
