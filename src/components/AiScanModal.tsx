@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Camera, Image as ImageIcon, Sparkles, Trash2, Check, AlertTriangle, Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { Product, Supplier, SupplierTxn, SupplierTxnItem } from '../types';
-import { scanImageFile, matchProduct, MatchLevel, MatchCandidate, ScanItem, scoreNames, normalizeName, aliasKey } from '../utils/aiScan';
+import { scanImageFile, matchProduct, MatchLevel, MatchCandidate, ScanItem, scoreNames, normalizeName, aliasKey, aliasKeyLegacy, aliasLookup } from '../utils/aiScan';
 import { generateInternalBarcode } from '../utils/barcodeGen';
 import { addBatch } from '../utils/expiry';
 import { newId, todayIso, nextReceiptNo } from '../utils/suppliers';
@@ -28,6 +28,7 @@ interface Row {
   newPerCarton: string;
   newPerDozen: string;
   /** تعبئة كرتون جديدة لمادة موجودة (فارغ = تبقى كما هي) */
+  fromAlias?: boolean;
   exPerCarton: string;
   /** خصم المندوب على السطر (مبلغ) */
   disc: string;
@@ -131,7 +132,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
   };
 
   const aliasProduct = (name: string, sid: string): Product | undefined => {
-    const id = aliases[aliasKey(sid, name)] || aliases[aliasKey('', name)];
+    const id = aliasLookup(aliases, sid, name);
     return id ? prods.find((x) => x.id === id) : undefined;
   };
 
@@ -149,7 +150,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     }
     const unitCost = it.unitPrice ?? (it.lineTotal && it.quantity ? Math.round(it.lineTotal / it.quantity) : undefined);
     const mult = p ? unitMult(p, unit) : 1;
-    const cost = unitCost !== undefined ? String(unitCost) : p && p.costPrice ? String(Math.round(p.costPrice * mult * 1000) / 1000) : '';
+    const cost = unitCost !== undefined ? String(unitCost) : '';
     return {
       key: `r${i}_${Math.random().toString(36).slice(2, 6)}`,
       src: it,
@@ -168,6 +169,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
       newPerCarton: '',
       newPerDozen: it.unit === 'dozen' ? '12' : '12',
       exPerCarton: '',
+      fromAlias: !!al,
       disc: '',
     };
   };
@@ -186,7 +188,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
       if (unit === 'carton' && (p.piecesPerCarton || 1) <= 1) unit = 'piece';
       if (unit === 'dozen' && (p.piecesPerDozen || 0) <= 1) unit = 'piece';
     }
-    patch(r.key, { choice, unit, touched: true, confirmed: choice === 'new' ? true : false });
+    patch(r.key, { choice, unit, touched: true, fromAlias: false, confirmed: choice === 'new' ? true : false });
   };
 
   // ---------- التحقق والحساب ----------
@@ -259,7 +261,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     setRows((prev) => prev.map((r) => {
       if (r.touched) return r;
       const al = aliasProduct(r.src.name, sid);
-      return al && al.id !== r.choice ? { ...r, choice: al.id, confirmed: true } : r;
+      return al && al.id !== r.choice ? { ...r, choice: al.id, confirmed: true, fromAlias: true } : r;
     }));
   };
 
@@ -369,9 +371,10 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     for (const ap of aliasPairs) {
       const n = normalizeName(ap.name);
       if (!n || n === normalizeName(ap.productName)) continue;
+      delete merged[aliasKeyLegacy(sid, ap.name)];
       delete merged[aliasKey(sid, ap.name)];
       merged[aliasKey(sid, ap.name)] = ap.productId;
-      if (sid) { delete merged[aliasKey('', ap.name)]; merged[aliasKey('', ap.name)] = ap.productId; }
+      if (sid) { delete merged[aliasKeyLegacy('', ap.name)]; delete merged[aliasKey('', ap.name)]; merged[aliasKey('', ap.name)] = ap.productId; }
     }
     const keys = Object.keys(merged);
     if (keys.length > 3000) for (const k of keys.slice(0, keys.length - 3000)) delete merged[k];
@@ -503,6 +506,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
                         <div className="min-w-0 grow">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-extrabold text-sm">{r.src.name}</span>
+                            {r.fromAlias && r.choice !== 'new' && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-100 text-violet-800">محفوظ سابقاً ← {prods.find((x) => x.id === r.choice)?.name}</span>}
                             {lowConf && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 flex items-center gap-0.5"><AlertTriangle className="w-3 h-3" />قراءة غير مؤكدة</span>}
                             {r.choice === 'new'
                               ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">غير موجودة: ستُضاف كمادة جديدة</span>
