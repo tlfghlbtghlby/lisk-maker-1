@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock, Tag,
-  LayoutGrid, RefreshCw, Cloud, WifiOff, UserCircle2,
+  LayoutGrid, RefreshCw, Cloud, WifiOff, UserCircle2, Truck, Wallet,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { TabType, useNavItems } from './Navigation';
@@ -13,6 +13,8 @@ import { Header } from './Header';
 const ICONS: Record<TabType, React.ComponentType<{ className?: string }>> = {
   pos: ShoppingCart,
   inventory: Boxes,
+  suppliers: Truck,
+  expenses: Wallet,
   invoices: FileText,
   offers: Tag,
   'sales-reps': Briefcase,
@@ -25,6 +27,8 @@ const ICONS: Record<TabType, React.ComponentType<{ className?: string }>> = {
 const SHORT: Record<TabType, string> = {
   pos: 'البيع',
   inventory: 'المواد',
+  suppliers: 'الموردون',
+  expenses: 'المصروفات',
   invoices: 'الفواتير',
   offers: 'العروض',
   'sales-reps': 'المندوبون',
@@ -171,12 +175,12 @@ export const AndroidBottomNav: React.FC<{ activeTab: TabType; onSelectTab: (t: T
       >
         <div className="flex items-stretch h-[64px]">
           {primary.map((item) => {
-            const Icon = ICONS[item.id];
+            const Icon = ICONS[item.id] || LayoutGrid;
             return (
               <Cell
                 key={item.id}
                 active={activeTab === item.id}
-                label={SHORT[item.id]}
+                label={SHORT[item.id] || item.label}
                 onClick={() => onSelectTab(item.id)}
                 badge={item.id === 'inventory' && typeof item.badge === 'string'}
               >
@@ -195,7 +199,7 @@ export const AndroidBottomNav: React.FC<{ activeTab: TabType; onSelectTab: (t: T
       <AndroidSheet open={moreOpen} onClose={() => setMoreOpen(false)} title="الأقسام">
         <div className="grid grid-cols-3 gap-2 pb-2">
           {rest.map((item) => {
-            const Icon = ICONS[item.id];
+            const Icon = ICONS[item.id] || LayoutGrid;
             const active = activeTab === item.id;
             return (
               <button
@@ -212,7 +216,7 @@ export const AndroidBottomNav: React.FC<{ activeTab: TabType; onSelectTab: (t: T
                 }`}
               >
                 <Icon className="w-6 h-6" />
-                <span className="text-[12.5px] font-bold text-center leading-tight">{SHORT[item.id]}</span>
+                <span className="text-[12.5px] font-bold text-center leading-tight">{SHORT[item.id] || item.label}</span>
                 {item.badge !== undefined && (
                   <span className="absolute top-1.5 left-1.5 text-[10.5px] font-bold px-1.5 py-0.5 rounded-full bg-white/80 dark:bg-slate-900/70 text-slate-700 dark:text-slate-200">
                     {item.badge}
