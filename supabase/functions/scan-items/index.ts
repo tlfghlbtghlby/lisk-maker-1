@@ -41,7 +41,7 @@ Strict rules:
 - confidence from 0 to 1: lower it whenever any part of the line (name, number) is blurry, cut, ambiguous or guessed.
 - If the photo shows physical goods and not a document, list each distinct product you can read from its packaging and count the visible units; use confidence at most 0.6.
 - invoiceTotal: the grand total only if clearly printed, otherwise omit.
-- supplierName: the name of the supplier / wholesaler / company that issued the document (usually the header, letterhead or stamp), copied exactly as written; omit if not clearly written. Do not use the shop's own name or a person's phone number.
+- supplierName: the supplier / wholesaler / company / trader that SOLD the goods and issued the document. Look carefully at the top header, letterhead, logo text, rubber stamp, a handwritten title line (e.g. شركة ..., مذخر ..., مكتب ..., السيد ...), and also the footer or signature stamp. Copy it exactly as written (prefer the company/trade name over a person's name). Omit it only if nothing like it is written anywhere. Never use a phone number, the buyer's own shop, or a product name.
 - Ignore headers, phone numbers, dates, signatures and totals rows as items.
 - If nothing is readable return an empty items array.`;
 
