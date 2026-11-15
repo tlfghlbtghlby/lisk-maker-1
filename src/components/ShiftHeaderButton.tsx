@@ -4,9 +4,11 @@ import { useApp } from '../context/AppContext';
 
 interface ShiftHeaderButtonProps {
   onOpenShiftsTab?: () => void;
+  /** داخل نافذة/شاشة البيع: يُسمح للموظف العادي ببدء الشفت من هنا فقط */
+  posWindow?: boolean;
 }
 
-export const ShiftHeaderButton: React.FC<ShiftHeaderButtonProps> = ({ onOpenShiftsTab }) => {
+export const ShiftHeaderButton: React.FC<ShiftHeaderButtonProps> = ({ onOpenShiftsTab, posWindow }) => {
   const { 
     activeShift, 
     hasPermission, 
@@ -46,7 +48,7 @@ export const ShiftHeaderButton: React.FC<ShiftHeaderButtonProps> = ({ onOpenShif
   }, [activeShift]);
 
   // إذا لم يكن هناك شفت نشط ولا يملك صلاحية بدء الشفت
-  if (!activeShift && !hasPermission('canManageShifts')) {
+  if (!activeShift && !hasPermission('canManageShifts') && !(posWindow && hasPermission('canSell'))) {
     return null;
   }
 
