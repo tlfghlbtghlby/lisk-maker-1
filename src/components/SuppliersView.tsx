@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Truck, Users, Plus, Search, Phone, Package, Wallet, Pencil, Trash2 } from 'lucide-react';
+import { Truck, Users, Plus, Search, Phone, Package, Wallet, Pencil, Trash2, FileText } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Supplier, SupplierTxn } from '../types';
 import { owedTo, txnsOf, txnEffect, fmtDate } from '../utils/suppliers';
@@ -12,7 +12,10 @@ export function SuppliersView() {
   const suppliers: Supplier[] = settings.suppliers || [];
   const txns: SupplierTxn[] = settings.supplierTxns || [];
 
-  const [tab, setTab] = useState<'suppliers' | 'reps'>('suppliers');
+  const [tab, setTab] = useState<'suppliers' | 'reps' | 'receipts'>('suppliers');
+  const [supFilter, setSupFilter] = useState('');
+  const [payFilter, setPayFilter] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all');
+  const [openTxn, setOpenTxn] = useState<SupplierTxn | null>(null);
   const [q, setQ] = useState('');
   const [onlyDebt, setOnlyDebt] = useState(false);
   const [formFor, setFormFor] = useState<Supplier | 'new' | null>(null);
@@ -53,6 +56,21 @@ export function SuppliersView() {
     });
     return out.filter((r) => !t || [r.name, r.phone, r.company].some((x) => (x || '').toLowerCase().includes(t))).sort((a, b) => a.company.localeCompare(b.company) || a.name.localeCompare(b.name));
   }, [suppliers, txns, q]);
+
+  const receiptRows = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return txns
+      .filter((x) => x.type === 'purchase')
+      .map((x) => {
+        const sup = suppliers.find((s) => s.id === x.supplierId);
+        const total = Number(x.total) || 0, paid = Math.min(total, Number(x.paid) || 0);
+        const status: 'paid' | 'partial' | 'unpaid' = paid >= total ? 'paid' : paid > 0 ? 'partial' : 'unpaid';
+        return { t: x, sup, total, paid, rest: Math.max(0, total - paid), status };
+      })
+      .filter((r) => (!supFilter || r.t.supplierId === supFilter) && (payFilter === 'all' || r.status === payFilter))
+      .filter((r) => !t || [r.sup?.company, r.t.repName, r.t.invoiceNo, ...(r.t.items || []).map((i) => i.name)].some((v) => (v || '').toLowerCase().includes(t)))
+      .sort((a, b) => (b.t.date + b.t.createdAt).localeCompare(a.t.date + a.t.createdAt));
+  }, [txns, suppliers, q, supFilter, payFilter]);
 
   const deleteSupplier = (s: Supplier) => {
     const n = txnsOf(s.id, txns).length;
@@ -96,17 +114,66 @@ export function SuppliersView() {
         <div className="flex rounded-xl border border-slate-300 overflow-hidden text-xs font-bold">
           <button onClick={() => setTab('suppliers')} className={`flex items-center gap-1.5 px-3 py-2 ${tab === 'suppliers' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}><Truck className="w-3.5 h-3.5" />الشركات والديون</button>
           <button onClick={() => setTab('reps')} className={`flex items-center gap-1.5 px-3 py-2 ${tab === 'reps' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}><Users className="w-3.5 h-3.5" />المندوبون</button>
+          <button onClick={() => setTab('receipts')} className={`flex items-center gap-1.5 px-3 py-2 ${tab === 'receipts' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}><FileText className="w-3.5 h-3.5" />قوائم الاستلام</button>
         </div>
         <div className="relative flex-1 min-w-[180px]">
           <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tab === 'suppliers' ? 'بحث باسم الشركة أو المندوب أو الهاتف...' : 'بحث باسم المندوب أو الشركة...'} className="w-full border border-slate-300 rounded-xl pr-9 pl-3 py-2 text-sm bg-white" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tab === 'receipts' ? 'بحث باسم الشركة أو المندوب أو رقم القائمة أو مادة...' : tab === 'suppliers' ? 'بحث باسم الشركة أو المندوب أو الهاتف...' : 'بحث باسم المندوب أو الشركة...'} className="w-full border border-slate-300 rounded-xl pr-9 pl-3 py-2 text-sm bg-white" />
         </div>
+        {tab === 'receipts' && (
+          <>
+            <select value={supFilter} onChange={(e) => setSupFilter(e.target.value)} className="border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold bg-white">
+              <option value="">كل الموردين والشركات</option>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.company}</option>)}
+            </select>
+            <select value={payFilter} onChange={(e) => setPayFilter(e.target.value as any)} className="border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold bg-white">
+              <option value="all">الكل (مدفوعة وغير مدفوعة)</option>
+              <option value="paid">مدفوعة بالكامل</option>
+              <option value="partial">مدفوعة جزئياً</option>
+              <option value="unpaid">غير مدفوعة</option>
+            </select>
+          </>
+        )}
         {tab === 'suppliers' && (
           <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer"><input type="checkbox" checked={onlyDebt} onChange={(e) => setOnlyDebt(e.target.checked)} className="accent-rose-600" />المدينون فقط</label>
         )}
       </div>
 
-      {tab === 'suppliers' ? (
+      {tab === 'receipts' ? (
+        receiptRows.length === 0 ? (
+          <div className={`${card} p-8 text-center text-sm text-slate-500`}>لا توجد قوائم استلام مطابقة.</div>
+        ) : (
+          <div className={`${card} overflow-x-auto`}>
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50 text-slate-600"><tr>
+                <th className="text-right px-3 py-2">التاريخ</th><th className="text-right px-3 py-2">رقم القائمة</th><th className="text-right px-3 py-2">المورد / الشركة</th><th className="text-right px-3 py-2">المندوب</th>
+                <th className="px-3 py-2">المواد</th><th className="px-3 py-2">الإجمالي</th><th className="px-3 py-2">المدفوع</th><th className="px-3 py-2">المتبقي</th><th className="px-3 py-2">الحالة</th>
+              </tr></thead>
+              <tbody>
+                {receiptRows.map((r) => (
+                  <tr key={r.t.id} onClick={() => setOpenTxn(r.t)} className="border-t border-slate-100 hover:bg-indigo-50/50 cursor-pointer">
+                    <td className="px-3 py-2 whitespace-nowrap">{fmtDate(r.t.date)}</td>
+                    <td className="px-3 py-2 font-mono">{r.t.invoiceNo || '—'}</td>
+                    <td className="px-3 py-2 font-extrabold">{r.sup?.company || '(مورد محذوف)'}</td>
+                    <td className="px-3 py-2">{r.t.repName || '—'}</td>
+                    <td className="px-3 py-2 text-center">{r.t.items?.length || 0}</td>
+                    <td className="px-3 py-2 text-center font-bold">{formatMoney(r.total)}</td>
+                    <td className="px-3 py-2 text-center">{formatMoney(r.paid)}</td>
+                    <td className={`px-3 py-2 text-center font-bold ${r.rest > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{formatMoney(r.rest)}</td>
+                    <td className="px-3 py-2 text-center"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${r.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : r.status === 'partial' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>{r.status === 'paid' ? 'مدفوعة' : r.status === 'partial' ? 'جزئي' : 'غير مدفوعة'}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-slate-50 font-extrabold border-t border-slate-200"><tr>
+                <td className="px-3 py-2" colSpan={5}>المجموع ({receiptRows.length} قائمة)</td>
+                <td className="px-3 py-2 text-center">{formatMoney(receiptRows.reduce((a, r) => a + r.total, 0))}</td>
+                <td className="px-3 py-2 text-center">{formatMoney(receiptRows.reduce((a, r) => a + r.paid, 0))}</td>
+                <td className="px-3 py-2 text-center text-rose-600">{formatMoney(receiptRows.reduce((a, r) => a + r.rest, 0))}</td><td></td>
+              </tr></tfoot>
+            </table>
+          </div>
+        )
+      ) : tab === 'suppliers' ? (
         rows.length === 0 ? (
           <div className={`${card} p-8 text-center text-sm text-slate-500`}>{suppliers.length === 0 ? 'لا يوجد موردون بعد. اضغط «مورد جديد» لإضافة أول شركة.' : 'لا توجد نتائج.'}</div>
         ) : (
@@ -226,6 +293,60 @@ export function SuppliersView() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {openTxn && (() => {
+        const sup = suppliers.find((x) => x.id === openTxn.supplierId);
+        const total = Number(openTxn.total) || 0, paid = Math.min(total, Number(openTxn.paid) || 0);
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpenTxn(null); }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[94vh] overflow-y-auto" dir="rtl">
+              <div className="sticky top-0 bg-white z-10 px-4 py-3 border-b border-slate-200 flex items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-extrabold text-base">قائمة استلام{openTxn.invoiceNo ? ` رقم ${openTxn.invoiceNo}` : ''}</h3>
+                  <p className="text-[11px] text-slate-500">{[sup?.company, openTxn.repName ? `المندوب: ${openTxn.repName}` : '', fmtDate(openTxn.date)].filter(Boolean).join(' · ')}</p>
+                </div>
+                <button onClick={() => setOpenTxn(null)} className="text-slate-500 hover:bg-slate-100 rounded-lg px-2 py-1 text-sm font-bold">إغلاق</button>
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 text-slate-600"><tr>
+                      <th className="px-2 py-2">#</th><th className="text-right px-2 py-2">المادة</th><th className="px-2 py-2">تعبئة الكرتون</th><th className="px-2 py-2">الكراتين</th><th className="px-2 py-2">القطع</th>
+                      <th className="px-2 py-2">إجمالي القطع</th><th className="px-2 py-2">سعر القطعة</th><th className="px-2 py-2">الخصم</th><th className="px-2 py-2">المجموع</th>
+                    </tr></thead>
+                    <tbody>
+                      {(openTxn.items || []).map((it, i) => {
+                        const hasCartons = typeof it.cartons === 'number';
+                        return (
+                          <tr key={i} className="border-t border-slate-100">
+                            <td className="px-2 py-2 text-center text-slate-400">{i + 1}</td>
+                            <td className="px-2 py-2 font-bold">{it.name}</td>
+                            <td className="px-2 py-2 text-center font-mono">{hasCartons ? it.perCarton : '—'}</td>
+                            <td className="px-2 py-2 text-center font-mono">{hasCartons ? it.cartons : it.unitLabel === 'كرتون' ? it.qty : '—'}</td>
+                            <td className="px-2 py-2 text-center font-mono">{hasCartons ? (it.loose || 0) : it.unitLabel === 'كرتون' ? '—' : it.qty}</td>
+                            <td className="px-2 py-2 text-center font-mono font-bold">{it.pieces}</td>
+                            <td className="px-2 py-2 text-center font-mono">{hasCartons ? Math.round(it.unitCost * 100) / 100 : it.pieces ? Math.round((it.total / it.pieces) * 100) / 100 : it.unitCost}{it.oldUnitCost && it.oldUnitCost !== it.unitCost ? <div className="text-[9px] text-slate-400">كان {Math.round(it.oldUnitCost * 100) / 100}</div> : null}</td>
+                            <td className="px-2 py-2 text-center font-mono text-rose-600">{it.discount ? formatMoney(it.discount) : '—'}</td>
+                            <td className="px-2 py-2 text-center font-black">{formatMoney(it.total)}</td>
+                          </tr>
+                        );
+                      })}
+                      {!(openTxn.items || []).length && <tr><td colSpan={9} className="px-3 py-6 text-center text-slate-500">لا تفاصيل مواد لهذه القائمة.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                {openTxn.notes && <p className="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{openTxn.notes}</p>}
+                <div className="grid grid-cols-3 gap-2 rounded-xl bg-slate-50 border border-slate-200 p-3 text-center">
+                  <div><div className="text-[11px] font-bold text-slate-500">الإجمالي</div><div className="font-black">{formatMoney(total)}</div></div>
+                  <div><div className="text-[11px] font-bold text-slate-500">المدفوع</div><div className="font-black text-emerald-700">{formatMoney(paid)}</div></div>
+                  <div><div className="text-[11px] font-bold text-slate-500">المتبقي</div><div className="font-black text-rose-600">{formatMoney(total - paid)}</div></div>
+                </div>
+                {sup && <button onClick={() => { setOpenTxn(null); setDetailId(sup.id); }} className="text-xs font-bold text-indigo-700 hover:underline">فتح حساب «{sup.company}»</button>}
               </div>
             </div>
           </div>
