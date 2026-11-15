@@ -562,6 +562,10 @@ export interface StoreSettings {
   supplierTxns?: SupplierTxn[];
   /** ديون أُضيفت يدوياً على الزبائن بمبلغ محدد */
   customerDebtEntries?: CustomerDebtEntry[];
+  /** المصروفات المسجلة */
+  expenses?: ExpenseEntry[];
+  /** هل تُخصم المصروفات من الأرباح في التقارير (الافتراضي: نعم) */
+  expensesAffectProfit?: boolean;
   /** أسماء المواد كما تظهر عند الموردين مربوطة بمواد المخزون (قراءة الصور): مفتاح 'معرّف المورد|الاسم المنظَّف' */
   aiScanAliases?: Record<string, string>;
   /** الشكل الكلاسيكي لقائمة البيع في نقطة البيع (جدول بخطوط كالقائمة المطبوعة) */
@@ -728,6 +732,16 @@ export interface Supplier {
   openingDebt?: number;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface ExpenseEntry {
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  category: string;
+  description?: string;
+  amount: number;
+  createdAt: string;
 }
 
 export interface SupplierTxnItem {
