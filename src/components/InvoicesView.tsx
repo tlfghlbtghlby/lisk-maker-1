@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { DateRangeBar, useDateRangeFilter } from './DateRangeFilter';
 import { useApp } from '../context/AppContext';
 import TrashPanel from './TrashPanel';
-import { Invoice, SaleType } from '../types';
+import { Invoice, InvoiceItem, SaleType } from '../types';
 import { 
   Search, 
   Printer, 
@@ -21,6 +21,16 @@ import {
   PackageMinus
 } from 'lucide-react';
 import { PartialReturnModal } from './PartialReturnModal';
+import { normalizeName } from '../utils/aiScan';
+
+/** هل الكلمة تطابق جزءاً من كلمة المادة؟ (بداية الكلمة أو حروف متتابعة تبدأ بنفس الحرف: «زت» ← «زيت») */
+const wordMatches = (word: string, token: string): boolean => {
+  if (word.includes(token)) return true;
+  if (token.length < 2 || word[0] !== token[0]) return false;
+  let i = 0;
+  for (const ch of word) { if (ch === token[i]) i++; if (i === token.length) return true; }
+  return false;
+};
 
 interface InvoicesViewProps {
   onViewInvoice: (invoice: Invoice) => void;
@@ -30,6 +40,9 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
   const { invoices, deleteInvoice, returnInvoice, formatMoney, hasPermission, openInvoiceEditor, requestApproval, clearApprovalGrant } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [itemQuery, setItemQuery] = useState('');
+  const [returnDialog, setReturnDialog] = useState<Invoice | null>(null);
+  const [returnReason, setReturnReason] = useState('رغبة الزبون');
   const dateRange = useDateRangeFilter('all');
   const [typeFilter, setTypeFilter] = useState<'all' | 'direct' | 'credit' | 'unpaid' | 'returned'>('all');
   const [returningId, setReturningId] = useState<string | null>(null);
@@ -46,8 +59,27 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
     return 50;
   });
 
+  // البحث بمادة: يطابق اسم المادة (جزءاً منه) أو باركودها، ويعرض الأحدث أولاً
+  const itemMatches = useMemo(() => {
+    const m = new Map<string, InvoiceItem[]>();
+    const tokens = normalizeName(itemQuery).split(' ').filter(Boolean);
+    const raw = itemQuery.trim().toLowerCase();
+    if (!tokens.length && !raw) return null;
+    for (const inv of invoices) {
+      const hits = (inv.items || []).filter((it) => {
+        const code = (it.code || '').toLowerCase();
+        if (raw && code && (code === raw || (raw.length >= 4 && code.includes(raw)))) return true;
+        const words = normalizeName(`${it.productName || ''} ${it.name || ''}`).split(' ').filter(Boolean);
+        return tokens.length > 0 && tokens.every((t) => words.some((w) => wordMatches(w, t)));
+      });
+      if (hits.length) m.set(inv.id, hits);
+    }
+    return m;
+  }, [invoices, itemQuery]);
+
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
+    const base = itemMatches ? invoices.filter((i) => itemMatches.has(i.id)).sort((a, b) => String(b.date).localeCompare(String(a.date))) : invoices;
+    return base.filter((inv) => {
       const q = searchQuery.toLowerCase().trim();
       const matchSearch =
         !q ||
@@ -63,7 +95,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
 
       return matchSearch && matchType && dateRange.matches(inv.date);
     });
-  }, [invoices, searchQuery, typeFilter, dateRange.matches]);
+  }, [invoices, itemMatches, searchQuery, typeFilter, dateRange.matches]);
 
   const effectivePageSize = pageSize === -1 ? (filteredInvoices.length || 1) : pageSize;
   const totalPages = Math.ceil(filteredInvoices.length / effectivePageSize) || 1;
@@ -77,7 +109,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, typeFilter, dateRange.matches]);
+  }, [searchQuery, itemQuery, typeFilter, dateRange.matches]);
 
   // Overall financial summary for active invoices (exclude returned from active sales)
   const activeInvoices = useMemo(() => invoices.filter(i => i.status !== 'returned'), [invoices]);
@@ -86,24 +118,20 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
   const totalRemainingCredit = activeInvoices.reduce((sum, inv) => sum + inv.remainingAmount, 0);
   const totalProfits = activeInvoices.reduce((sum, inv) => sum + inv.netProfit, 0);
 
-  const handleReturn = async (inv: Invoice) => {
+  // الإرجاع الكامل: نافذة داخل التطبيق (window.prompt غير مدعومة في بعض البيئات مثل Electron)
+  const handleReturn = (inv: Invoice) => {
     if (inv.status === 'returned') {
       alert('هذه القائمة تم إرجاعها مسبقاً والمواد مستردة بالمخزن.');
       return;
     }
+    setReturnReason('رغبة الزبون');
+    setReturnDialog(inv);
+  };
 
-    const confirmed = confirm(
-      `هل تراجع الزبون عن الشراء وتريد إرجاع القائمة رقم (${inv.invoiceNumber})؟\n\n` +
-      `✓ ستعود كميات كافة المواد (${inv.items.length} مواد) فوراً إلى رصيد المخزن.\n` +
-      `✓ سيتم إلغاء المتبقي من دين العميل لهذه القائمة تلقائياً.\n` +
-      `✓ سيتم الاحتفاظ بسجل القائمة بحالة (مرتجعة) للتدقيق والشفافية.`
-    );
-
-    if (!confirmed) { clearApprovalGrant(); return; }
-
-    const returnReason = window.prompt('سبب الإرجاع (يُرسل ضمن إشعار التليجرام):', 'رغبة الزبون');
-    if (returnReason === null) { clearApprovalGrant(); return; }
-
+  const confirmReturn = async () => {
+    const inv = returnDialog;
+    if (!inv) return;
+    setReturnDialog(null);
     setReturningId(inv.id);
     try {
       const ok = await returnInvoice(inv.id, returnReason.trim() || 'غير مذكور');
@@ -111,12 +139,13 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
         setFeedbackNotice(`تم إرجاع القائمة (${inv.invoiceNumber}) واسترداد كافة المواد إلى المخزن بنجاح!`);
         setTimeout(() => setFeedbackNotice(null), 5000);
       } else {
-        alert('حدث خطأ أثناء إرجاع القائمة');
+        alert('تعذر إرجاع القائمة (تحقق من الصلاحية أو أنها مرتجعة مسبقاً).');
       }
     } catch (e: any) {
-      alert('فشل إرجاع القائمة: ' + (e.message || e));
+      alert('فشل إرجاع القائمة: ' + (e?.message || e));
     } finally {
       setReturningId(null);
+      clearApprovalGrant();
     }
   };
 
@@ -196,6 +225,19 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
             placeholder="ابحث برقم القائمة، اسم الزبون، أو رقم الهاتف..."
             className="w-full pl-3 pr-10 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-slate-50/50"
           />
+        </div>
+
+        {/* بحث عن مادة داخل القوائم */}
+        <div className="relative flex-1">
+          <PackageMinus className="w-4 h-4 text-indigo-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={itemQuery}
+            onChange={(e) => setItemQuery(e.target.value)}
+            placeholder="بحث عن مادة: اسم (يكفي جزء منه مثل «زت زي») أو باركود"
+            className="w-full pl-8 pr-10 py-2 text-sm border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-indigo-50/40"
+          />
+          {itemQuery && <button type="button" onClick={() => setItemQuery('')} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 font-bold">×</button>}
         </div>
 
         {/* Filter Segmented Buttons */}
@@ -336,6 +378,15 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
                             </span>
                           )}
                         </div>
+                        {itemMatches?.get(inv.id) && (
+                          <div className="mt-1.5 flex flex-wrap gap-1 font-sans">
+                            {itemMatches.get(inv.id)!.slice(0, 4).map((it, k) => (
+                              <span key={k} className="px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-900 text-[10px] font-bold">
+                                {it.productName || it.name} × {it.quantity}{it.unitType === 'carton' ? ` ${it.packLabel || 'كرتون'}` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </td>
 
                       {/* Date & Time */}
@@ -563,6 +614,27 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
           </div>
         )}
       </div>
+
+      {returnDialog && (
+        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-3" onMouseDown={(e) => { if (e.target === e.currentTarget) { setReturnDialog(null); clearApprovalGrant(); } }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-3 text-right" dir="rtl">
+            <h3 className="font-black text-base text-slate-900">إرجاع كامل القائمة ({returnDialog.invoiceNumber})</h3>
+            <ul className="text-xs text-slate-700 space-y-1 leading-relaxed">
+              <li>✓ ستعود كميات كل المواد ({returnDialog.items.length}) إلى رصيد المخزن.</li>
+              <li>✓ يُلغى المتبقي من دين الزبون لهذه القائمة تلقائياً.</li>
+              <li>✓ يبقى سجل القائمة بحالة «مرتجعة» للتدقيق.</li>
+            </ul>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-600 mb-1">سبب الإرجاع (يُرسل ضمن إشعار التليجرام)</label>
+              <input value={returnReason} onChange={(e) => setReturnReason(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" autoFocus onKeyDown={(e) => { if (e.key === 'Enter') confirmReturn(); }} />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button type="button" onClick={() => { setReturnDialog(null); clearApprovalGrant(); }} className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-bold">إلغاء</button>
+              <button type="button" onClick={confirmReturn} className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-black">تأكيد الإرجاع</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* نافذة الاسترجاع الجزئي للقوائم */}
       <PartialReturnModal

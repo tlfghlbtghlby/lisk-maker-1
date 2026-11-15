@@ -17,7 +17,8 @@ import {
   AlertCircle,
   X,
   Printer,
-  Lock
+  Lock,
+  Trash2
 } from 'lucide-react';
 
 interface CustomersViewProps {
@@ -33,6 +34,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
     updateCustomer, 
     recordPayment, 
     addManualDebt,
+    deleteCustomer,
     getUnappliedDebts,
     reconcileCustomerDebts,
     formatMoney,
@@ -137,13 +139,13 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
         cust.phone.includes(q) ||
         (cust.address && cust.address.toLowerCase().includes(q));
 
-      const matchDebt = !filterDebtOnly || cust.totalDebt > 0;
+      const matchDebt = !filterDebtOnly || cust.totalDebt !== 0;
       return matchSearch && matchDebt;
     });
   }, [customers, searchQuery, filterDebtOnly]);
 
   // Overall Debt KPI stats
-  const totalMarketDebt = customers.reduce((sum, c) => sum + c.totalDebt, 0);
+  const totalMarketDebt = customers.reduce((sum, c) => sum + Math.max(0, c.totalDebt), 0);
   const indebtedCount = customers.filter((c) => c.totalDebt > 0).length;
   const zeroDebtCount = customers.filter((c) => c.totalDebt === 0).length;
 
@@ -162,6 +164,14 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
     const r = addManualDebt(debtFor.id, amt, debtNotes.trim() || 'دين مضاف يدوياً');
     if (!r) { setDebtError('تعذرت إضافة الدين'); return; }
     setDebtFor(null); setDebtAmount(''); setDebtNotes(''); setDebtError('');
+  };
+
+  const handleDeleteCustomer = (cust: Customer) => {
+    const d = Number(cust.totalDebt) || 0;
+    const msg = `حذف الزبون «${cust.name}» من قائمة الديون والزبائن؟` +
+      (d !== 0 ? `\n\nتنبيه: رصيده الحالي ${formatMoney(d)} سيُحذف معه.` : '') +
+      '\n\nيُنقل إلى سلة المحذوفات (يمكن استعادته خلال 3 أيام). الفواتير القديمة تبقى محفوظة.';
+    if (window.confirm(msg)) deleteCustomer(cust.id);
   };
 
   // Handle open statement
@@ -365,6 +375,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
               ) : (
                 filteredCustomers.map((cust) => {
                   const hasDebt = cust.totalDebt > 0;
+                  const hasCredit = cust.totalDebt < 0;
                   return (
                     <tr key={cust.id} className="hover:bg-slate-50/70 transition">
                       {/* Name */}
@@ -404,7 +415,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
 
                       {/* Debt Amount */}
                       <td className="py-3 px-4 font-extrabold text-base">
-                        <span className={hasDebt ? 'text-amber-800' : 'text-slate-400'}>
+                        <span className={hasDebt ? 'text-amber-800' : hasCredit ? 'text-emerald-600' : 'text-slate-400'}>
                           {formatMoney(cust.totalDebt)}
                         </span>
                         {periodActive && (
@@ -420,6 +431,8 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                           <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded">
                             عليه دين مستحق
                           </span>
+                        ) : hasCredit ? (
+                          <span className="text-xs font-bold text-emerald-600">—</span>
                         ) : (
                           <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
                             حساب خالص
@@ -459,6 +472,16 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                             <FileText className="w-3.5 h-3.5" />
                             <span>كشف حساب</span>
                           </button>
+
+                          {hasPermission('canDeleteInvoice') && (
+                            <button
+                              onClick={() => handleDeleteCustomer(cust)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              title="حذف الزبون من القائمة"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
 
                           {telegramOn && (
                           <button
@@ -505,7 +528,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
               <div className="flex items-center gap-3">
                 <div className="bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-300 text-right">
                   <div className="text-[10px] text-amber-900 font-bold">الدين الحالي المستحق</div>
-                  <div className="font-black text-amber-950 text-sm">
+                  <div className={`font-black text-sm ${selectedCustomer.totalDebt < 0 ? 'text-emerald-700' : 'text-amber-950'}`}>
                     {formatMoney(selectedCustomer.totalDebt)}
                   </div>
                 </div>
@@ -795,7 +818,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                   </div>
                   <div className="flex justify-between">
                     <span>المتبقي في ذمة الزبون الآن:</span>
-                    <strong className="text-amber-800 font-bold">{formatMoney(selectedCustomer.totalDebt)}</strong>
+                    <strong className={`font-bold ${selectedCustomer.totalDebt < 0 ? 'text-emerald-600' : 'text-amber-800'}`}>{formatMoney(selectedCustomer.totalDebt)}</strong>
                   </div>
                 </div>
 
@@ -828,7 +851,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                 
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs flex justify-between items-center text-amber-900">
                   <span>الدين الحالي المستحق:</span>
-                  <span className="font-black text-sm">{formatMoney(selectedCustomer.totalDebt)}</span>
+                  <span className={`font-black text-sm ${selectedCustomer.totalDebt < 0 ? 'text-emerald-600' : ''}`}>{formatMoney(selectedCustomer.totalDebt)}</span>
                 </div>
 
                 <div>

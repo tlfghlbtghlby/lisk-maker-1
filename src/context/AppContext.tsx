@@ -2234,7 +2234,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // الدين السابق للزبون المسجل قبل هذه القائمة، ويُضاف إليه الباقي من هذه القائمة
     const debtCustomer = data.customerId ? customers.find(c => c.id === data.customerId) : undefined;
-    const previousDebt = debtCustomer ? Math.max(0, Number(debtCustomer.totalDebt) || 0) : 0;
+    const previousDebt = debtCustomer ? (Number(debtCustomer.totalDebt) || 0) : 0;
     const currentTotalDebt = previousDebt + remainingAmount;
 
     // بصمة التحقق الخاصة بالمتجر
@@ -2439,7 +2439,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let customersAfterDelete = customers;
     if ((inv as any).debtApplied && inv.customerId && inv.status !== 'returned' && inv.remainingAmount > 0) {
       customersAfterDelete = customers.map(c =>
-        c.id === inv.customerId ? { ...c, updatedAt: new Date().toISOString(), totalDebt: Math.max(0, (c.totalDebt || 0) - inv.remainingAmount) } : c
+        c.id === inv.customerId ? { ...c, updatedAt: new Date().toISOString(), totalDebt: (Number(c.totalDebt) || 0) - inv.remainingAmount } : c
       );
       setCustomers(customersAfterDelete);
       try {
@@ -2470,7 +2470,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let updatedCustomers = customers;
     if (inv.customerId && inv.remainingAmount > 0) {
-      updatedCustomers = customers.map(c => c.id === inv.customerId ? { ...c, updatedAt: new Date().toISOString(), totalDebt: Math.max(0, c.totalDebt - inv.remainingAmount) } : c);
+      updatedCustomers = customers.map(c => c.id === inv.customerId ? { ...c, updatedAt: new Date().toISOString(), totalDebt: (Number(c.totalDebt) || 0) - inv.remainingAmount } : c);
       setCustomers(updatedCustomers);
       try {
         localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers));
@@ -2593,7 +2593,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let updatedCustomers = customers;
     if (debtReduction > 0 && inv.customerId) {
-      updatedCustomers = customers.map(c => c.id === inv.customerId ? { ...c, updatedAt: new Date().toISOString(), totalDebt: Math.max(0, c.totalDebt - debtReduction) } : c);
+      updatedCustomers = customers.map(c => c.id === inv.customerId ? { ...c, updatedAt: new Date().toISOString(), totalDebt: (Number(c.totalDebt) || 0) - debtReduction } : c);
       setCustomers(updatedCustomers);
       try {
         localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers));
@@ -2804,10 +2804,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const oldApplied = (old as any).debtApplied && oldCustId && old.remainingAmount > 0 ? old.remainingAmount : 0;
     let custs = customers;
     if (oldApplied > 0) {
-      custs = custs.map(c => c.id === oldCustId ? { ...c, totalDebt: Math.max(0, (c.totalDebt || 0) - oldApplied), updatedAt: now } : c);
+      custs = custs.map(c => c.id === oldCustId ? { ...c, totalDebt: (Number(c.totalDebt) || 0) - oldApplied, updatedAt: now } : c);
     }
     const newCustomer = newCustId ? custs.find(c => c.id === newCustId) : undefined;
-    const previousDebt = legacy ? (old.previousDebt || 0) : newCustomer ? Math.max(0, Number(newCustomer.totalDebt) || 0) : 0;
+    const previousDebt = legacy ? (old.previousDebt || 0) : newCustomer ? (Number(newCustomer.totalDebt) || 0) : 0;
     const newApplied = !legacy && newCustomer && remainingAmount > 0 ? remainingAmount : 0;
     if (newApplied > 0) {
       custs = custs.map(c => c.id === newCustId ? { ...c, totalDebt: (c.totalDebt || 0) + newApplied, updatedAt: now } : c);
@@ -2955,10 +2955,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('cached_pos_payments', JSON.stringify(updatedPayments));
     } catch {}
 
-    // تخفيض دين الزبون بمقدار الدفعة (لا يقل عن صفر)
+    // تخفيض دين الزبون بمقدار الدفعة (يُسمح بأن يصير الرصيد سالباً)
     const updatedCustomers = customers.map(c =>
       c.id === customerId
-        ? { ...c, updatedAt: new Date().toISOString(), totalDebt: Math.max(0, (Number(c.totalDebt) || 0) - paid) }
+        ? { ...c, updatedAt: new Date().toISOString(), totalDebt: (Number(c.totalDebt) || 0) - paid }
         : c
     );
     setCustomers(updatedCustomers);

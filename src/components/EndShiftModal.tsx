@@ -26,7 +26,8 @@ export const EndShiftModal: React.FC<EndShiftModalProps> = ({ onNavigateToShifts
     getShiftStats, 
     formatMoney, 
     setSyncNotice,
-    setSelectedShiftForDetails
+    setSelectedShiftForDetails,
+    settings
   } = useApp();
 
   const [notes, setNotes] = useState<string>('');
@@ -59,6 +60,9 @@ export const EndShiftModal: React.FC<EndShiftModalProps> = ({ onNavigateToShifts
 
   const stats = getShiftStats(activeShift);
   const totalPiecesSold = stats.itemsSold.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
+  const shiftExpensesTotal = ((settings.expenses || []) as { shiftId?: string; fromCash?: boolean; amount: number }[])
+    .filter((e) => e.shiftId === activeShift.id && e.fromCash !== false).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const expectedCash = (activeShift.startingCash || 0) + stats.totalPaid - shiftExpensesTotal;
 
   const handleConfirmEnd = async () => {
     setIsEnding(true);
@@ -188,6 +192,13 @@ export const EndShiftModal: React.FC<EndShiftModalProps> = ({ onNavigateToShifts
                 {totalPiecesSold} قطعة مباعة
               </div>
             </div>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1">
+            <div className="flex justify-between"><span className="text-slate-500">النقد الافتتاحي:</span><b>{formatMoney(activeShift.startingCash || 0)}</b></div>
+            <div className="flex justify-between"><span className="text-slate-500">+ نقد المبيعات:</span><b className="text-emerald-700">{formatMoney(stats.totalPaid)}</b></div>
+            <div className="flex justify-between"><span className="text-slate-500">− مصروفات الشفت:</span><b className="text-rose-600">{formatMoney(shiftExpensesTotal)}</b></div>
+            <div className="flex justify-between border-t border-slate-200 pt-1"><span className="font-bold text-slate-800">النقد المتوقع في الدرج:</span><b className="text-indigo-900">{formatMoney(expectedCash)}</b></div>
           </div>
 
           {/* Quick Materials Snapshot button */}
