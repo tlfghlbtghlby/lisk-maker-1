@@ -37,38 +37,51 @@ const ERRORS: Record<string, string> = {
   provider_error: 'حدث خطأ في خدمة القراءة. حاول لاحقاً.',
 };
 
+/** إرسال JSON عبر XHR لمعرفة لحظة اكتمال الرفع (fetch لا يعطي ذلك) */
+function postJson(url: string, headers: Record<string, string>, body: string, timeoutMs: number, onProgress: (pct: number) => void, onUploaded: () => void): Promise<{ status: number; ok: boolean; data: any }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    xhr.timeout = timeoutMs;
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && e.total > 0) onProgress(Math.min(99, Math.round((e.loaded / e.total) * 100))); };
+    xhr.upload.onload = () => onUploaded();
+    xhr.onload = () => {
+      let data: any = null;
+      try { data = JSON.parse(xhr.responseText); } catch { /* ignore */ }
+      resolve({ status: xhr.status, ok: xhr.status >= 200 && xhr.status < 300, data });
+    };
+    xhr.onerror = () => reject(new Error('network'));
+    xhr.ontimeout = () => reject(new Error('timeout'));
+    xhr.send(body);
+  });
+}
+
 /** يصغّر الصورة ويرسلها لدالة القراءة ويعيد المواد المقروءة (تحتاج دائماً لمراجعة بشرية) */
 export async function scanImageFile(file: File, storeId: string, onStatus?: (m: string) => void): Promise<ScanResult> {
   // صورة أصغر = رفع أسرع على الاتصال البطيء. 1400px تكفي لقراءة القوائم.
   const dataUrl = await resizeImageFile(file, 1400, 0.72);
   const image = dataUrl.split(',')[1] || '';
   const body = JSON.stringify({ image, mime: 'image/jpeg', storeId });
-  let res: Response | null = null;
+  const kb = Math.round(body.length / 1024);
+  let res: { status: number; ok: boolean; data: any } | null = null;
   let lastErr = '';
   for (let attempt = 1; attempt <= 2 && !res; attempt++) {
-    onStatus?.(attempt === 1 ? `جارٍ رفع الصورة (${Math.round(body.length / 1024)} KB) وقراءتها...` : 'الاتصال بطيء، إعادة المحاولة...');
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 130000);
+    onStatus?.(attempt === 1 ? `جارٍ رفع الصورة (${kb} KB)...` : 'الاتصال بطيء، إعادة رفع الصورة...');
     try {
-      res = await fetch(`${supabaseUrl}/functions/v1/scan-items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: supabaseAnonKey },
-        body,
-        signal: ctrl.signal,
-      });
+      res = await postJson(`${supabaseUrl}/functions/v1/scan-items`, { 'Content-Type': 'application/json', apikey: supabaseAnonKey }, body, 130000,
+        (pct) => onStatus?.(`جارٍ رفع الصورة (${kb} KB): ${pct}%`),
+        () => onStatus?.('✓ تم رفع الصورة، جارٍ القراءة بالذكاء الاصطناعي...'));
     } catch (e: any) {
-      lastErr = e?.name === 'AbortError' ? 'timeout' : 'network';
-    } finally {
-      clearTimeout(timer);
+      lastErr = e?.message === 'timeout' ? 'timeout' : 'network';
     }
   }
   if (!res) {
     throw new Error(lastErr === 'timeout'
-      ? 'انتهت المهلة أثناء رفع الصورة. الاتصال بطيء: جرّب شبكة أسرع أو صورة أصغر.'
+      ? 'انتهت المهلة. الاتصال بطيء أو أن خدمة القراءة مشغولة: جرّب مرة أخرى أو صورة أصغر.'
       : 'تعذر الاتصال بخادم القراءة. تحقق من الاتصال وأعد المحاولة.');
   }
-  let data: any = null;
-  try { data = await res.json(); } catch { /* ignore */ }
+  const data: any = res.data;
   if (!res.ok || !data || !Array.isArray(data.items)) {
     const base = ERRORS[data?.error] || `تعذرت قراءة الصورة (${res.status}).`;
     throw new Error(data?.error === 'provider_error' ? `${base} (رمز ${data?.status ?? ''})` : base);
@@ -120,12 +133,18 @@ export function scoreNames(a: string, b: string): number {
   const nb = normalizeName(b);
   if (!na || !nb) return 0;
   if (na === nb) return 1;
+  // نفس الاسم بفراغات مختلفة أو بدونها (حب الشمس 250 = حبالشمس250)
+  const ca = na.replace(/ /g, '');
+  const cb = nb.replace(/ /g, '');
+  if (ca === cb) return 1;
   const ta = na.split(' ');
   const tb = nb.split(' ');
   const setB = new Set(tb);
   const setA = new Set(ta);
-  const coverA = ta.filter((t) => setB.has(t)).length / ta.length;
-  const coverB = tb.filter((t) => setA.has(t)).length / tb.length;
+  // الكلمة تُعدّ موجودة إن وردت كلمة بنفس الشكل أو داخل النص الآخر بلا فراغات (الأرقام تُطابَق كاملة)
+  const has = (t: string, set: Set<string>, compact: string) => (/^\d+$/.test(t) ? set.has(t) : set.has(t) || (t.length >= 2 && compact.includes(t)));
+  const coverA = ta.filter((t) => has(t, setB, cb)).length / ta.length;
+  const coverB = tb.filter((t) => has(t, setA, ca)).length / tb.length;
   const tri = dice(trigrams(na), trigrams(nb));
   let score = 0.45 * tri + 0.55 * ((coverA + coverB) / 2);
   const da = numTokens(na).join(',');
@@ -157,4 +176,9 @@ export function matchProduct(item: { name: string; barcode?: string }, products:
 }
 
 /** مفتاح تذكّر اسم المادة عند المورد (أو '*' لأي مورد) */
-export const aliasKey = (supplierId: string, name: string) => `${supplierId || '*'}|${normalizeName(name)}`;
+export const aliasKey = (supplierId: string, name: string) => `${supplierId || '*'}|${normalizeName(name).replace(/ /g, '')}`;
+/** المفتاح القديم (بفراغات) للتوافق مع ما حُفظ سابقاً */
+export const aliasKeyLegacy = (supplierId: string, name: string) => `${supplierId || '*'}|${normalizeName(name)}`;
+/** يبحث عن المادة المحفوظة لهذا الاسم عند المورد ثم عند أي مورد، بالمفتاحين الجديد والقديم */
+export const aliasLookup = (aliases: Record<string, string>, supplierId: string, name: string): string | undefined =>
+  aliases[aliasKey(supplierId, name)] || aliases[aliasKeyLegacy(supplierId, name)] || aliases[aliasKey('', name)] || aliases[aliasKeyLegacy('', name)];
