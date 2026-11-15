@@ -553,6 +553,8 @@ export interface StoreSettings {
   invertEnterShortcuts?: boolean;
   /** وضع Enter: التنقل في نقطة البيع بلوحة المفاتيح بدون ماوس */
   posKeyboardMode?: boolean;
+  /** باركود غير مسجل: شريط أحمر ملفت تحت البحث مع زر إضافة وصوت تنبيه مختلف بدل النافذة الكبيرة */
+  unfoundBarcodeInline?: boolean;
   /** حاسبة الباقي (F5): اختيار فئات النقود المستلمة لمعرفة الباقي للزبون. مفعّلة افتراضياً */
   enableChangeCalculator?: boolean;
   /** أقسام/تصنيفات المواد التي أضافها المستخدم يدوياً */
