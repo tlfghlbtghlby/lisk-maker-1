@@ -743,6 +743,11 @@ export interface ExpenseEntry {
   category: string;
   description?: string;
   amount: number;
+  /** مصروف خرج من صندوق شفت: يُخصم من النقد المتوقع في الدرج */
+  shiftId?: string;
+  shiftNumber?: number;
+  /** false = لم يخرج من الصندوق (لا يُخصم من نقد الشفت) */
+  fromCash?: boolean;
   createdAt: string;
 }
 

@@ -63,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
   const todaySalesTotal = todayInvoices.reduce((sum, inv) => sum + inv.total, 0);
   const todayProfitTotal = todayInvoices.reduce((sum, inv) => sum + inv.netProfit, 0);
 
-  const totalMarketDebt = customers.reduce((sum, cust) => sum + cust.totalDebt, 0);
+  const totalMarketDebt = customers.reduce((sum, cust) => sum + Math.max(0, cust.totalDebt), 0);
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
 
   const isMobile = settings.deviceMode === 'mobile';

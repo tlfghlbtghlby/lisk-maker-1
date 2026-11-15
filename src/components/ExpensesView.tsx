@@ -10,7 +10,7 @@ const card = 'bg-white border border-slate-200 rounded-2xl shadow-xs';
 
 /** المصروفات: تسجيل كل مصروف (مستلزمات، رواتب، إيجار...) مع خيار خصمها من الأرباح */
 export function ExpensesView() {
-  const { settings, updateSettings, formatMoney, invoices } = useApp() as any;
+  const { settings, updateSettings, formatMoney, invoices, activeShift } = useApp() as any;
   const list: ExpenseEntry[] = settings.expenses || [];
   const affect = settings.expensesAffectProfit !== false;
 
@@ -23,6 +23,7 @@ export function ExpensesView() {
   const [desc, setDesc] = useState('');
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
+  const [fromDrawer, setFromDrawer] = useState(true);
 
   const categories = useMemo(() => Array.from(new Set([...EXPENSE_CATEGORIES, ...list.map((x) => x.category)])), [list]);
 
@@ -53,15 +54,15 @@ export function ExpensesView() {
     if (!(amt > 0)) return setError('أدخل مبلغاً أكبر من صفر.');
     if (!date) return setError('اختر التاريخ.');
     if (editId) {
-      updateSettings({ expenses: list.map((x) => (x.id === editId ? { ...x, date, category: category.trim(), description: desc.trim() || undefined, amount: amt } : x)) });
+      updateSettings({ expenses: list.map((x) => (x.id === editId ? { ...x, date, category: category.trim(), description: desc.trim() || undefined, amount: amt, ...(x.shiftId ? { fromCash: fromDrawer } : {}) } : x)) });
     } else {
-      const entry: ExpenseEntry = { id: newId('exp'), date, category: category.trim(), description: desc.trim() || undefined, amount: amt, createdAt: new Date().toISOString() };
+      const entry: ExpenseEntry = { id: newId('exp'), date, category: category.trim(), description: desc.trim() || undefined, amount: amt, createdAt: new Date().toISOString(), ...(activeShift ? { shiftId: activeShift.id, shiftNumber: activeShift.shiftNumber, fromCash: fromDrawer } : {}) };
       updateSettings({ expenses: [...list, entry] });
     }
     reset();
   };
 
-  const startEdit = (x: ExpenseEntry) => { setEditId(x.id); setDate(x.date); setCategory(x.category); setDesc(x.description || ''); setAmount(String(x.amount)); setError(''); window.scrollTo?.({ top: 0, behavior: 'smooth' }); };
+  const startEdit = (x: ExpenseEntry) => { setEditId(x.id); setDate(x.date); setCategory(x.category); setDesc(x.description || ''); setAmount(String(x.amount)); setFromDrawer(x.fromCash !== false); setError(''); window.scrollTo?.({ top: 0, behavior: 'smooth' }); };
   const remove = (x: ExpenseEntry) => { if (window.confirm(`حذف مصروف «${x.category}» بمبلغ ${formatMoney(x.amount)}؟`)) updateSettings({ expenses: list.filter((y) => y.id !== x.id) }); };
 
   const periods: { id: PeriodFilter; label: string }[] = [
@@ -109,6 +110,12 @@ export function ExpensesView() {
             {editId && <button type="button" onClick={reset} className="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-bold">إلغاء</button>}
           </div>
         </div>
+        {(activeShift || (editId && list.find((x) => x.id === editId)?.shiftId)) && (
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+            <input type="checkbox" checked={fromDrawer} onChange={(e) => setFromDrawer(e.target.checked)} className="w-4 h-4 accent-rose-600" />
+            خرج من صندوق الشفت (يُخصم من النقد المتوقع ويظهر في معلومات الشفت{activeShift ? ` #${activeShift.shiftNumber}` : ''})
+          </label>
+        )}
         {error && <p className="text-xs font-bold text-rose-600">{error}</p>}
       </form>
 
@@ -149,7 +156,7 @@ export function ExpensesView() {
             {rows.map((x) => (
               <tr key={x.id} className="border-t border-slate-100">
                 <td className="px-3 py-2 whitespace-nowrap">{fmtDate(x.date)}</td>
-                <td className="px-3 py-2 font-bold">{x.category}</td>
+                <td className="px-3 py-2 font-bold">{x.category}{x.shiftId && x.fromCash !== false && <span className="mr-1.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 rounded px-1.5 py-0.5">شفت #{x.shiftNumber ?? ''}</span>}</td>
                 <td className="px-3 py-2 text-slate-600">{x.description || '—'}</td>
                 <td className="px-3 py-2 text-center font-black text-rose-700">{formatMoney(x.amount)}</td>
                 <td className="px-3 py-2 text-center whitespace-nowrap">

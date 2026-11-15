@@ -18,7 +18,7 @@ import {
   ArrowDownRight,
   Sparkles
 } from 'lucide-react';
-import { Shift, ShiftItemSold, Invoice } from '../types';
+import { Shift, ShiftItemSold, Invoice, ExpenseEntry } from '../types';
 import { useApp } from '../context/AppContext';
 
 interface ShiftDetailsModalProps {
@@ -111,6 +111,9 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
   const totalPieces = itemsSold.reduce((acc, i) => acc + i.quantity, 0);
   const totalPaid = shift.totalPaid || 0;
   const totalRemaining = shift.totalRemaining || 0;
+  const shiftExpenses = ((settings.expenses || []) as ExpenseEntry[]).filter((e) => e.shiftId === shift.id && e.fromCash !== false);
+  const totalExpenses = shiftExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const expectedCash = (shift.startingCash || 0) + totalPaid - totalExpenses;
 
   // احتساب المدة
   const formatDuration = () => {
@@ -529,9 +532,24 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
-                    <span className="text-slate-500">مجموع النقد المتوقع في الدرج:</span>
+                    <span className="text-slate-500">مصروفات خرجت من الصندوق في الشفت:</span>
+                    <span className="font-extrabold text-rose-600">−{formatMoney(totalExpenses)}</span>
+                  </div>
+                  {shiftExpenses.length > 0 && (
+                    <div className="rounded-lg bg-rose-50/60 border border-rose-100 p-2 space-y-1">
+                      {shiftExpenses.map((e) => (
+                        <div key={e.id} className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-700 font-semibold">{e.category}{e.description ? ` · ${e.description}` : ''}</span>
+                          <span className="font-bold text-rose-700">{formatMoney(e.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                    <span className="text-slate-500">النقد الحالي المتوقع في الدرج (افتتاحي + مبيعات − مصروفات):</span>
                     <span className="font-black text-indigo-950 text-sm">
-                      {formatMoney((shift.startingCash || 0) + totalPaid)}
+                      {formatMoney(expectedCash)}
                     </span>
                   </div>
 
