@@ -13,7 +13,12 @@ export interface ScanItem {
   barcode?: string;
   expiryDate?: string;
   confidence: number;
+  /** ترتيب السطر في القائمة والنص الخام كما قُرئ */
+  line?: number;
+  raw?: string;
 }
+
+export interface PrintedRow { cells: string[]; isHeader?: boolean }
 
 export interface ScanResult {
   items: ScanItem[];
@@ -58,11 +63,11 @@ function postJson(url: string, headers: Record<string, string>, body: string, ti
 }
 
 /** يصغّر الصورة ويرسلها لدالة القراءة ويعيد المواد المقروءة (تحتاج دائماً لمراجعة بشرية) */
-export async function scanImageFile(file: File, storeId: string, onStatus?: (m: string) => void): Promise<ScanResult> {
+export async function scanImageFile(file: File, storeId: string, onStatus?: (m: string) => void, printed = false): Promise<ScanResult> {
   // صورة أصغر = رفع أسرع على الاتصال البطيء. 1400px تكفي لقراءة القوائم.
   const dataUrl = await resizeImageFile(file, 1400, 0.72);
   const image = dataUrl.split(',')[1] || '';
-  const body = JSON.stringify({ image, mime: 'image/jpeg', storeId });
+  const body = JSON.stringify({ image, mime: 'image/jpeg', storeId, ...(printed ? { printed: true } : {}) });
   const kb = Math.round(body.length / 1024);
   let res: { status: number; ok: boolean; data: any } | null = null;
   let lastErr = '';
@@ -82,6 +87,10 @@ export async function scanImageFile(file: File, storeId: string, onStatus?: (m: 
       : 'تعذر الاتصال بخادم القراءة. تحقق من الاتصال وأعد المحاولة.');
   }
   const data: any = res.data;
+  if (printed && res.ok && data && Array.isArray(data.rows)) {
+    const items = parsePrintedRows(data.rows as PrintedRow[]);
+    return { items, invoiceTotal: data.invoiceTotal, supplierName: data.supplierName, documentType: data.documentType };
+  }
   if (!res.ok || !data || !Array.isArray(data.items)) {
     const base = ERRORS[data?.error] || `تعذرت قراءة الصورة (${res.status}).`;
     throw new Error(data?.error === 'provider_error' ? `${base} (رمز ${data?.status ?? ''})` : base);
@@ -182,3 +191,104 @@ export const aliasKeyLegacy = (supplierId: string, name: string) => `${supplierI
 /** يبحث عن المادة المحفوظة لهذا الاسم عند المورد ثم عند أي مورد، بالمفتاحين الجديد والقديم */
 export const aliasLookup = (aliases: Record<string, string>, supplierId: string, name: string): string | undefined =>
   aliases[aliasKey(supplierId, name)] || aliases[aliasKeyLegacy(supplierId, name)] || aliases[aliasKey('', name)] || aliases[aliasKeyLegacy('', name)];
+
+
+// ---------------- فرز القائمة المطبوعة (يقوم به البرنامج) ----------------
+const toNum = (t: string): number | undefined => {
+  const c = (t || '').replace(/[٠-٩]/g, (d) => String(AR_DIGITS.indexOf(d))).replace(/[٬,\s]/g, '').replace(/٫/g, '.');
+  if (!/^-?\d+(\.\d+)?$/.test(c)) return undefined;
+  const n = parseFloat(c);
+  return Number.isFinite(n) ? n : undefined;
+};
+const HDR = {
+  total: ['مبلغ', 'مجموع', 'اجمالي', 'total', 'amount'],
+  price: ['سعر', 'مفرد', 'افرادي', 'price', 'rate'],
+  qty: ['عدد', 'كميه', 'qty', 'quantity'],
+  name: ['ماده', 'صنف', 'بيان', 'تفاصيل', 'اسم', 'item', 'description', 'name'],
+  unit: ['وحده', 'unit'],
+  barcode: ['باركود', 'barcode'],
+} as const;
+const SUMMARY = /(المجموع|الاجمالي|الإجمالي|اجمالي|المبلغ الكلي|الصافي|total|خصم|المستحق)/i;
+const unitFromText = (t: string): ScanUnit | undefined => {
+  const n = normalizeName(t);
+  if (/درزن|دزينه/.test(n)) return 'dozen';
+  if (/كارتون|كرتون|صندوق|كارتونه|كرتونه/.test(n)) return 'carton';
+  if (/كغم|كيلو|كلغ|kg/.test(n)) return 'kg';
+  if (/قطعه|حبه|حبة/.test(n)) return 'piece';
+  return undefined;
+};
+const near = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, Math.abs(b) * 0.01);
+
+/** يحوّل صفوف الجدول المنسوخة حرفياً إلى مواد: يحدد الأعمدة من العناوين، وإلا بالتخمين الحسابي (العدد × السعر = المجموع) */
+export function parsePrintedRows(rows: PrintedRow[]): ScanItem[] {
+  const clean = rows.map((r) => ({ cells: (r.cells || []).map((c) => (c || '').trim()), isHeader: !!r.isHeader })).filter((r) => r.cells.some(Boolean));
+  // صف العناوين
+  let hdrIdx = clean.findIndex((r) => r.isHeader);
+  if (hdrIdx < 0) hdrIdx = clean.findIndex((r) => {
+    const roles = new Set<string>();
+    r.cells.forEach((c) => { const n = normalizeName(c); (Object.keys(HDR) as (keyof typeof HDR)[]).forEach((k) => { if (HDR[k].some((w) => n.includes(w))) roles.add(k); }); });
+    return roles.size >= 2;
+  });
+  const col: Partial<Record<keyof typeof HDR, number>> = {};
+  if (hdrIdx >= 0) {
+    clean[hdrIdx].cells.forEach((c, i) => {
+      const n = normalizeName(c);
+      for (const k of ['total', 'price', 'qty', 'unit', 'barcode', 'name'] as (keyof typeof HDR)[]) {
+        if (col[k] === undefined && HDR[k].some((w) => n.includes(w))) { col[k] = i; break; }
+      }
+    });
+  }
+  const hdrLen = hdrIdx >= 0 ? clean[hdrIdx].cells.length : 0;
+  const useCols = col.name !== undefined && (col.qty !== undefined || col.total !== undefined);
+  const data = clean.filter((_, i) => i !== hdrIdx).filter((r) => !r.isHeader);
+  const out: ScanItem[] = [];
+  let ord = 0;
+  for (const r of data) {
+    const joined = r.cells.join(' ');
+    if (SUMMARY.test(joined) && !r.cells.some((c) => /\p{L}{3,}/u.test(c) && !SUMMARY.test(c))) continue;
+    ord++;
+    let name = '', qty: number | undefined, price: number | undefined, total: number | undefined, unit: ScanUnit | undefined, barcode: string | undefined;
+    let conf = 0.7;
+    if (useCols && r.cells.length === hdrLen) {
+      name = r.cells[col.name!] || '';
+      qty = col.qty !== undefined ? toNum(r.cells[col.qty]) : undefined;
+      price = col.price !== undefined ? toNum(r.cells[col.price]) : undefined;
+      total = col.total !== undefined ? toNum(r.cells[col.total]) : undefined;
+      unit = (col.unit !== undefined ? unitFromText(r.cells[col.unit]) : undefined) || (col.qty !== undefined ? unitFromText(r.cells[col.qty]) : undefined);
+      if (col.barcode !== undefined) { const b = (r.cells[col.barcode] || '').replace(/\D/g, ''); if (b.length >= 6) barcode = b; }
+      conf = 0.92;
+    } else {
+      // تخمين: أطول خلية فيها حروف = الاسم، والأرقام الباقية تُحلَّل حسابياً
+      const textCells = r.cells.map((c, i) => ({ c, i })).filter(({ c }) => /\p{L}{2,}/u.test(c) && toNum(c) === undefined);
+      const nameCell = textCells.sort((a, b) => b.c.length - a.c.length)[0];
+      if (!nameCell) continue;
+      name = nameCell.c;
+      let nums = r.cells.map((c) => toNum(c)).filter((n): n is number => n !== undefined);
+      // تجاهل رقم التسلسل (1،2،3...) إن وُجد مع ثلاثة أرقام أو أكثر
+      if (nums.length >= 3 && nums[0] === ord) nums = nums.slice(1);
+      else if (nums.length >= 3 && nums[nums.length - 1] === ord) nums = nums.slice(0, -1);
+      for (const c of r.cells) { const b = c.replace(/\D/g, ''); if (b.length >= 8 && toNum(c) !== undefined) { barcode = b; nums = nums.filter((n) => String(n) !== b); } }
+      unit = r.cells.map(unitFromText).find(Boolean);
+      let found = false;
+      for (let a = 0; a < nums.length && !found; a++) for (let b = 0; b < nums.length && !found; b++) for (let c = 0; c < nums.length && !found; c++) {
+        if (a === b || b === c || a === c) continue;
+        if (nums[a] > 0 && nums[b] > 0 && near(nums[a] * nums[b], nums[c])) { qty = nums[a]; price = nums[b]; total = nums[c]; found = true; conf = 0.85; }
+      }
+      if (!found) {
+        qty = nums[0]; if (nums.length >= 2) price = nums[1]; conf = 0.55;
+      }
+    }
+    name = name.trim();
+    if (!name || !(qty && qty > 0)) { if (name && /\p{L}{3,}/u.test(name) && qty === undefined) { qty = 1; conf = 0.4; } else continue; }
+    // اتساق العدد × السعر = المجموع
+    if (qty && price && total && !near(qty * price, total)) conf = Math.min(conf, 0.5);
+    out.push({
+      name, quantity: qty!, unit: unit || 'piece',
+      ...(price !== undefined ? { unitPrice: price } : {}),
+      ...(total !== undefined ? { lineTotal: total } : {}),
+      ...(barcode ? { barcode } : {}),
+      confidence: conf, line: out.length + 1, raw: r.cells.filter(Boolean).join(' | ').slice(0, 300),
+    });
+  }
+  return out;
+}
