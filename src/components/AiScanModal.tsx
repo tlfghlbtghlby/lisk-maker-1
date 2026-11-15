@@ -600,7 +600,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
                 )}
                 <label className="flex items-center gap-2 text-xs font-bold cursor-pointer"><input type="checkbox" checked={updateCost} onChange={(e) => setUpdateCost(e.target.checked)} className="w-4 h-4 accent-violet-600" />تحديث سعر تكلفة المواد الموجودة بسعر الشراء المقروء</label>
                 <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-2.5 space-y-2">
-                  <div className="text-xs font-extrabold text-violet-900">المورد / صاحب الجملة / الشركة {detectedSupplier && <span className="font-bold text-slate-600">(قُرئ من الصورة: «{detectedSupplier}»)</span>}</div>
+                  <div className="text-xs font-extrabold text-violet-900">المورد / صاحب الجملة / الشركة {detectedSupplier ? <span className="font-bold text-slate-600">(قُرئ من الصورة: «{detectedSupplier}»)</span> : <span className="font-bold text-amber-700">(لم يُقرأ اسم مورد من الصورة، اخترْه أو اكتبه)</span>}</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <select value={supplierChoice} onChange={(e) => changeSupplier(e.target.value)} className={input}>
                       <option value="">— بدون مورد —</option>
