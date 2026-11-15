@@ -120,7 +120,7 @@ export const ReportsView: React.FC = () => {
   const inventoryUnrealizedProfit = inventoryRetailValuation - inventoryCostValuation;
 
   // Total Market Debt
-  const totalMarketDebt = customers.reduce((sum, c) => sum + c.totalDebt, 0);
+  const totalMarketDebt = customers.reduce((sum, c) => sum + Math.max(0, c.totalDebt), 0);
 
   // Top selling products calculation
   const productSalesMap = useMemo(() => {
