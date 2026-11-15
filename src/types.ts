@@ -741,6 +741,12 @@ export interface SupplierTxnItem {
   /** سعر الوحدة المُدخلة */
   unitCost: number;
   total: number;
+  /** القائمة الكلاسيكية: عدد الكراتين وتعبئتها والقطع المنفردة والسعر القديم والخصم */
+  cartons?: number;
+  perCarton?: number;
+  loose?: number;
+  oldUnitCost?: number;
+  discount?: number;
   expiryDate?: string;
   productionDate?: string;
 }

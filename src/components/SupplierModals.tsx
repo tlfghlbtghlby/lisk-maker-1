@@ -4,11 +4,12 @@ import { X, Plus, Trash2, Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Product, Supplier, SupplierRep, SupplierTxn, SupplierTxnItem } from '../types';
 import { newId, todayIso, owedTo, nextReceiptNo } from '../utils/suppliers';
+import { ClassicReceiveLines, CLine, calcCLine, emptyCLine } from './ClassicReceiveLines';
 
 const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:border-emerald-500';
 const labelCls = 'block text-xs font-bold text-slate-700 mb-1';
 
-function Shell({ title, onClose, children, wide }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
+function Shell({ title, onClose, children, wide, xl }: { title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; xl?: boolean }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -16,7 +17,7 @@ function Shell({ title, onClose, children, wide }: { title: string; onClose: () 
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-3" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={`bg-white text-slate-900 rounded-2xl shadow-2xl w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[94vh] overflow-y-auto`} dir="rtl">
+      <div className={`bg-white text-slate-900 rounded-2xl shadow-2xl w-full ${xl ? 'max-w-6xl' : wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[94vh] overflow-y-auto`} dir="rtl">
         <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-4 py-3 border-b border-slate-200">
           <h3 className="font-extrabold text-sm">{title}</h3>
           <button type="button" onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100"><X className="w-4 h-4" /></button>
@@ -156,7 +157,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
   supplier: Supplier | null;
   suppliers: Supplier[];
   onClose: () => void;
-  onSave: (supplierId: string, txn: SupplierTxn, stock: { id: string; delta: number; note: string; productionDate?: string; expiryDate?: string; costPrice?: number }[]) => void;
+  onSave: (supplierId: string, txn: SupplierTxn, stock: { id: string; delta: number; note: string; productionDate?: string; expiryDate?: string; costPrice?: number; piecesPerCarton?: number }[]) => void;
 }) {
   const { products, settings, formatMoney } = useApp() as any;
   const [supId, setSupId] = useState(supplier?.id || '');
@@ -171,6 +172,11 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
   const [q, setQ] = useState('');
   const [error, setError] = useState('');
   const showDates = settings.enableProductExpiry === true;
+  const [mode, setModeState] = useState<'classic' | 'simple'>(() => { try { return localStorage.getItem('recv_mode') === 'simple' ? 'simple' : 'classic'; } catch { return 'classic'; } });
+  const setMode = (m: 'classic' | 'simple') => { setModeState(m); setError(''); try { localStorage.setItem('recv_mode', m); } catch {} };
+  const [cl, setCl] = useState<CLine[]>([emptyCLine()]);
+  const clRows = cl.filter((l) => l.name.trim() || l.productId).map((l) => ({ l, p: l.productId ? (products as Product[]).find((x) => x.id === l.productId) : undefined }));
+  const clTotal = clRows.reduce((s, { l, p }) => s + calcCLine(l, p).total, 0);
 
   const results = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -184,7 +190,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
     return l.unit === 'carton' ? Math.max(1, p.piecesPerCarton || 1) : l.unit === 'dozen' ? Math.max(1, p.piecesPerDozen || 1) : 1;
   };
   const lineTotal = (l: Line) => (parseFloat(l.qty) || 0) * (parseFloat(l.cost) || 0);
-  const total = lines.reduce((s, l) => s + lineTotal(l), 0);
+  const total = mode === 'classic' ? clTotal : lines.reduce((s, l) => s + lineTotal(l), 0);
   const paidN = Math.max(0, parseFloat(paid) || 0);
 
   const addProduct = (p: Product) => {
@@ -209,6 +215,49 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!sup) return setError('اختر المورد.');
+    if (mode === 'classic') {
+      const rows = clRows.map(({ l, p }) => ({ l, p, c: calcCLine(l, p) })).filter((x) => x.c.pieces > 0);
+      if (rows.length === 0) return setError('أضف مادة واحدة على الأقل بكمية (كراتين أو قطع) أكبر من صفر.');
+      const noPrice = rows.find((x) => !x.p && !x.c.hasNew);
+      if (noPrice) return setError(`أدخل سعر المادة غير المسجلة «${noPrice.l.name}».`);
+      const noCost = rows.find((x) => x.p && !x.c.hasNew && !(x.p.costPrice > 0));
+      if (noCost) return setError(`المادة «${noCost.l.name}» ليس لها سعر شراء سابق، اكتب السعر الجديد.`);
+      const frac = rows.find((x) => x.p && !x.c.weighted && x.c.pieces !== Math.floor(x.c.pieces));
+      if (frac) return setError(`الكمية للمادة «${frac.l.name}» يجب أن تكون عدداً صحيحاً.`);
+      const tot = rows.reduce((s, x) => s + x.c.total, 0);
+      if (paidN > tot) return setError('المدفوع أكبر من إجمالي القائمة.');
+      const items: SupplierTxnItem[] = rows.map(({ l, c }) => ({
+        ...(l.productId ? { productId: l.productId } : {}),
+        name: l.name.trim(),
+        pieces: c.pieces,
+        qty: c.pieces,
+        unitLabel: c.weighted ? 'كغم' : 'قطعة',
+        unitCost: Math.round(c.effPiece * 1000) / 1000,
+        total: c.total,
+        ...(c.cartons > 0 ? { cartons: c.cartons, perCarton: c.per } : {}),
+        ...(c.loose > 0 ? { loose: c.loose } : {}),
+        ...(l.productId && c.oldPiece > 0 ? { oldUnitCost: c.oldPiece } : {}),
+        ...(c.disc > 0 ? { discount: Math.round(c.disc) } : {}),
+        ...(l.exp ? { expiryDate: l.exp } : {}),
+        ...(l.prod ? { productionDate: l.prod } : {}),
+      }));
+      const note = `استلام من ${sup.company}${invoiceNo.trim() ? ` · قائمة ${invoiceNo.trim()}` : ''}${rep.trim() ? ` · مندوب: ${rep.trim()}` : ''}`;
+      const stock = rows.filter((x) => x.l.productId).map(({ l, c }) => ({
+        id: l.productId as string,
+        delta: c.pieces,
+        note,
+        productionDate: l.prod || undefined,
+        expiryDate: l.exp || undefined,
+        costPrice: updateCost && c.priceChanged && c.effPiece > 0 ? Math.round(c.effPiece * 1000) / 1000 : undefined,
+        ...(c.packChanged ? { piecesPerCarton: c.per } : {}),
+      }));
+      const txn: SupplierTxn = {
+        id: newId('stx'), supplierId: sup.id, type: 'purchase', date, total: tot, paid: paidN || undefined,
+        repName: rep.trim() || undefined, invoiceNo: invoiceNo.trim() || undefined, notes: notes.trim() || undefined,
+        items, createdAt: new Date().toISOString(),
+      };
+      return onSave(sup.id, txn, stock);
+    }
     const valid = lines.filter((l) => (parseFloat(l.qty) || 0) > 0);
     if (valid.length === 0) return setError('أضف مادة واحدة على الأقل بكمية أكبر من صفر.');
     if (valid.some((l) => !(parseFloat(l.cost) >= 0) || l.cost === '')) return setError('أدخل سعر الشراء لكل مادة (يمكن أن يكون صفراً).');
@@ -255,7 +304,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
   };
 
   return (
-    <Shell title="استلام بضاعة من مورد" onClose={onClose} wide>
+    <Shell title="استلام بضاعة من مورد" onClose={onClose} wide={mode === 'simple'} xl={mode === 'classic'}>
       <form onSubmit={submit} className="p-4 space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
           <div className="sm:col-span-2">
@@ -277,7 +326,22 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
           <div><label className={labelCls}>ملاحظات</label><input value={notes} onChange={(e) => setNotes(e.target.value)} className={inputCls} /></div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 p-3 bg-slate-50 space-y-2">
+        <div className="flex items-center gap-2 text-[11px] font-bold">
+          <span className="text-slate-600">طريقة الإدخال:</span>
+          <div className="flex rounded-lg border border-slate-300 overflow-hidden">
+            <button type="button" onClick={() => setMode('classic')} className={`px-3 py-1.5 ${mode === 'classic' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}>قائمة كلاسيكية</button>
+            <button type="button" onClick={() => setMode('simple')} className={`px-3 py-1.5 ${mode === 'simple' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}>مبسّطة</button>
+          </div>
+        </div>
+
+        {mode === 'classic' && (
+          <div className="space-y-1.5">
+            <ClassicReceiveLines lines={cl} setLines={setCl} products={products as Product[]} formatMoney={formatMoney} showDates={showDates} />
+            <p className="text-[11px] text-slate-500 leading-relaxed">اكتب اسم المادة واختر من الاقتراحات. أي خانة تتركها فارغة تبقى كما هي في المخزون (التعبئة والسعر). السعر القديم يظهر تلقائياً؛ اكتب «السعر الجديد» فقط إذا تغيّر. زر «خصم» لخصم المندوب على هذه القائمة فقط، وسيُحسب في سعر التكلفة. تغيير «تعبئة الكرتون» يعدّل تعبئة المادة نفسها.</p>
+          </div>
+        )}
+
+        {mode === 'simple' && <div className="rounded-xl border border-slate-200 p-3 bg-slate-50 space-y-2">
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
             <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (results.length === 1) addProduct(results[0]); } }} placeholder="ابحث عن مادة بالاسم أو الباركود لإضافتها..." className={`${inputCls} pr-9`} />
@@ -333,7 +397,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
               </div>
             );
           })}
-        </div>
+        </div>}
 
         <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
           <input type="checkbox" checked={updateCost} onChange={(e) => setUpdateCost(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
