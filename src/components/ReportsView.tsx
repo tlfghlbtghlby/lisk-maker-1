@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { soldPieces } from '../utils/soldPieces';
+import { inPeriod } from '../utils/expenses';
 import { useApp } from '../context/AppContext';
 import { 
   TrendingUp, 
@@ -96,6 +97,12 @@ export const ReportsView: React.FC = () => {
   const totalCost = filteredInvoices.reduce((sum, i) => sum + i.totalCost, 0);
   const totalNetProfit = filteredInvoices.reduce((sum, i) => sum + i.netProfit, 0);
   const profitMarginPercent = totalCost > 0 ? ((totalNetProfit / totalCost) * 100).toFixed(1) : '0';
+
+  // المصروفات ضمن نفس الفترة
+  const expensesAffect = (settings as any).expensesAffectProfit !== false;
+  const periodExpenses = (((settings as any).expenses || []) as { date: string; amount: number }[])
+    .filter((x) => inPeriod(x.date, timeFilter, fromDate, toDate))
+    .reduce((s, x) => s + (Number(x.amount) || 0), 0);
 
   // Direct vs Credit breakdown
   const directInvoices = filteredInvoices.filter((i) => i.type === 'direct');
@@ -306,6 +313,23 @@ export const ReportsView: React.FC = () => {
         </div>
 
       </div>
+
+      {periodExpenses > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-white p-4 rounded-xl border border-rose-200 shadow-xs">
+            <div className="text-xs text-rose-800 font-bold mb-1">المصروفات في هذه الفترة</div>
+            <div className="text-2xl font-black text-rose-700">{formatMoney(periodExpenses)}</div>
+            <div className="text-[11px] text-slate-500 mt-1">{expensesAffect ? 'تُخصم من الأرباح' : 'لا تُخصم من الأرباح (حسب إعداد قسم المصروفات)'}</div>
+          </div>
+          {expensesAffect && (
+            <div className="bg-white p-4 rounded-xl border border-emerald-200 shadow-xs">
+              <div className="text-xs text-emerald-800 font-bold mb-1">صافي الربح بعد المصروفات</div>
+              <div className={`text-2xl font-black ${totalNetProfit - periodExpenses >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatMoney(totalNetProfit - periodExpenses)}</div>
+              <div className="text-[11px] text-slate-500 mt-1">{formatMoney(totalNetProfit)} − {formatMoney(periodExpenses)}</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Breakdown: Direct vs Credit Sales */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
