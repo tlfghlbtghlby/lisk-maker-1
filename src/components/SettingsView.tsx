@@ -268,6 +268,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [quickQuantityEntry, setQuickQuantityEntry] = useState<boolean>(settings.quickQuantityEntry === true);
   const [invertEnterShortcuts, setInvertEnterShortcuts] = useState<boolean>(settings.invertEnterShortcuts === true);
   const [posKeyboardMode, setPosKeyboardMode] = useState<boolean>(settings.posKeyboardMode === true);
+  const [unfoundBarcodeInline, setUnfoundBarcodeInline] = useState<boolean>(settings.unfoundBarcodeInline === true);
   const [enableChangeCalculator, setEnableChangeCalculator] = useState<boolean>(settings.enableChangeCalculator !== false);
   const [posClassicCart, setPosClassicCart] = useState<boolean>(settings.posClassicCart === true);
   const [separateCartonPieces, setSeparateCartonPieces] = useState<boolean>(settings.separateCartonPieces === true);
@@ -457,6 +458,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setQuickQuantityEntry(settings.quickQuantityEntry === true);
       setInvertEnterShortcuts(settings.invertEnterShortcuts === true);
       setPosKeyboardMode(settings.posKeyboardMode === true);
+      setUnfoundBarcodeInline(settings.unfoundBarcodeInline === true);
       setEnableChangeCalculator(settings.enableChangeCalculator !== false);
       setPosClassicCart(settings.posClassicCart === true);
       setSeparateCartonPieces(settings.separateCartonPieces === true);
@@ -564,6 +566,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       quickQuantityEntry,
       invertEnterShortcuts,
       posKeyboardMode,
+      unfoundBarcodeInline,
       enableChangeCalculator,
       posClassicCart,
       separateCartonPieces,
@@ -1905,6 +1908,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="checkbox"
                 checked={posKeyboardMode}
                 onChange={(e) => setPosKeyboardMode(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">تنبيه أحمر للباركود غير المسجل (بدل النافذة الكبيرة)</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">عند مسح باركود غير موجود لا تظهر نافذة كبيرة، بل يظهر شريط أحمر ملفت تحت شريط البحث (مكان رسالة المسح الناجح) مع زر «إضافة للمخزن»، ويصدر صوت تنبيه مختلف يدل على أن المادة لم تدخل القائمة (غير مضافة أو قُرئ الباركود خطأ). عند الإيقاف تبقى النافذة الحالية.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={unfoundBarcodeInline}
+                onChange={(e) => setUnfoundBarcodeInline(e.target.checked)}
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>

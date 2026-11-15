@@ -53,7 +53,7 @@ interface POSViewProps {
   onOpenSettings?: () => void;
 }
 
-const playScannerBeep = (type: 'success' | 'alert' = 'success') => {
+const playScannerBeep = (type: 'success' | 'alert' | 'unfound' = 'success') => {
   try {
     const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtx) return;
@@ -61,7 +61,20 @@ const playScannerBeep = (type: 'success' | 'alert' = 'success') => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    if (type === 'success') {
+    if (type === 'unfound') {
+      // تنبيه مختلف: ثلاث نبضات متناوبة عالية/منخفضة تدل أن المادة لم تدخل القائمة
+      osc.type = 'square';
+      const t0 = ctx.currentTime;
+      [880, 480, 880, 480, 880].forEach((f, i) => osc.frequency.setValueAtTime(f, t0 + i * 0.14));
+      gain.gain.setValueAtTime(0.28, t0);
+      gain.gain.setValueAtTime(0.28, t0 + 0.68);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.75);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(t0 + 0.75);
+      try { navigator.vibrate?.([120, 60, 120, 60, 200]); } catch (e) {}
+    } else if (type === 'success') {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(1700, ctx.currentTime);
       gain.gain.setValueAtTime(0.2, ctx.currentTime);
@@ -607,11 +620,16 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       setScanNotice(`تم مسح الباركود #${clean}: زيادة كمية "${matched.name}" في القائمة (+1${usedUnit ? ' ' + usedUnit : ''})`);
       setTimeout(() => setScanNotice(null), 3000);
     } else {
-      playScannerBeep('alert');
       setSearchQuery('');
       setUnfoundBarcodePrompt(clean);
-      setScanNotice(`الرمز الشريطي #${clean} غير مسجل في المخزن`);
-      setTimeout(() => setScanNotice(null), 5000);
+      if (settings.unfoundBarcodeInline === true) {
+        playScannerBeep('unfound');
+        setScanNotice(null);
+      } else {
+        playScannerBeep('alert');
+        setScanNotice(`الرمز الشريطي #${clean} غير مسجل في المخزن`);
+        setTimeout(() => setScanNotice(null), 5000);
+      }
     }
   };
 
@@ -1649,6 +1667,22 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   <span className="hidden md:inline">مادة جديدة</span>
                 </button>
               </div>
+
+              {settings.unfoundBarcodeInline === true && unfoundBarcodePrompt && (
+                <div role="alert" className="bg-red-600 border-2 border-red-800 text-white px-3 py-2.5 rounded-xl shadow-lg flex flex-wrap items-center justify-between gap-2 animate-pulse">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <AlertTriangle className="w-6 h-6 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-black">لم تُضَف المادة للقائمة! الباركود <span className="font-mono" dir="ltr">#{unfoundBarcodePrompt}</span></div>
+                      <div className="text-[11px] font-bold text-red-100">المادة غير مضافة في المخزن، أو قُرئ الباركود بشكل خاطئ. أعد المسح أو أضفها.</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button type="button" onClick={() => { const c = unfoundBarcodePrompt; setUnfoundBarcodePrompt(null); onOpenNewProduct(c); }} className="px-3 py-1.5 rounded-lg bg-white text-red-700 text-xs font-black hover:bg-red-50 flex items-center gap-1 cursor-pointer"><Plus className="w-3.5 h-3.5" />إضافة للمخزن</button>
+                    <button type="button" onClick={() => setUnfoundBarcodePrompt(null)} className="px-2.5 py-1.5 rounded-lg bg-red-800 text-white text-xs font-bold hover:bg-red-900 cursor-pointer">إخفاء</button>
+                  </div>
+                </div>
+              )}
 
               {scanNotice && (
                 <div className="bg-emerald-50 border border-emerald-300 text-emerald-950 px-3 py-1.5 rounded-xl text-xs font-bold flex items-center justify-between shadow-2xs">
@@ -3123,7 +3157,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         </div>
       )}
 
-      {unfoundBarcodePrompt && (
+      {unfoundBarcodePrompt && settings.unfoundBarcodeInline !== true && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden text-right" dir="rtl">
             <div className="p-4 border-b border-amber-200 bg-amber-50 flex items-center justify-between">
