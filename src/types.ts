@@ -47,8 +47,10 @@ export interface Product {
   dozenLabel?: string;
   /** فئة وسطية اختيارية (درزن): عدد القطع في الدرزن؛ 0/غير موجود = معطّلة */
   piecesPerDozen?: number;
-  /** وحدة البيع الافتراضية عند مسح الباركود فقط (الافتراضي: قطعة) */
+  /** وحدة البيع الافتراضية عند مسح الباركود (الافتراضي: قطعة) */
   scanUnit?: 'piece' | 'dozen' | 'carton';
+  /** وحدة البيع عند الضغط على المادة بالفأرة/اللمس؛ إن لم تُحدد تتبع وحدة المسح (توافق مع المواد القديمة) */
+  clickUnit?: 'piece' | 'dozen' | 'carton';
   minStock: number;
   isWeighted?: boolean;
   itemCount?: number;
@@ -283,6 +285,8 @@ export interface POSDraftOrder {
   customCustomerName: string;
   customerPhone: string;
   discount: number;
+  /** طريقة إدخال خصم القائمة: مبلغ ثابت أو نسبة مئوية (القيمة في discount) */
+  discountMode?: 'amount' | 'percent';
   paidAmount: number;
   dueDate: string;
   notes: string;

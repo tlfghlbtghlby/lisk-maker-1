@@ -588,10 +588,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       headerLeftSealText: headerLeftSealText.trim() || 'مفرد',
       businessSubtitle: businessSubtitle.trim() || 'تجارة عامة وبيع الجملة والمفرد',
       managerLabel: managerLabel.trim() || 'بإدارة',
-      supervisorPin: supervisorPin.trim() || '1122',
-      defaultSessionOnLaunch,
-      employeePermissions,
-      supervisorPermissions,
+      // الرموز والصلاحيات لا تُعدَّل إلا من جلسة الأدمن
+      ...(sessionRole === 'admin' ? {
+        supervisorPin: supervisorPin.trim() || '1122',
+        defaultSessionOnLaunch,
+        employeePermissions,
+        supervisorPermissions,
+      } : {}),
       invoiceTemplate: featureOn('enableModernDesign') ? invoiceTemplate : 'classic',
       modernHeader: modernHeaderConfig,
     } as any);
@@ -612,6 +615,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   }, [savedSuccess]);
 
   const handleSaveSessionsOnly = () => {
+    if (sessionRole !== 'admin') return;
     updateSettings({
       supervisorPin: supervisorPin.trim() || '1122',
       defaultSessionOnLaunch,
@@ -2600,6 +2604,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </button>
           </div>
 
+          {sessionRole !== 'admin' ? (
+            <div className="p-4 rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 text-xs font-bold text-amber-900 dark:text-amber-200">
+              🔒 تعديل صلاحيات الجلسات والرموز السرية والمشرفين متاح فقط من جلسة الأدمن. بدّل إلى جلسة الأدمن لتعديلها.
+            </div>
+          ) : (<>
           {/* رمز المشرف والجلسة الافتراضية */}
           <div className="bg-white dark:bg-[#0b1728] rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xs space-y-5 transition-colors">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3058,6 +3067,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال (محظور افتراضياً)' },
                   { key: 'canAccessShifts' as const, label: 'الدخول لسجل وتبويب الشفتات', desc: 'معاينة شفتات العمل ومبيعاتها وقوائمها' },
                   { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات', desc: 'تشغيل مؤقت الشفت وإنهائه' },
+                  { key: 'canConfigureShifts' as const, label: 'إعداد قوالب الشفتات', desc: 'إضافة وتعديل الشفتات المعدّة مسبقاً ورموزها' },
                   { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي (محظور افتراضياً)' },
                 ].map((item) => (
                   <label
@@ -3119,6 +3129,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   { key: 'canAccessInventory' as const, label: 'الدخول لقسم المواد والمخزون', desc: 'معاينة المخزن وجرد الأصناف' },
                   { key: 'canAccessShifts' as const, label: 'الدخول لسجل وتبويب الشفتات', desc: 'معاينة شفتات العمل ومبيعاتها وقوائمها' },
                   { key: 'canManageShifts' as const, label: 'بدء وإنهاء الشفتات', desc: 'تشغيل مؤقت الشفت وإنهائه' },
+                  { key: 'canConfigureShifts' as const, label: 'إعداد قوالب الشفتات', desc: 'إضافة وتعديل الشفتات المعدّة مسبقاً ورموزها' },
                   { key: 'canDeleteInvoice' as const, label: 'حذف القوائم نهائياً', desc: 'حذف سجلات الفواتير نهائياً' },
                   { key: 'canViewReports' as const, label: 'الدخول لسجل الأرباح والتقارير المالية', desc: 'أرباح المتجر ورأس المال' },
                   { key: 'canAccessSettings' as const, label: 'الدخول لشاشة الإعدادات العامة', desc: 'إعدادات النظام والنسخ الاحتياطي' },
@@ -3163,6 +3174,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               حفظ وتثبيت إعدادات وصلاحيات الجلسات
             </button>
           </div>
+          </>)}
         </>
       )}
 

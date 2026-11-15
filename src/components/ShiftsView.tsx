@@ -140,20 +140,9 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
       });
     }
 
-    // 2. عزل الحساب والجلسة: إذا لم يكن المدير العام، إظهار شفتات هذا المشرف أو الكاشير فقط
+    // 2. غير الأدمن: يرى شفتات هذا الجهاز (مشتركة بين جلسات الموظف والمشرف) والشفت الجاري
     if (sessionRole !== 'admin') {
-      list = list.filter(s => {
-        const opId = (s as any).operatorId;
-        const supId = (s as any).supervisorId;
-
-        if (sessionRole === 'supervisor' && activeSupervisorId) {
-          return supId === activeSupervisorId || opId?.includes(activeSupervisorId);
-        }
-        return (
-          opId === `${currentUser?.uid}_${sessionRole}` ||
-          (s.openedBy?.role === sessionRole && s.deviceId === currentDeviceId)
-        );
-      });
+      list = list.filter(s => s.deviceId === currentDeviceId || s.id === activeShift?.id || !s.deviceId);
     } else if (accountFilter !== 'all') {
       // فلتر الحساب للمدير العام إذا رغب في رؤية شفتات حساب محدد
       list = list.filter(s => (s as any).operatorId === accountFilter || s.openedBy?.name === accountFilter);
@@ -191,7 +180,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
     }
 
     return list;
-  }, [shifts, sessionRole, activeSupervisorId, currentUser?.uid, currentDeviceId, accountFilter, dateFilter, searchQuery]);
+  }, [shifts, sessionRole, activeShift?.id, currentUser?.uid, currentDeviceId, accountFilter, dateFilter, searchQuery]);
 
   // إحصائيات الفترة المحددة
   const periodTotals = useMemo(() => {
@@ -321,6 +310,8 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
 
   const activeStats = activeShift ? getShiftStats(activeShift) : null;
   const canConfigure = sessionRole === 'admin' || hasPermission('canConfigureShifts');
+  // حجب سعر التكلفة يحجب الربح تلقائياً
+  const showProfit = hasPermission('canViewCostPrice');
 
   return (
     <div className="space-y-5" dir="rtl">
@@ -679,13 +670,13 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
                     <span className="text-[10px] text-emerald-400 block mt-0.5">نقد: {formatMoney(activeStats.totalPaid)}</span>
                   </div>
 
-                  <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
+                  {showProfit && <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
                     <span className="text-[11px] text-slate-400 block">صافي الأرباح الجارية:</span>
                     <span className="text-base font-black text-emerald-400">{formatMoney(activeStats.totalProfit)}</span>
                     <span className="text-[10px] text-slate-400 block mt-0.5">
                       هامش: {activeStats.totalSales > 0 ? `${((activeStats.totalProfit / activeStats.totalSales) * 100).toFixed(1)}%` : '0%'}
                     </span>
-                  </div>
+                  </div>}
 
                   <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
                     <span className="text-[11px] text-slate-400 block">القوائم الصادرة:</span>
@@ -806,7 +797,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
+            {showProfit && <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
               <div className="flex items-center justify-between text-emerald-700 text-xs font-bold mb-1">
                 <span>صافي أرباح الشفتات</span>
                 <TrendingUp className="w-4 h-4 text-emerald-600" />
@@ -817,7 +808,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
               <div className="text-[11px] text-emerald-600 font-bold mt-1">
                 هامش الربح: {periodTotals.sales > 0 ? `${((periodTotals.profit / periodTotals.sales) * 100).toFixed(1)}%` : '0%'}
               </div>
-            </div>
+            </div>}
 
             <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-2xs">
               <div className="flex items-center justify-between text-purple-700 text-xs font-bold mb-1">
@@ -938,7 +929,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
                       <th className="py-3 px-3.5 text-center">القوائم</th>
                       <th className="py-3 px-3.5">إجمالي المبيعات</th>
                       <th className="py-3 px-3.5">المقبوض نقد</th>
-                      <th className="py-3 px-3.5 text-emerald-700 font-black">صافي الربح</th>
+                      {showProfit && <th className="py-3 px-3.5 text-emerald-700 font-black">صافي الربح</th>}
                       <th className="py-3 px-3.5 text-center">الإجراءات</th>
                     </tr>
                   </thead>
@@ -1029,9 +1020,9 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
                             {formatMoney(shift.totalPaid || 0)}
                           </td>
 
-                          <td className="py-3 px-3.5 font-black text-emerald-700 whitespace-nowrap">
+                          {showProfit && <td className="py-3 px-3.5 font-black text-emerald-700 whitespace-nowrap">
                             +{formatMoney(shift.totalProfit || 0)}
-                          </td>
+                          </td>}
 
                           <td className="py-3 px-3.5 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1.5">
