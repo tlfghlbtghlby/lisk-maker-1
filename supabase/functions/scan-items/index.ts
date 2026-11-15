@@ -42,8 +42,39 @@ Strict rules:
 - If the photo shows physical goods and not a document, list each distinct product you can read from its packaging and count the visible units; use confidence at most 0.6.
 - invoiceTotal: the grand total only if clearly printed, otherwise omit.
 - supplierName: the supplier / wholesaler / company / trader that SOLD the goods and issued the document. Look carefully at the top header, letterhead, logo text, rubber stamp, a handwritten title line (e.g. شركة ..., مذخر ..., مكتب ..., السيد ...), and also the footer or signature stamp. Copy it exactly as written (prefer the company/trade name over a person's name). Omit it only if nothing like it is written anywhere. Never use a phone number, the buyer's own shop, or a product name.
+- Read the document strictly from the top line to the bottom line, in order, one product per line. Do not skip, merge or reorder lines. For every item return the fields "line" (its 1-based order of appearance) and "raw" (the full text of that line exactly as written, including its numbers).
 - Ignore headers, phone numbers, dates, signatures and totals rows as items.
 - If nothing is readable return an empty items array.`;
+
+// وضع القائمة المطبوعة: نسخ حرفي للجدول بلا تفسير، والبرنامج هو الذي يفرز الأعمدة
+const PRINTED_PROMPT = `You transcribe a PRINTED invoice / delivery note / price list (Arabic, may include English and Arabic-Indic digits). Do NOT interpret or fix anything.
+Rules:
+- Go strictly from the top row to the bottom row of the table, in order. Do not skip, merge or reorder rows.
+- For each row return the field "cells": the exact text of every cell of that row, in a consistent order for all rows (right to left for Arabic documents). Keep numbers exactly as printed (convert Arabic-Indic digits to Western digits). Keep empty cells as empty strings so the columns stay aligned.
+- Set isHeader=true for the column-titles row (e.g. المادة / العدد / السعر / المجموع).
+- Include total / summary rows too, as ordinary rows.
+- supplierName: the supplier / wholesaler / company that issued the document (letterhead, logo text, stamp, footer), copied exactly; omit if nothing is written. Never a phone number or the buyer's shop.
+- invoiceTotal: the grand total only if clearly printed, otherwise omit.
+- documentType: a short label of the document.
+- If nothing is readable return an empty rows array.`;
+
+const SCHEMA_PRINTED = {
+  type: 'OBJECT',
+  properties: {
+    documentType: { type: 'STRING' },
+    invoiceTotal: { type: 'NUMBER' },
+    supplierName: { type: 'STRING' },
+    rows: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: { cells: { type: 'ARRAY', items: { type: 'STRING' } }, isHeader: { type: 'BOOLEAN' } },
+        required: ['cells'],
+      },
+    },
+  },
+  required: ['rows'],
+};
 
 const SCHEMA = {
   type: 'OBJECT',
@@ -64,6 +95,8 @@ const SCHEMA = {
           barcode: { type: 'STRING' },
           expiryDate: { type: 'STRING' },
           confidence: { type: 'NUMBER' },
+          line: { type: 'NUMBER' },
+          raw: { type: 'STRING' },
         },
         required: ['name', 'quantity'],
       },
@@ -112,6 +145,7 @@ Deno.serve(async (req) => {
   if (!image || image.length < 200) return json({ error: 'no_image' }, 400);
   if (image.length > 7_000_000) return json({ error: 'image_too_large' }, 413);
   if (!storeId) return json({ error: 'no_store' }, 400);
+  const printed = body?.printed === true;
 
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) return json({ error: 'no_api_key' }, 503);
@@ -151,8 +185,8 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: PROMPT }, { inline_data: { mime_type: mime, data: image } }] }],
-          generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: SCHEMA },
+          contents: [{ parts: [{ text: printed ? PRINTED_PROMPT : PROMPT }, { inline_data: { mime_type: mime, data: image } }] }],
+          generationConfig: { temperature: 0, responseMimeType: 'application/json', responseSchema: printed ? SCHEMA_PRINTED : SCHEMA },
         }),
         signal: AbortSignal.timeout(25000),
       });
@@ -172,6 +206,21 @@ Deno.serve(async (req) => {
     const text: string = data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text || '').join('') || '';
     let parsed: any = null;
     try { parsed = JSON.parse(text); } catch { /* ignore */ }
+    const supplierName = parsed && typeof parsed.supplierName === 'string' && parsed.supplierName.trim() ? parsed.supplierName.trim().slice(0, 120) : undefined;
+    if (printed) {
+      if (!parsed || !Array.isArray(parsed.rows)) { await refund(storeId); return json({ error: 'unreadable_response' }, 502); }
+      const rows = parsed.rows.slice(0, 400).map((rw: any) => ({
+        cells: (Array.isArray(rw?.cells) ? rw.cells : []).slice(0, 20).map((c: unknown) => String(c ?? '').trim().slice(0, 200)),
+        isHeader: rw?.isHeader === true,
+      }));
+      return json({
+        rows,
+        invoiceTotal: num(parsed.invoiceTotal),
+        supplierName,
+        documentType: typeof parsed.documentType === 'string' ? parsed.documentType.slice(0, 60) : undefined,
+        model,
+      });
+    }
     if (!parsed || !Array.isArray(parsed.items)) { await refund(storeId); return json({ error: 'unreadable_response' }, 502); }
 
     const items = parsed.items.slice(0, 300).map((it: any) => {
@@ -188,13 +237,16 @@ Deno.serve(async (req) => {
         ...(bc.length >= 6 ? { barcode: bc } : {}),
         ...(exp ? { expiryDate: exp } : {}),
         confidence: conf === undefined ? 0.5 : Math.min(1, Math.max(0, conf)),
+        ...(num(it?.line) !== undefined ? { line: num(it.line) } : {}),
+        ...(typeof it?.raw === 'string' && it.raw.trim() ? { raw: it.raw.trim().slice(0, 300) } : {}),
       };
-    }).filter((it: any) => it.name && it.quantity > 0);
+    }).filter((it: any) => it.name && it.quantity > 0)
+      .sort((a: any, b: any) => (a.line ?? 1e9) - (b.line ?? 1e9));
 
     return json({
       items,
       invoiceTotal: num(parsed.invoiceTotal),
-      supplierName: typeof parsed.supplierName === 'string' && parsed.supplierName.trim() ? parsed.supplierName.trim().slice(0, 120) : undefined,
+      supplierName,
       documentType: typeof parsed.documentType === 'string' ? parsed.documentType.slice(0, 60) : undefined,
       model,
     });
