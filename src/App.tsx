@@ -23,6 +23,7 @@ import { SessionSwitchModal } from './components/SessionSwitchModal';
 import { StartShiftModal } from './components/StartShiftModal';
 import { EndShiftModal } from './components/EndShiftModal';
 import { ShiftDetailsModal } from './components/ShiftDetailsModal';
+import { ShiftHeaderButton } from './components/ShiftHeaderButton';
 import { AuthView } from './components/AuthView';
 import { SplashScreen } from './components/SplashScreen';
 import { CustomerPriceChecker } from './components/CustomerPriceChecker';
@@ -312,6 +313,14 @@ const MainContent: React.FC = () => {
       {/* 2. شريط التبويبات العلوي (يختفي تماماً في أي نافذة منفصلة لأي خانة) */}
       {!isStandaloneWindow && !isFullComputerMode && (
         <Navigation activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
+      )}
+
+      {/* شريط الشفت داخل شاشة/نافذة البيع: لفتح الشفت من هنا (النافذة المنفصلة بلا شريط علوي، والموظف العادي يفتح الشفت من البيع فقط) */}
+      {activeTab === 'pos' && storeFeatures?.enableShifts !== false && (isStandaloneWindow || !hasPermission('canManageShifts')) && (
+        <div className="no-print bg-slate-900 border-b border-slate-800 text-white px-3 py-1.5 flex items-center justify-between gap-2" dir="rtl">
+          <span className="text-[11px] font-bold text-slate-300">نقطة البيع</span>
+          <ShiftHeaderButton posWindow />
+        </div>
       )}
 
       {/* 3. منطقة المحتوى فقط (تأخذ الشاشة كاملة 100% بدون أي أشرطة مشتتة) */}
