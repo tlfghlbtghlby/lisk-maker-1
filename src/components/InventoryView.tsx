@@ -95,7 +95,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
           !q ||
           prod.name.toLowerCase().includes(q) ||
           prod.code.toLowerCase().includes(q) ||
-          prod.category.toLowerCase().includes(q);
+          (prod.category || '').toLowerCase().includes(q);
 
         let matchStock = true;
         if (stockFilter === 'low') {

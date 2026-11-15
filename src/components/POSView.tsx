@@ -169,7 +169,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const selectedCustomerId = activeDraft.selectedCustomerId || '';
   const customCustomerName = activeDraft.customCustomerName || '';
   const customerPhone = activeDraft.customerPhone || '';
-  const discount = 0;
+  const discountRaw = Math.max(0, Number(activeDraft.discount) || 0);
+  const discountMode: 'amount' | 'percent' = activeDraft.discountMode === 'percent' ? 'percent' : 'amount';
   const paidAmount = activeDraft.paidAmount || 0;
   const dueDate = activeDraft.dueDate || '';
   const notes = activeDraft.notes || '';
@@ -194,6 +195,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const setCustomCustomerName = (val: string) => updateActiveDraft({ customCustomerName: val });
   const setCustomerPhone = (val: string) => updateActiveDraft({ customerPhone: val });
   const setPaidAmount = (val: number) => updateActiveDraft({ paidAmount: val });
+  const setDiscountRaw = (val: number) => updateActiveDraft({ discount: Math.max(0, val) });
+  const setDiscountMode = (m: 'amount' | 'percent') => updateActiveDraft({ discountMode: m, discount: 0 });
   const setDueDate = (val: string) => updateActiveDraft({ dueDate: val });
   const setNotes = (val: string) => updateActiveDraft({ notes: val });
 
@@ -300,6 +303,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const [scanNotice, setScanNotice] = useState<string | null>(null);
   const [cartErrorNotice, setCartErrorNotice] = useState<string | null>(null);
   const [unfoundBarcodePrompt, setUnfoundBarcodePrompt] = useState<string | null>(null);
+  // الوضع المضمّن: قائمة الباركودات غير الموجودة (إنذار أحمر لكل واحد تحت الآخر) دون أي حجب للمسح
+  const [unfoundList, setUnfoundList] = useState<string[]>([]);
+  // آخر مسح باركود (لمنع Enter القادم من الماسح من أن يُحفظ القائمة)
+  const lastScanRef = useRef(0);
 
   const handleOpenPriceEdit = (prod: Product) => {
     setProductForPriceEdit(prod);
@@ -413,9 +420,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       const q = searchQuery.toLowerCase().trim();
       const matchSearch =
         !q ||
-        prod.name.toLowerCase().includes(q) ||
-        prod.code.toLowerCase().includes(q) ||
-        prod.category.toLowerCase().includes(q);
+        (prod.name || '').toLowerCase().includes(q) ||
+        (prod.code || '').toLowerCase().includes(q) ||
+        (prod.category || '').toLowerCase().includes(q);
       return matchCat && matchSearch;
     });
   }, [products, selectedCategory, searchQuery]);
@@ -590,8 +597,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   };
 
   // إضافة مادة بوحدتها الافتراضية (قطعة/درزن/كرتون) عند الضغط عليها أو مسح باركودها؛ يرجع اسم الوحدة إن لم تكن قطعة
-  const addWithDefaultUnit = (prod: Product): string | null => {
-    const su = prod.scanUnit;
+  const addWithDefaultUnit = (prod: Product, via: 'scan' | 'click' = 'scan'): string | null => {
+    // المسح يستعمل وحدة المسح؛ الضغط يستعمل وحدة الضغط (وإن لم تُحدد تتبع وحدة المسح كما كان سابقاً)
+    const su = via === 'click' ? (prod.clickUnit || prod.scanUnit) : prod.scanUnit;
     const weighted = Boolean(prod.isWeighted || prod.unit === 'كغم' || prod.unit === 'كيلو');
     const dz = !weighted && (prod.piecesPerDozen || 0) > 1;
     const ok = !weighted && ((su === 'dozen' && dz) || (su === 'carton' && (prod.piecesPerCarton || 1) > 1));
@@ -604,34 +612,69 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     return null;
   };
 
+  // هل الباركودان متشابهان (قُرئ الأول خطأً ثم قُرئ الثاني صحيحاً)؟
+  const codesSimilar = (a: string, b: string) => {
+    const x = a.toLowerCase();
+    const y = b.toLowerCase();
+    if (x === y) return true;
+    if (Math.min(x.length, y.length) < 6) return false;
+    if (x.includes(y) || y.includes(x)) return true;
+    if (Math.abs(x.length - y.length) > 2) return false;
+    // مسافة تحرير مبسطة (حتى حرفين)
+    const m = x.length, n = y.length;
+    let prev = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) {
+      const cur = [i];
+      for (let j = 1; j <= n; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1));
+      }
+      prev = cur;
+    }
+    return prev[n] <= 2;
+  };
+
   const handleBarcodeScanned = (scannedCode: string) => {
     const clean = scannedCode.trim();
     if (!clean) return;
+    lastScanRef.current = Date.now();
 
-    const matched = products.find((p) => p.code.toLowerCase() === clean.toLowerCase())
+    const matched = products.find((p) => (p.code || '').toLowerCase() === clean.toLowerCase())
       || products.find((p) => p.code === clean);
 
     if (matched) {
       playScannerBeep('success');
-      const usedUnit = addWithDefaultUnit(matched);
+      const usedUnit = addWithDefaultUnit(matched, 'scan');
       quickQtyArmedRef.current = null;
       setSearchQuery('');
       setUnfoundBarcodePrompt(null);
+      // إنذار باركود قُرئ خطأً سابقاً يزول عند مسح مادته بشكل صحيح
+      setUnfoundList((prev) => (prev.length ? prev.filter((c) => !codesSimilar(c, clean) && !codesSimilar(c, matched.code)) : prev));
       setScanNotice(`تم مسح الباركود #${clean}: زيادة كمية "${matched.name}" في القائمة (+1${usedUnit ? ' ' + usedUnit : ''})`);
       setTimeout(() => setScanNotice(null), 3000);
     } else {
       setSearchQuery('');
-      setUnfoundBarcodePrompt(clean);
       if (settings.unfoundBarcodeInline === true) {
+        // إنذار مضمّن: لا نافذة تحجب المسح، ويتراكم إنذار لكل باركود غير موجود
         playScannerBeep('unfound');
         setScanNotice(null);
+        setUnfoundList((prev) => (prev.includes(clean) ? prev : [...prev, clean].slice(-8)));
       } else {
+        setUnfoundBarcodePrompt(clean);
         playScannerBeep('alert');
         setScanNotice(`الرمز الشريطي #${clean} غير مسجل في المخزن`);
         setTimeout(() => setScanNotice(null), 5000);
       }
     }
   };
+
+  // مادة أُضيفت للمخزن لاحقاً بنفس الباركود: يزول إنذارها
+  useEffect(() => {
+    setUnfoundList((prev) => {
+      if (!prev.length) return prev;
+      const next = prev.filter((c) => !products.some((p) => (p.code || '').toLowerCase() === c.toLowerCase()));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [products]);
 
 
   // ===== وضع Enter + الفصل بين الكرتون والقطعة =====
@@ -662,7 +705,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const handleProductClick = (prod: Product) => {
     if (classicMode) classicAddAndFocus(prod, false);
     else if (sepMode) openEntry(prod, false);
-    else addWithDefaultUnit(prod);
+    else addWithDefaultUnit(prod, 'click');
   };
 
   // إضافة سطر للقائمة بوحدة محددة، مع دمج السطر الموجود لنفس المادة
@@ -917,13 +960,29 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   useEffect(() => {
     let buffer = '';
+    let humanish = false; // وُجدت فجوة بين الأحرف تدل على كتابة يدوية وليست ماسحاً
+    let lastCharT = 0;
     let quickQtyBuf = '';
     let quickQtyTime = 0;
     let quickQtyFor = '';
-    let lastKeyTime = Date.now();
+    let quickQtyPrev: number | null = null;
+
+    const currentQtyOf = (key: string) => {
+      const it = cartItemsRef.current.find((i) => lineKeyOf(i) === key);
+      return it ? it.quantity : null;
+    };
+    // التراجع عن أي كمية سريعة التقطها المستمع من أرقام باركود قادم من الماسح
+    const restoreQuickQty = () => {
+      if (quickQtyFor && quickQtyPrev !== null && quickQtyBuf !== '') {
+        updateQuantityRef.current(quickQtyFor, quickQtyPrev);
+      }
+      quickQtyBuf = '';
+      quickQtyPrev = null;
+    };
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       // إيقاف المعالجة إذا كانت هناك نوافذ تفاعلية منبثقة مفتوحة
+      // (الإنذار الأحمر المضمّن ليس نافذة ولا يوقف المسح)
       if (
         showQuickAddModal || 
         isScannerOpen || 
@@ -940,10 +999,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
       const target = e.target as HTMLElement;
       const isInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
-
+      const inSearchBox = !!target && target === searchInputRef.current;
       const now = Date.now();
-      const diff = now - lastKeyTime;
-      lastKeyTime = now;
 
       // 1. اختصار Ctrl + Enter (أو Cmd + Enter): حفظ القائمة فقط دون طباعة
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -956,14 +1013,28 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         return;
       }
 
-      // 2. اختصار Enter: حفظ وطباعة القائمة (أو قراءة باركود الماسح الشريطي)
+      // 2. Enter: نهاية قراءة ماسح الباركود، أو حفظ وطباعة القائمة عند الضغط اليدوي
       if (e.key === 'Enter' && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        // فحص هل هو ماسح باركود شريطي سريع
-        if (buffer.length >= 2 && diff < 80) {
+        const sinceChar = now - lastCharT;
+        const scannerBurst = buffer.length >= 2 && !humanish && sinceChar < 150;
+        const code = buffer.trim();
+        buffer = '';
+        humanish = false;
+
+        // حقل البحث يعالج Enter بنفسه؛ لا نقرأ الباركود مرتين ولا نبيع القائمة من هنا أبداً
+        if (inSearchBox) return;
+
+        // سلسلة أرقام سريعة ثم Enter = ماسح باركود
+        if (scannerBurst && code.length >= 2) {
           e.preventDefault();
-          const scanned = buffer.trim();
-          buffer = '';
-          handleBarcodeScannedRef.current(scanned);
+          restoreQuickQty();
+          handleBarcodeScannedRef.current(code);
+          return;
+        }
+
+        // Enter قادم مباشرة بعد مسح أو بعد أحرف سريعة (نهاية ماسح لم تكتمل قراءته): لا يُباع شيء
+        if (now - lastScanRef.current < 800 || sinceChar < 120) {
+          e.preventDefault();
           return;
         }
 
@@ -978,49 +1049,50 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           }
         }
 
-        // حفظ وطباعة القائمة الحالية عند الضغط على Enter
+        // حفظ وطباعة القائمة الحالية عند الضغط اليدوي على Enter
         if (cartItemsRef.current.length > 0) {
           e.preventDefault();
           e.stopPropagation();
-          buffer = '';
           handleSaveInvoiceRef.current(!settingsRef.current.invertEnterShortcuts);
         }
         return;
       }
 
-      // إدخال الكمية السريع: بعد إضافة مادة بالنقر، ضغط رقم يحدد كميتها مباشرة
       if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        const gap = now - lastCharT;
+        lastCharT = now;
+        if (gap > 120) {
+          buffer = '';
+          humanish = false;
+        }
+        if (buffer.length > 0 && gap >= 70) humanish = true;
+        if (!inSearchBox && (!isInput || gap < 50)) {
+          buffer += e.key;
+        }
+
+        // إدخال الكمية السريع: بعد إضافة مادة بالنقر، ضغط رقم يحدد كميتها مباشرة
         const armed = quickQtyArmedRef.current;
         if (settingsRef.current.quickQuantityEntry && !settingsRef.current.posKeyboardMode && armed && !isInput) {
           if (/^[0-9]$/.test(e.key)) {
-            if (quickQtyFor !== armed) { quickQtyBuf = ''; quickQtyFor = armed; }
+            if (quickQtyFor !== armed) { quickQtyBuf = ''; quickQtyFor = armed; quickQtyPrev = null; }
             if (quickQtyBuf !== '' && now - quickQtyTime > 1500) quickQtyBuf = '';
-            if (quickQtyBuf !== '' && diff < 40) {
-              // سرعة إدخال تشبه الماسح الضوئي: لا نتدخل
+            if (quickQtyBuf === '') quickQtyPrev = currentQtyOf(armed);
+            if (quickQtyBuf !== '' && (gap < 60 || quickQtyBuf.length >= 4)) {
+              // سرعة إدخال الماسح أو رقم طويل جداً: هذه ليست كمية → نتراجع ونترك الأرقام للماسح
+              restoreQuickQty();
               quickQtyArmedRef.current = null;
-              quickQtyBuf = '';
             } else {
               quickQtyBuf += e.key;
               quickQtyTime = now;
               const n = parseInt(quickQtyBuf, 10);
-              if (n > 0) updateQuantityRef.current(armed, n);
+              if (n > 0 && n <= 9999) updateQuantityRef.current(armed, n);
               e.preventDefault();
-              buffer = '';
-              return;
             }
           } else {
             quickQtyArmedRef.current = null;
             quickQtyBuf = '';
+            quickQtyPrev = null;
           }
-        }
-      }
-
-      if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        if (diff > 120 && buffer.length > 0) {
-          buffer = '';
-        }
-        if (!isInput || diff < 50) {
-          buffer += e.key;
         }
       }
     };
@@ -1030,6 +1102,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   }, [showQuickAddModal, isScannerOpen, unfoundBarcodePrompt, productForPriceEdit, isSelectRepModalOpen, showClearConfirmModal, showChangeCalc]);
 
   const updateQuantity = (productId: string, newQty: number) => {
+    // كمية خيالية = باركود دخل في خانة الكمية بالخطأ: نتجاهلها
+    if (!isFinite(newQty) || newQty > 100000) return;
     if (newQty <= 0) {
       removeFromCart(productId);
       return;
@@ -1156,6 +1230,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   };
 
   const clearCart = () => {
+    setUnfoundList([]);
     clearCurrentDraft();
   };
 
@@ -1184,7 +1259,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     );
   }, [promoResult, settings.giftCostCounted]);
 
-  const finalTotal = subtotal;
+  // خصم القائمة الكاملة (مبلغ أو نسبة) لا يتجاوز مجموع القائمة
+  const discountAmount = useMemo(() => {
+    const raw = discountMode === 'percent' ? (subtotal * Math.min(100, discountRaw)) / 100 : discountRaw;
+    return Math.round(Math.min(Math.max(0, raw), subtotal) * 100) / 100;
+  }, [discountMode, discountRaw, subtotal]);
+  const finalTotal = Math.max(0, subtotal - discountAmount);
   const estimatedProfit = finalTotal - totalCost;
 
   const selectedRepObj = useMemo(() => {
@@ -1259,7 +1339,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       items: promoResult.items,
       showDiscountColumn: promoResult.showDiscountColumn,
       showGiftColumn: promoResult.showGiftColumn,
-      discount: 0,
+      discount: discountAmount,
       paidAmount: actualPaidAmount,
       paymentDueDate: saleType === 'credit' ? dueDate : undefined,
       notes: notes.trim(),
@@ -1269,6 +1349,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     });
 
     setIsSelectRepModalOpen(false);
+    setUnfoundList([]);
     completeActiveDraft();
     onInvoiceCreated(created, andPrint);
   };
@@ -1575,7 +1656,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       } else if (e.key === 'Enter' && kbMode) {
                         e.preventDefault();
                         const q = searchQuery.trim();
-                        const exactCode = q && products.some((p) => p.code.toLowerCase() === q.toLowerCase());
+                        const exactCode = q && products.some((p) => (p.code || '').toLowerCase() === q.toLowerCase());
                         if (exactCode || (q && filteredProducts.length === 0)) {
                           handleBarcodeScanned(q);
                         } else if (visibleProducts.length > 0) {
@@ -1589,7 +1670,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           handleBarcodeScanned(searchQuery.trim());
                         } else if (cartItems.length > 0) {
                           e.preventDefault();
-                          handleSaveInvoice(!settings.invertEnterShortcuts);
+                          // Enter قادم من الماسح مباشرة بعد قراءة الباركود لا يحفظ القائمة
+                          if (Date.now() - lastScanRef.current > 800) handleSaveInvoice(!settings.invertEnterShortcuts);
                         }
                       }
                     }}
@@ -1657,19 +1739,23 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 </button>
               </div>
 
-              {settings.unfoundBarcodeInline === true && unfoundBarcodePrompt && (
-                <div role="alert" className="bg-red-600 border-2 border-red-800 text-white px-3 py-2.5 rounded-xl shadow-lg flex flex-wrap items-center justify-between gap-2 animate-pulse">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <AlertTriangle className="w-6 h-6 shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-sm font-black">لم تُضَف المادة للقائمة! الباركود <span className="font-mono" dir="ltr">#{unfoundBarcodePrompt}</span></div>
-                      <div className="text-[11px] font-bold text-red-100">المادة غير مضافة في المخزن، أو قُرئ الباركود بشكل خاطئ. أعد المسح أو أضفها.</div>
+              {settings.unfoundBarcodeInline === true && unfoundList.length > 0 && (
+                <div className="flex flex-col gap-1.5" data-testid="unfound-alerts">
+                  {unfoundList.map((code) => (
+                    <div key={code} role="alert" className="bg-red-600 border-2 border-red-800 text-white px-3 py-2.5 rounded-xl shadow-lg flex flex-wrap items-center justify-between gap-2 animate-pulse">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <AlertTriangle className="w-6 h-6 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-sm font-black">لم تُضَف المادة للقائمة! الباركود <span className="font-mono" dir="ltr">#{code}</span></div>
+                          <div className="text-[11px] font-bold text-red-100">المادة غير مضافة في المخزن، أو قُرئ الباركود بشكل خاطئ. أعد المسح أو أضفها.</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button type="button" onClick={() => { setUnfoundList((l) => l.filter((c) => c !== code)); onOpenNewProduct(code); }} className="px-3 py-1.5 rounded-lg bg-white text-red-700 text-xs font-black hover:bg-red-50 flex items-center gap-1 cursor-pointer"><Plus className="w-3.5 h-3.5" />إضافة للمخزن</button>
+                        <button type="button" onClick={() => setUnfoundList((l) => l.filter((c) => c !== code))} className="px-2.5 py-1.5 rounded-lg bg-red-800 text-white text-xs font-bold hover:bg-red-900 cursor-pointer">إخفاء</button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button type="button" onClick={() => { const c = unfoundBarcodePrompt; setUnfoundBarcodePrompt(null); onOpenNewProduct(c); }} className="px-3 py-1.5 rounded-lg bg-white text-red-700 text-xs font-black hover:bg-red-50 flex items-center gap-1 cursor-pointer"><Plus className="w-3.5 h-3.5" />إضافة للمخزن</button>
-                    <button type="button" onClick={() => setUnfoundBarcodePrompt(null)} className="px-2.5 py-1.5 rounded-lg bg-red-800 text-white text-xs font-bold hover:bg-red-900 cursor-pointer">إخفاء</button>
-                  </div>
+                  ))}
                 </div>
               )}
 
@@ -2800,6 +2886,41 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   </div>
                 )}
                 <div className="space-y-1 text-[11px] text-slate-700">
+                  {cartItems.length > 0 && (
+                    <div className="rounded-lg border border-slate-300 bg-white px-2 py-1 flex items-center gap-1.5 text-[11px]" data-testid="cart-discount-row">
+                      <Percent className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <span className="font-bold text-slate-700 shrink-0">خصم القائمة:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        inputMode="decimal"
+                        value={discountRaw || ''}
+                        placeholder="0"
+                        data-testid="cart-discount-input"
+                        onChange={(e) => setDiscountRaw(parseFloat(e.target.value) || 0)}
+                        className="w-full min-w-0 text-left px-1.5 py-0.5 text-[11px] font-bold border border-slate-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-rose-400"
+                      />
+                      <div className="flex shrink-0 rounded overflow-hidden border border-slate-300 text-[10px] font-black">
+                        <button
+                          type="button"
+                          onClick={() => discountMode !== 'amount' && setDiscountMode('amount')}
+                          className={`px-1.5 py-0.5 cursor-pointer ${discountMode === 'amount' ? 'bg-rose-600 text-white' : 'bg-white text-slate-600'}`}
+                        >مبلغ</button>
+                        <button
+                          type="button"
+                          onClick={() => discountMode !== 'percent' && setDiscountMode('percent')}
+                          className={`px-1.5 py-0.5 cursor-pointer ${discountMode === 'percent' ? 'bg-rose-600 text-white' : 'bg-white text-slate-600'}`}
+                        >%</button>
+                      </div>
+                    </div>
+                  )}
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between items-center text-[11px] font-bold text-rose-700">
+                      <span>المجموع قبل الخصم: <span className="font-mono text-slate-600">{formatMoney(subtotal)}</span></span>
+                      <span>الخصم: <span className="font-mono">- {formatMoney(discountAmount)}</span></span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center text-xs sm:text-sm font-black text-slate-900">
                     <span>المبلغ المطلوب:</span>
                     <span className="text-emerald-700 font-mono">{formatMoney(finalTotal)}</span>

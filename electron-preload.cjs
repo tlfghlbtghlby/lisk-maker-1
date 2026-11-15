@@ -10,6 +10,9 @@ const electronAPI = {
   deleteProductImage: (payload) => ipcRenderer.invoke('product-image-delete', payload),
   listProductImages: () => ipcRenderer.invoke('product-image-list'),
 
+  // استعادة تركيز لوحة المفاتيح بعد نوافذ alert/confirm الأصلية (علّة معروفة في Electron تمنع الكتابة)
+  refocusWindow: () => { try { ipcRenderer.send('refocus-window'); } catch {} },
+
   // جلب قائمة الطابعات المثبتة في النظام
   getPrinters: () => ipcRenderer.invoke('get-printers'),
 

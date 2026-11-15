@@ -757,22 +757,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (s.storeUid && s.storeUid !== currentUid) return false;
       if (s.openedBy?.uid && s.openedBy.uid.startsWith('user_') && s.openedBy.uid !== currentUid) return false;
 
-      const shiftOpUid = (s as any).operatorId || s.openedBy?.uid;
-      const shiftSupId = (s as any).supervisorId;
-
-      if (sessionRole === 'supervisor' && activeSupervisorId) {
-        return shiftSupId === activeSupervisorId || shiftOpUid === currentAccountIdentifier;
-      }
-      return (
-        shiftOpUid === currentAccountIdentifier ||
-        shiftOpUid === currentUid ||
-        (s.openedBy?.role === sessionRole && s.deviceId === currentDeviceId)
-      );
+      // الشفت يخص الجهاز/المتجر وليس دور الجلسة: تبديل الجلسة (موظف/مشرف/أدمن) لا يخفي الشفت الجاري
+      return true;
     });
 
     const myActive = candidates.find(s => s.deviceId === currentDeviceId) || candidates[0];
     setActiveShift(myActive || null);
-  }, [shifts, currentUser, sessionRole, activeSupervisorId, currentAccountIdentifier, currentDeviceId, settings.allowMultiDeviceShifts]);
+  }, [shifts, currentUser, currentDeviceId, settings.allowMultiDeviceShifts]);
 
 
   const [storeFeatures, setStoreFeatures] = useState<StoreFeatures>(() => {
@@ -3346,6 +3337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addSupervisor = async (sup: Omit<StoreSupervisor, 'id' | 'createdAt'>): Promise<StoreSupervisor> => {
+    if (sessionRole !== 'admin') throw new Error('إدارة المشرفين متاحة من جلسة الأدمن فقط');
     const newSup: StoreSupervisor = {
       ...sup,
       id: 'sup_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
@@ -3358,11 +3350,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateSupervisor = async (id: string, updates: Partial<StoreSupervisor>): Promise<void> => {
+    if (sessionRole !== 'admin') return;
     const updated = (settings.supervisors || []).map(s => s.id === id ? { ...s, ...updates } : s);
     updateSettings({ supervisors: updated });
   };
 
   const deleteSupervisor = async (id: string): Promise<void> => {
+    if (sessionRole !== 'admin') return;
     const updated = (settings.supervisors || []).filter(s => s.id !== id);
     updateSettings({ supervisors: updated });
     if (activeSupervisorId === id) {

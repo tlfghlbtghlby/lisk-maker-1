@@ -847,6 +847,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     <div className="w-56 border border-black rounded overflow-hidden shrink-0">
                       <table className="w-full text-right border-collapse text-[10.5px] font-bold">
                         <tbody>
+                          {(invoice.discount || 0) > 0 && (
+                            <tr className="border-b border-black">
+                              <td className="py-0.5 px-2 border-l border-black bg-slate-100">خصم القائمة</td>
+                              <td className="py-0.5 px-2 font-mono text-left text-rose-700">- {Number(invoice.discount).toLocaleString()} {currencyLabel}</td>
+                            </tr>
+                          )}
                           <tr className="border-b border-black">
                             <td className="py-0.5 px-2 border-l border-black bg-slate-100">مجموع القائمة</td>
                             <td className="py-0.5 px-2 font-mono text-left">{invoiceTotal.toLocaleString()} {currencyLabel}</td>
@@ -882,6 +888,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
               {/* أسفل الفاتورة للورق الحراري (مضبوط بالكامل ضد الانقطاع الجانبي) */}
               {isThermal && (
                 <div className="border-t border-black pt-1.5 mt-2 space-y-0.5 text-[9.5px] font-bold w-full">
+                  {(invoice.discount || 0) > 0 && (
+                    <div className="flex justify-between items-center px-0.5">
+                      <span>خصم القائمة:</span>
+                      <span className="font-mono">- {Number(invoice.discount).toLocaleString()} {currencyLabel}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center px-0.5">
                     <span>مجموع القائمة:</span>
                     <span className="font-mono">{invoiceTotal.toLocaleString()} {currencyLabel}</span>

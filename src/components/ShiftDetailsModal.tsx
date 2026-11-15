@@ -33,6 +33,8 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
   onViewInvoice 
 }) => {
   const { invoices, formatMoney, settings, hasPermission, openInvoiceEditor, requestApproval } = useApp();
+  // حجب سعر التكلفة يحجب معه الربح تلقائياً في كل مكان
+  const showProfit = hasPermission('canViewCostPrice');
   const [activeTab, setActiveTab] = useState<'items' | 'stats' | 'invoices'>('items');
   const [searchItemQuery, setSearchItemQuery] = useState('');
 
@@ -230,7 +232,7 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
             </div>
 
             {/* 2. تكلفة المواد */}
-            <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
+            {showProfit && (<div className="bg-white border border-slate-200 rounded-xl p-3 shadow-2xs">
               <div className="flex items-center justify-between text-slate-600 text-xs font-bold mb-1">
                 <span>تكلفة البضاعة المباعة</span>
                 <Package className="w-4 h-4 text-slate-400" />
@@ -241,10 +243,10 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
               <div className="text-[11px] text-slate-500 mt-1">
                 رأس مال المواد التي خرجت
               </div>
-            </div>
+            </div>)}
 
             {/* 3. صافي الأرباح المحققة */}
-            <div className="bg-white border border-emerald-300 rounded-xl p-3 shadow-2xs ring-1 ring-emerald-400/30">
+            {showProfit && (<div className="bg-white border border-emerald-300 rounded-xl p-3 shadow-2xs ring-1 ring-emerald-400/30">
               <div className="flex items-center justify-between text-emerald-700 text-xs font-bold mb-1">
                 <span>صافي أرباح الشفت</span>
                 <TrendingUp className="w-4 h-4 text-emerald-600" />
@@ -255,7 +257,7 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
               <div className="text-[11px] text-emerald-600 mt-1 font-bold">
                 هامش الربح: {totalSales > 0 ? `${((totalProfit / totalSales) * 100).toFixed(1)}%` : '0%'}
               </div>
-            </div>
+            </div>)}
 
             {/* 4. عدد القوائم والقطع */}
             <div className="bg-white border border-purple-200 rounded-xl p-3 shadow-2xs">
@@ -352,9 +354,9 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
                       <th className="py-2.5 px-3">الكود</th>
                       <th className="py-2.5 px-3 text-center">الكمية المباعة</th>
                       <th className="py-2.5 px-3">إجمالي البيع</th>
-                      <th className="py-2.5 px-3">إجمالي التكلفة</th>
-                      <th className="py-2.5 px-3 text-emerald-700 font-black">صافي الربح</th>
-                      <th className="py-2.5 px-3 text-center">% الربح</th>
+                      {showProfit && <th className="py-2.5 px-3">إجمالي التكلفة</th>}
+                      {showProfit && <th className="py-2.5 px-3 text-emerald-700 font-black">صافي الربح</th>}
+                      {showProfit && <th className="py-2.5 px-3 text-center">% الربح</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -380,17 +382,17 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
                           <td className="py-2.5 px-3 font-bold text-blue-950">
                             {formatMoney(item.totalSales)}
                           </td>
-                          <td className="py-2.5 px-3 text-slate-600 font-medium">
+                          {showProfit && <td className="py-2.5 px-3 text-slate-600 font-medium">
                             {formatMoney(item.totalCost)}
-                          </td>
-                          <td className="py-2.5 px-3 font-black text-emerald-700">
+                          </td>}
+                          {showProfit && <td className="py-2.5 px-3 font-black text-emerald-700">
                             +{formatMoney(item.totalProfit)}
-                          </td>
-                          <td className="py-2.5 px-3 text-center">
+                          </td>}
+                          {showProfit && <td className="py-2.5 px-3 text-center">
                             <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-black">
                               {profitRatio}%
                             </span>
-                          </td>
+                          </td>}
                         </tr>
                       );
                     })}
@@ -405,15 +407,15 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
                       <td className="py-3 px-3 text-blue-950 font-black">
                         {formatMoney(totalSales)}
                       </td>
-                      <td className="py-3 px-3 text-slate-700">
+                      {showProfit && <td className="py-3 px-3 text-slate-700">
                         {formatMoney(totalCost)}
-                      </td>
-                      <td className="py-3 px-3 text-emerald-800 font-black text-sm">
+                      </td>}
+                      {showProfit && <td className="py-3 px-3 text-emerald-800 font-black text-sm">
                         +{formatMoney(totalProfit)}
-                      </td>
-                      <td className="py-3 px-3 text-center font-black text-emerald-700">
+                      </td>}
+                      {showProfit && <td className="py-3 px-3 text-center font-black text-emerald-700">
                         {totalSales > 0 ? `${((totalProfit / totalSales) * 100).toFixed(1)}%` : '0%'}
-                      </td>
+                      </td>}
                     </tr>
                   </tfoot>
                 </table>
@@ -442,7 +444,7 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
                       <th className="py-2.5 px-3">المبلغ الإجمالي</th>
                       <th className="py-2.5 px-3">المسدد</th>
                       <th className="py-2.5 px-3">المتبقي (آجل)</th>
-                      <th className="py-2.5 px-3 text-emerald-700">صافي الربح</th>
+                      {showProfit && <th className="py-2.5 px-3 text-emerald-700">صافي الربح</th>}
                       <th className="py-2.5 px-3 text-center">معاينة</th>
                     </tr>
                   </thead>
@@ -476,9 +478,9 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
                         <td className="py-2.5 px-3 font-semibold text-amber-700">
                           {inv.remainingAmount > 0 ? formatMoney(inv.remainingAmount) : '-'}
                         </td>
-                        <td className="py-2.5 px-3 font-black text-emerald-700">
+                        {showProfit && <td className="py-2.5 px-3 font-black text-emerald-700">
                           +{formatMoney(inv.netProfit)}
-                        </td>
+                        </td>}
                         <td className="py-2.5 px-3 text-center">
                           {inv.status !== 'returned' && (
                             <button

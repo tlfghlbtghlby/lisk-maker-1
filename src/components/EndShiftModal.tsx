@@ -27,8 +27,11 @@ export const EndShiftModal: React.FC<EndShiftModalProps> = ({ onNavigateToShifts
     formatMoney, 
     setSyncNotice,
     setSelectedShiftForDetails,
-    settings
+    settings,
+    hasPermission
   } = useApp();
+  // حجب سعر التكلفة يحجب الربح تلقائياً
+  const showProfit = hasPermission('canViewCostPrice');
 
   const [notes, setNotes] = useState<string>('');
   const [elapsed, setElapsed] = useState<string>('00:00:00');
@@ -166,7 +169,7 @@ export const EndShiftModal: React.FC<EndShiftModalProps> = ({ onNavigateToShifts
             </div>
 
             {/* Total Profit */}
-            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3">
+            {showProfit && (<div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-3">
               <div className="flex items-center gap-1.5 text-emerald-700 mb-1">
                 <TrendingUp className="w-3.5 h-3.5" />
                 <span className="text-[11px] font-bold">صافي الأرباح</span>
@@ -177,7 +180,7 @@ export const EndShiftModal: React.FC<EndShiftModalProps> = ({ onNavigateToShifts
               <div className="text-[10px] text-emerald-600 mt-0.5">
                 هامش: {stats.totalSales > 0 ? `${((stats.totalProfit / stats.totalSales) * 100).toFixed(1)}%` : '0%'}
               </div>
-            </div>
+            </div>)}
 
             {/* Invoices Count */}
             <div className="bg-purple-50/70 border border-purple-200/80 rounded-xl p-3">

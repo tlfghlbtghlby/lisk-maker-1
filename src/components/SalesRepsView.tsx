@@ -62,6 +62,8 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
     requestApproval
   } = useApp();
   const telegramOn = featureOn('enableTelegram');
+  // حجب سعر التكلفة يحجب الربح والتكلفة تلقائياً
+  const showProfit = hasPermission('canViewCostPrice');
   const [tgRep, setTgRep] = useState<SalesRep | null>(null);
   const [repView, setRepView] = useState<{ rep: SalesRep; mode: 'products' | 'invoices' } | null>(null);
   const [settleRep, setSettleRep] = useState<SalesRep | null>(null);
@@ -348,16 +350,18 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
 
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ['المادة', 'الكود', 'الوحدة', 'الكمية المباعة', 'إجمالي المبيعات', 'تكلفة الشراء', 'أرباح المندوب', 'أرباح المالك'];
+    const headers = showProfit
+      ? ['المادة', 'الكود', 'الوحدة', 'الكمية المباعة', 'إجمالي المبيعات', 'تكلفة الشراء', 'أرباح المندوب', 'أرباح المالك']
+      : ['المادة', 'الكود', 'الوحدة', 'الكمية المباعة', 'إجمالي المبيعات', 'أرباح المندوب'];
     const rows = soldProductsList.map(p => [
       `"${p.name}"`,
       `"${p.code}"`,
       `"${p.unit}"`,
       p.totalQty,
       p.totalSales,
-      p.totalCost,
+      ...(showProfit ? [p.totalCost] : []),
       p.repCommission,
-      p.storeNetProfit,
+      ...(showProfit ? [p.storeNetProfit] : []),
     ]);
 
     const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
@@ -572,7 +576,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* أرباح المالك الصافية */}
-        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-2xl p-5 shadow-sm relative overflow-hidden">
+        {showProfit && <div className="bg-gradient-to-br from-emerald-600 to-teal-700 text-white rounded-2xl p-5 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-100">أرباح المالك الصافية</span>
             <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
@@ -585,7 +589,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
           <div className="text-[11px] text-emerald-100/90 mt-1 flex items-center gap-1">
             <span>صافي ربح المحل بعد خصم عمولات المندوب</span>
           </div>
-        </div>
+        </div>}
 
         {/* أرباح وعمولات المندوب */}
         <div className="bg-gradient-to-br from-indigo-600 to-blue-700 text-white rounded-2xl p-5 shadow-sm relative overflow-hidden">
@@ -676,10 +680,10 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
               <div className="text-indigo-700 font-bold">عمولة المندوب</div>
               <div className="font-black font-mono text-indigo-800 text-sm">{formatMoney(metrics.totalRepCommission)}</div>
             </div>
-            <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-2.5">
+            {showProfit && <div className="bg-emerald-50 rounded-xl border border-emerald-200 p-2.5">
               <div className="text-emerald-700 font-bold">أرباح المالك</div>
               <div className="font-black font-mono text-emerald-800 text-sm">{formatMoney(metrics.totalStoreNetProfit)}</div>
-            </div>
+            </div>}
           </div>
         </div>
       )}
@@ -762,9 +766,9 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                       <th className="py-3 px-3">اسم المادة</th>
                       <th className="py-3 px-3 text-center">الكمية المباعة</th>
                       <th className="py-3 px-3 text-center">إجمالي المبيعات</th>
-                      <th className="py-3 px-3 text-center">تكلفة الشراء</th>
+                      {showProfit && <th className="py-3 px-3 text-center">تكلفة الشراء</th>}
                       <th className="py-3 px-3 text-center text-indigo-700 bg-indigo-50/50">أرباح المندوب</th>
-                      <th className="py-3 px-3 text-center text-emerald-700 bg-emerald-50/50">أرباح المالك الصافية</th>
+                      {showProfit && <th className="py-3 px-3 text-center text-emerald-700 bg-emerald-50/50">أرباح المالك الصافية</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-bold">
@@ -783,15 +787,15 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                         <td className="py-3 px-3 text-center font-mono text-slate-800">
                           {formatMoney(prod.totalSales)}
                         </td>
-                        <td className="py-3 px-3 text-center font-mono text-slate-500">
+                        {showProfit && <td className="py-3 px-3 text-center font-mono text-slate-500">
                           {formatMoney(prod.totalCost)}
-                        </td>
+                        </td>}
                         <td className="py-3 px-3 text-center font-mono font-black text-indigo-700 bg-indigo-50/30">
                           {formatMoney(prod.repCommission)}
                         </td>
-                        <td className="py-3 px-3 text-center font-mono font-black text-emerald-700 bg-emerald-50/30">
+                        {showProfit && <td className="py-3 px-3 text-center font-mono font-black text-emerald-700 bg-emerald-50/30">
                           {formatMoney(prod.storeNetProfit)}
-                        </td>
+                        </td>}
                       </tr>
                     ))}
                   </tbody>
@@ -804,15 +808,15 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                       <td className="py-3 px-3 text-center font-mono">
                         {formatMoney(soldProductsList.reduce((s, p) => s + p.totalSales, 0))}
                       </td>
-                      <td className="py-3 px-3 text-center font-mono text-slate-600">
+                      {showProfit && <td className="py-3 px-3 text-center font-mono text-slate-600">
                         {formatMoney(soldProductsList.reduce((s, p) => s + p.totalCost, 0))}
-                      </td>
+                      </td>}
                       <td className="py-3 px-3 text-center font-mono text-indigo-800 bg-indigo-100/50">
                         {formatMoney(soldProductsList.reduce((s, p) => s + p.repCommission, 0))}
                       </td>
-                      <td className="py-3 px-3 text-center font-mono text-emerald-800 bg-emerald-100/50">
+                      {showProfit && <td className="py-3 px-3 text-center font-mono text-emerald-800 bg-emerald-100/50">
                         {formatMoney(soldProductsList.reduce((s, p) => s + p.storeNetProfit, 0))}
-                      </td>
+                      </td>}
                     </tr>
                   </tfoot>
                 </table>
@@ -840,7 +844,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                       <th className="py-3 px-3">المندوب</th>
                       <th className="py-3 px-3 text-center">المبلغ الكلي</th>
                       <th className="py-3 px-3 text-center text-indigo-700 bg-indigo-50/50">عمولة المندوب</th>
-                      <th className="py-3 px-3 text-center text-emerald-700 bg-emerald-50/50">أرباح المالك</th>
+                      {showProfit && <th className="py-3 px-3 text-center text-emerald-700 bg-emerald-50/50">أرباح المالك</th>}
                       <th className="py-3 px-3 text-center">إجراءات</th>
                     </tr>
                   </thead>
@@ -863,9 +867,9 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                         <td className="py-3 px-3 text-center font-mono font-black text-indigo-700 bg-indigo-50/30">
                           {formatMoney(inv.salesRepCommission || 0)}
                         </td>
-                        <td className="py-3 px-3 text-center font-mono font-black text-emerald-700 bg-emerald-50/30">
+                        {showProfit && <td className="py-3 px-3 text-center font-mono font-black text-emerald-700 bg-emerald-50/30">
                           {formatMoney(inv.storeNetProfit ?? (inv.netProfit - (inv.salesRepCommission || 0)))}
-                        </td>
+                        </td>}
                         <td className="py-3 px-3 text-center">
                           {(
                             <button
@@ -1047,10 +1051,10 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                             <span>مستحقاته غير المصفّاة:</span>
                             <span className="font-mono font-black">{formatMoney(computeRepEarnings(rep, invoices, settings.repCommissionDefaultType).commission)}</span>
                           </div>
-                          <div className="flex items-center justify-between text-emerald-700 font-bold">
+                          {showProfit && <div className="flex items-center justify-between text-emerald-700 font-bold">
                             <span>أرباح المالك من هذا المندوب:</span>
                             <span className="font-mono font-black">{formatMoney(repOwnerProfit)}</span>
-                          </div>
+                          </div>}
                         </div>
 
                         {rep.notes && (

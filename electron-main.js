@@ -342,6 +342,17 @@ ipcMain.handle('whatsapp-send-pdf', async (event, { base64, fileName, phone } = 
   }
 });
 
+// بعد alert/confirm الأصلية في ويندوز تفقد النافذة تركيز لوحة المفاتيح فلا تقبل حقول الإدخال الكتابة حتى إعادة التشغيل
+ipcMain.on('refocus-window', (event) => {
+  try {
+    const w = BrowserWindow.fromWebContents(event.sender);
+    if (!w || w.isDestroyed()) return;
+    w.blur();
+    w.focus();
+    event.sender.focus();
+  } catch (e) { /* تجاهل */ }
+});
+
 ipcMain.handle('get-printers', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
   if (!win) return [];
