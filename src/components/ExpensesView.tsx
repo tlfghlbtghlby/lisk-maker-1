@@ -10,7 +10,9 @@ const card = 'bg-white border border-slate-200 rounded-2xl shadow-xs';
 
 /** المصروفات: تسجيل كل مصروف (مستلزمات، رواتب، إيجار...) مع خيار خصمها من الأرباح */
 export function ExpensesView() {
-  const { settings, updateSettings, formatMoney, invoices, activeShift } = useApp() as any;
+  const { settings, updateSettings, formatMoney, invoices, activeShift, hasPermission } = useApp() as any;
+  // حجب سعر التكلفة يحجب الربح تلقائياً
+  const showProfit = !!hasPermission?.('canViewCostPrice');
   const list: ExpenseEntry[] = settings.expenses || [];
   const affect = settings.expensesAffectProfit !== false;
 
@@ -133,10 +135,10 @@ export function ExpensesView() {
         </div>
       </div>
 
-      <div className={`grid grid-cols-1 ${affect ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
+      <div className={`grid grid-cols-1 ${affect && showProfit ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
         <div className={`${card} p-3`}><div className="text-[11px] font-bold text-slate-500">إجمالي المصروفات</div><div className="text-lg font-black text-rose-600">{formatMoney(total)}</div><div className="text-[10px] text-slate-400">{rows.length} مصروف</div></div>
-        {affect && <div className={`${card} p-3`}><div className="text-[11px] font-bold text-slate-500">أرباح المبيعات في الفترة</div><div className="text-lg font-black text-emerald-700">{formatMoney(periodProfit)}</div></div>}
-        {affect && <div className={`${card} p-3`}><div className="text-[11px] font-bold text-slate-500">الصافي بعد المصروفات</div><div className={`text-lg font-black ${periodProfit - total >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatMoney(periodProfit - total)}</div></div>}
+        {affect && showProfit && <div className={`${card} p-3`}><div className="text-[11px] font-bold text-slate-500">أرباح المبيعات في الفترة</div><div className="text-lg font-black text-emerald-700">{formatMoney(periodProfit)}</div></div>}
+        {affect && showProfit && <div className={`${card} p-3`}><div className="text-[11px] font-bold text-slate-500">الصافي بعد المصروفات</div><div className={`text-lg font-black ${periodProfit - total >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{formatMoney(periodProfit - total)}</div></div>}
         {!affect && <div className={`${card} p-3`}><div className="text-[11px] font-bold text-slate-500">ملاحظة</div><div className="text-[11px] text-slate-600 mt-1">المصروفات لا تؤثر على الأرباح حالياً.</div></div>}
       </div>
 

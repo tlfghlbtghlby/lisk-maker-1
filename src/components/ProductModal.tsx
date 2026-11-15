@@ -84,6 +84,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [minStock, setMinStock] = useState<number | ''>(5);
   const [piecesPerCarton, setPiecesPerCarton] = useState<number | ''>(1);
   const [scanUnit, setScanUnit] = useState<'piece' | 'dozen' | 'carton'>('piece');
+  const [clickUnit, setClickUnit] = useState<'piece' | 'dozen' | 'carton'>('piece');
   const [dozenOn, setDozenOn] = useState(false);
   const [dozenLabel, setDozenLabel] = useState('درزن');
   const [piecesPerDozen, setPiecesPerDozen] = useState<number | ''>(12);
@@ -202,6 +203,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setDozenOn((productToEdit.piecesPerDozen || 0) > 1);
       setDozenLabel((productToEdit.dozenLabel || '').trim() || 'درزن');
       setScanUnit(productToEdit.scanUnit || 'piece');
+      setClickUnit(productToEdit.clickUnit || productToEdit.scanUnit || 'piece');
       setPiecesPerDozen((productToEdit.piecesPerDozen || 0) > 1 ? productToEdit.piecesPerDozen! : 12);
 
       const isUsd = productToEdit.priceCurrency === 'USD' && !!productToEdit.usdPrices;
@@ -525,6 +527,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       minStock: typeof minStock === 'number' ? minStock : 5,
       piecesPerCarton: numPieces,
       scanUnit: (!isWeighted && ((scanUnit === 'dozen' && dozenOn) || (scanUnit === 'carton' && numPieces > 1))) ? scanUnit : 'piece',
+      clickUnit: (!isWeighted && ((clickUnit === 'dozen' && dozenOn) || (clickUnit === 'carton' && numPieces > 1))) ? clickUnit : 'piece',
       dozenLabel: dozenOn && !isWeighted && dozenLabel.trim() && dozenLabel.trim() !== 'درزن' ? dozenLabel.trim() : undefined,
       piecesPerDozen: dozenOn && !isWeighted && typeof piecesPerDozen === 'number' && piecesPerDozen > 1 ? piecesPerDozen : 0,
       isWeighted,
@@ -882,10 +885,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               </div>
             )}
 
-            {/* وحدة البيع الافتراضية عند مسح الباركود */}
+            {/* وحدة البيع الافتراضية عند مسح الباركود وعند الضغط (منفصلتان) */}
             {!isWeighted && (numPieces > 1 || dozenOn) && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#070e1b] px-3 py-2.5 flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">وحدة البيع الافتراضية (عند الضغط على المادة أو مسح الباركود):</span>
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#070e1b] px-3 py-2.5 space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">عند الضغط على المادة تُضاف بوحدة:</span>
+                <select
+                  value={clickUnit === 'dozen' && !dozenOn ? 'piece' : clickUnit === 'carton' && numPieces <= 1 ? 'piece' : clickUnit}
+                  onChange={(e) => setClickUnit(e.target.value as 'piece' | 'dozen' | 'carton')}
+                  className="bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                >
+                  <option value="piece">قطعة</option>
+                  {dozenOn && <option value="dozen">{dozenLabel.trim() || 'درزن'}</option>}
+                  {numPieces > 1 && <option value="carton">كرتون</option>}
+                </select>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">عند مسح الباركود تُضاف بوحدة:</span>
                 <select
                   value={scanUnit === 'dozen' && !dozenOn ? 'piece' : scanUnit === 'carton' && numPieces <= 1 ? 'piece' : scanUnit}
                   onChange={(e) => setScanUnit(e.target.value as 'piece' | 'dozen' | 'carton')}
@@ -896,6 +912,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   {numPieces > 1 && <option value="carton">كرتون</option>}
                 </select>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">تُضاف بها المادة أول مرة، ويمكنك تغيير الوحدة لاحقاً من أزرار السطر.</span>
+              </div>
               </div>
             )}
 
