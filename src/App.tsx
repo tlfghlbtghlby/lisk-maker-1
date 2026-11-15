@@ -11,6 +11,7 @@ import { SettingsView } from './components/SettingsView';
 import { ShiftsView } from './components/ShiftsView';
 import { SalesRepsView } from './components/SalesRepsView';
 import { SuppliersView } from './components/SuppliersView';
+import { ExpensesView } from './components/ExpensesView';
 import { OffersView } from './components/OffersView';
 import { ProductModal } from './components/ProductModal';
 import { InvoicePrintModal } from './components/InvoicePrintModal';
@@ -68,6 +69,7 @@ const MainContent: React.FC = () => {
         if (hash.includes('customers') || hash.includes('debts') || openRoute === 'customers' || openRoute === 'debts') return 'customers';
         if (hash.includes('sales-reps') || openRoute === 'sales-reps') return 'sales-reps';
         if (hash.includes('offers') || openRoute === 'offers') return 'offers';
+        if (hash.includes('expenses') || openRoute === 'expenses') return 'expenses';
         if (hash.includes('reports') || openRoute === 'reports') return 'reports';
         if (hash.includes('settings') || openRoute === 'settings') return 'settings';
         if (hash.includes('pos') || openRoute === 'pos') return 'pos';
@@ -87,6 +89,7 @@ const MainContent: React.FC = () => {
       if (clean === 'customers' || clean === 'debts') return 'customers';
       if (clean === 'sales-reps') return 'sales-reps';
       if (clean === 'offers') return 'offers';
+      if (clean === 'expenses') return 'expenses';
       if (clean === 'reports') return 'reports';
       if (clean === 'settings') return 'settings';
       if (clean === 'pos') return 'pos';
@@ -161,6 +164,7 @@ const MainContent: React.FC = () => {
         case 'invoices': return hasPermission('canViewInvoices');
         case 'customers': return hasPermission('canViewCustomers');
         case 'reports': return hasPermission('canViewReports');
+        case 'expenses': return hasPermission('canViewReports');
         case 'offers': return hasPermission('canAccessInventory');
         case 'sales-reps': return storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps');
         case 'shifts': return storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts');
@@ -358,6 +362,7 @@ const MainContent: React.FC = () => {
     switch (activeTab) {
       case 'inventory': return 'جدول المخزون الكامل';
       case 'suppliers': return 'الموردون ومندوبو الشركات';
+      case 'expenses': return 'المصروفات';
       case 'invoices': return 'سجل الفواتير والقوائم';
       case 'shifts': return 'إدارة وسجل الشفتات';
       case 'customers': return 'حسابات الديون والعملاء';
@@ -537,6 +542,10 @@ const MainContent: React.FC = () => {
           />
         )}
 
+        {activeTab === 'expenses' && hasPermission('canViewReports') && (
+          <ExpensesView />
+        )}
+
         {activeTab === 'suppliers' && hasPermission('canAccessInventory') && (
           <SuppliersView />
         )}
@@ -638,7 +647,7 @@ export default function App() {
     const isNativeApp = !!(window as any).Capacitor?.isNativePlatform?.();
     const params = new URLSearchParams(window.location.search);
     const hash = window.location.hash.replace(/^#\/?/, '').trim();
-    const isSectionHash = ['pos', 'inventory', 'suppliers', 'invoices', 'customers', 'reports', 'sales-reps', 'offers', 'shifts', 'settings'].includes(hash);
+    const isSectionHash = ['pos', 'inventory', 'suppliers', 'invoices', 'customers', 'reports', 'expenses', 'sales-reps', 'offers', 'shifts', 'settings'].includes(hash);
     return isElectron || isNativeApp || isSectionHash || params.get('admin') === 'true' || params.has('open-route') || params.has('route') || localStorage.getItem('is_admin_mode') === 'true';
   });
 
@@ -646,7 +655,7 @@ export default function App() {
 
   const searchParams = new URLSearchParams(window.location.search);
   const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
-  const knownSectionRoutes = ['pos', 'inventory', 'suppliers', 'invoices', 'customers', 'reports', 'sales-reps', 'offers', 'shifts', 'settings'];
+  const knownSectionRoutes = ['pos', 'inventory', 'suppliers', 'invoices', 'customers', 'reports', 'expenses', 'sales-reps', 'offers', 'shifts', 'settings'];
   // إذا كان الـ hash يمثل قسماً مستقلاً، لا يُعامل كرمز متجر لفحص الأسعار
   const storeHash = knownSectionRoutes.includes(rawHash) ? '' : rawHash;
   let storeId: string | null = null;

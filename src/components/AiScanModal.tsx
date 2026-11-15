@@ -27,6 +27,11 @@ interface Row {
   newRetail: string;
   newPerCarton: string;
   newPerDozen: string;
+  /** تعبئة كرتون جديدة لمادة موجودة (فارغ = تبقى كما هي) */
+  exPerCarton: string;
+  /** خصم المندوب على السطر (مبلغ) */
+  disc: string;
+  showDisc?: boolean;
 }
 
 const MAX_IMAGES = 6;
@@ -162,6 +167,8 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
       newRetail: '',
       newPerCarton: '',
       newPerDozen: it.unit === 'dozen' ? '12' : '12',
+      exPerCarton: '',
+      disc: '',
     };
   };
 
@@ -193,7 +200,8 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     }
     const p = productOf(r.choice);
     if (!p) return null;
-    const mult = isWeightedProduct(p) ? 1 : unitMult(p, r.unit);
+    const exPer = parseInt(r.exPerCarton) || 0;
+    const mult = isWeightedProduct(p) ? 1 : r.unit === 'carton' && exPer > 0 ? exPer : unitMult(p, r.unit);
     return { pieces: Math.round(q * mult * 1000) / 1000, mult };
   };
 
@@ -281,8 +289,15 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     for (const r of included) {
       const info = rowPieces(r)!;
       const qty = parseFloat(r.qty);
-      const unitCost = parseFloat(r.cost) || 0;
-      const pieceCost = unitCost > 0 ? Math.round((unitCost / info.mult) * 1000) / 1000 : 0;
+      const typedCost = parseFloat(r.cost) || 0;
+      const exP = r.choice === 'new' ? undefined : productOf(r.choice);
+      // مادة موجودة بلا سعر جديد: يبقى سعرها القديم
+      const unitCost = typedCost > 0 ? typedCost : exP ? Math.round((exP.costPrice || 0) * info.mult * 1000) / 1000 : 0;
+      const gross = qty * unitCost;
+      const discAmt = Math.min(gross, Math.max(0, parseFloat(r.disc) || 0));
+      const lineNet = Math.round(gross - discAmt);
+      const pieceCost = info.pieces > 0 && gross > 0 ? Math.round(((gross - discAmt) / info.pieces) * 1000) / 1000 : 0;
+      const priceChanged = typedCost > 0 || discAmt > 0;
       let productId = r.choice;
       let name = '';
       if (r.choice === 'new') {
@@ -320,8 +335,9 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
           delta: info.pieces,
           note,
           ...(showDates && r.expiry ? { expiryDate: r.expiry } : {}),
-          ...(updateCost && pieceCost > 0 ? { costPrice: pieceCost } : {}),
-        });
+          ...(updateCost && priceChanged && pieceCost > 0 ? { costPrice: pieceCost } : {}),
+          ...((parseInt(r.exPerCarton) || 0) > 0 && parseInt(r.exPerCarton) !== (p.piecesPerCarton || 1) && !isWeightedProduct(p) ? { piecesPerCarton: parseInt(r.exPerCarton) } : {}),
+        } as any);
       }
       aliasPairs.push({ name: r.src.name, productId, productName: name });
       txnItems.push({
@@ -331,7 +347,10 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
         qty,
         unitLabel: unitLabel(r.unit),
         unitCost,
-        total: Math.round(qty * unitCost),
+        total: lineNet,
+        ...(r.unit === 'carton' ? { cartons: qty, perCarton: info.mult } : {}),
+        ...(exP && exP.costPrice > 0 ? { oldUnitCost: exP.costPrice } : {}),
+        ...(discAmt > 0 ? { discount: Math.round(discAmt) } : {}),
         ...(r.expiry ? { expiryDate: r.expiry } : {}),
       });
     }
@@ -608,7 +627,7 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
           {step === 'confirm' && (
             <>
               <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 text-xs font-bold text-amber-900 leading-relaxed">
-                قائمة التأكيد قبل الإضافة: راجع كل مادة بدقة (الاسم والكمية والتعبئة) لأن القراءة بالذكاء الاصطناعي قد تخطئ. تعبئة الكرتون قابلة للتعديل للمواد الجديدة فقط، أما المواد الموجودة فتبقى تعبئتها كما هي ولا تتغير.
+                قائمة التأكيد قبل الإضافة: راجع كل مادة بدقة (الاسم والكمية والتعبئة) لأن القراءة بالذكاء الاصطناعي قد تخطئ. السعر القديم يظهر تلقائياً للمواد الموجودة. أي خانة تتركها فارغة (التعبئة أو السعر الجديد) تبقى كما هي في المخزون، وإذا كتبت قيمة فيها أو أضفت خصماً تُعدَّل المادة بها.
               </div>
               {supplierLabel && <p className="text-xs font-bold text-slate-700">المورد: <span className="text-violet-700">{supplierLabel}</span>{supplierChoice === 'new' ? ' (جديد)' : ''}{recordTxn ? ' · سيُسجَّل استلام ودين' : ''}</p>}
               <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -621,6 +640,10 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
                       <th className="px-2 py-2">العدد</th>
                       <th className="px-2 py-2">تعبئة الكرتون</th>
                       <th className="px-2 py-2">يُضاف (قطعة)</th>
+                      <th className="px-2 py-2">السعر القديم</th>
+                      <th className="px-2 py-2">السعر الجديد</th>
+                      <th className="px-2 py-2">الخصم</th>
+                      <th className="px-2 py-2">المجموع</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -644,10 +667,14 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
                             {weighted ? <span className="text-slate-400">—</span> : isNew ? (
                               <input type="number" min="1" value={r.newPerCarton} onChange={(e) => patch(r.key, { newPerCarton: e.target.value })} placeholder="بدون" className="w-20 border border-slate-300 rounded-lg px-2 py-1 text-center font-mono text-sm" />
                             ) : (
-                              <span className="font-mono text-slate-600" title="لا تتغير للمواد الموجودة">{(p?.piecesPerCarton || 1) > 1 ? p?.piecesPerCarton : 'بدون'} 🔒</span>
+                              <input type="number" min="1" value={r.exPerCarton} onChange={(e) => patch(r.key, { exPerCarton: e.target.value })} placeholder={(p?.piecesPerCarton || 1) > 1 ? String(p?.piecesPerCarton) : 'بدون'} title="اتركها فارغة لتبقى تعبئة المادة كما هي" className={`w-20 border rounded-lg px-2 py-1 text-center font-mono text-sm ${r.exPerCarton ? 'border-amber-500 bg-amber-50' : 'border-slate-300'}`} />
                             )}
                           </td>
                           <td className="px-2 py-2 text-center font-mono font-extrabold text-emerald-700">{info ? info.pieces : '—'}</td>
+                          <td className="px-2 py-2 text-center font-mono text-slate-500 bg-slate-50">{p && info ? Math.round((p.costPrice || 0) * info.mult * 100) / 100 : '—'}</td>
+                          <td className="px-2 py-2 text-center"><input type="number" min="0" value={r.cost} onChange={(e) => patch(r.key, { cost: e.target.value })} placeholder={p ? 'بلا تغيير' : 'السعر'} className={`w-24 border rounded-lg px-2 py-1 text-center font-mono text-sm ${parseFloat(r.cost) > 0 ? 'border-amber-500 bg-amber-50' : 'border-slate-300'}`} /></td>
+                          <td className="px-2 py-2 text-center">{r.showDisc ? <input type="number" min="0" autoFocus value={r.disc} onChange={(e) => patch(r.key, { disc: e.target.value })} placeholder="مبلغ" className="w-20 border border-rose-400 rounded-lg px-2 py-1 text-center font-mono text-sm" /> : <button type="button" onClick={() => patch(r.key, { showDisc: true })} className="px-2 py-1 rounded-md bg-rose-50 text-rose-700 text-[11px] font-bold hover:bg-rose-100">خصم</button>}</td>
+                          <td className="px-2 py-2 text-center font-mono font-black">{(() => { const q = parseFloat(r.qty) || 0; const uc = parseFloat(r.cost) > 0 ? parseFloat(r.cost) : p && info ? (p.costPrice || 0) * info.mult : 0; const g = q * uc; return g > 0 ? formatMoney(Math.round(g - Math.min(g, parseFloat(r.disc) || 0))) : '—'; })()}</td>
                         </tr>
                       );
                     })}
