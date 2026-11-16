@@ -21,7 +21,7 @@ export const CustomerWhatsAppModal: React.FC<Props> = ({ customer, onClose }) =>
   const sendNotice = async () => {
     savePhone();
     const text = buildDebtMessage(live, { customerId: live.id, kind: 'notice', amount: 0, newDebt: live.totalDebt }, storeName, currency);
-    const r = await sendViaWhatsApp(phone, text);
+    const r = await sendViaWhatsApp(phone, text, undefined, { target: settings.waTarget });
     setMsg({ ok: r.ok, text: r.note });
   };
 
@@ -31,7 +31,7 @@ export const CustomerWhatsAppModal: React.FC<Props> = ({ customer, onClose }) =>
     try {
       const text = buildStatementText(live, invoices, payments, storeName, currency);
       const pdf = await buildStatementPdf(live, invoices, payments, storeName, currency);
-      const r = await sendViaWhatsApp(phone, text, pdf);
+      const r = await sendViaWhatsApp(phone, text, pdf, { target: settings.waTarget, autoPaste: settings.waAutoPaste !== false });
       setMsg({ ok: r.ok, text: r.note });
     } catch (e: any) {
       setMsg({ ok: false, text: 'تعذر تجهيز كشف الحساب: ' + (e?.message || '') });
