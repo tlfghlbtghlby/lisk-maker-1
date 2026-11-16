@@ -856,3 +856,13 @@ html.dark [class~="to-pink-200"]:not(.keep-light):not(.keep-light *) { --tw-grad
 html.dark [class~="to-rose-50"]:not(.keep-light):not(.keep-light *) { --tw-gradient-to:rgba(244,63,94,0.16) !important; }
 html.dark [class~="to-rose-100"]:not(.keep-light):not(.keep-light *) { --tw-gradient-to:rgba(244,63,94,0.22) !important; }
 html.dark [class~="to-rose-200"]:not(.keep-light):not(.keep-light *) { --tw-gradient-to:rgba(244,63,94,0.3) !important; }
+
+/* ظلال 950 كانت بلا قاعدة داكنة فتختفي الكتابة على الخلفيات الداكنة */
+html.dark [class~="text-amber-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#fcd34d !important;}
+html.dark [class~="text-blue-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#93c5fd !important;}
+html.dark [class~="text-emerald-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#6ee7b7 !important;}
+html.dark [class~="text-indigo-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#a5b4fc !important;}
+html.dark [class~="text-orange-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#fdba74 !important;}
+html.dark [class~="text-purple-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#d8b4fe !important;}
+html.dark [class~="text-rose-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#fda4af !important;}
+html.dark [class~="text-violet-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#c4b5fd !important;}
