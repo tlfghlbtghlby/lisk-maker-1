@@ -1,0 +1,351 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useApp } from '../context/AppContext';
+import { netUnitPrice } from '../utils/promotions';
+
+type Mode = 'loose' | 'invoice';
+interface LooseLine { productId: string; name: string; code: string; quantity: number; unitPrice: number }
+
+const norm = (s: any) => String(s ?? '').toLowerCase().trim();
+const digitsOf = (s: string) => s.replace(/\D/g, '');
+/** الرقم التسلسلي في آخر رقم القائمة: INV-XXXX-2026-0012 → 12 */
+const seqOf = (n: string) => {
+  const m = String(n || '').match(/(\d+)\s*$/);
+  return m ? parseInt(m[1], 10) : NaN;
+};
+
+export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
+  const { products, invoices, customers, formatMoney, returnLooseItems, returnPartialInvoice, requestApproval, hasPermission } = useApp() as any;
+  const [mode, setMode] = useState<Mode>('loose');
+  const [query, setQuery] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // ---- قسم المواد الصافية ----
+  const [lines, setLines] = useState<LooseLine[]>([]);
+  const [customerId, setCustomerId] = useState('');
+
+  // ---- قسم الرجوع من قائمة ----
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [retQty, setRetQty] = useState<Record<number, number>>({}); // مفتاح = رقم سطر المادة داخل القائمة
+
+  useEffect(() => { inputRef.current?.focus(); }, [mode]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const q = norm(query);
+  const productHits = useMemo(() => {
+    if (!q) return [] as any[];
+    return (products as any[]).filter(p => norm(p.name).includes(q) || norm(p.code).includes(q)).slice(0, 8);
+  }, [products, q]);
+
+  const exactProduct = (txt: string) => (products as any[]).find(p => p.code && norm(p.code) === norm(txt));
+
+  // ---------- المواد الصافية ----------
+  const addLoose = (p: any) => {
+    setMsg(null);
+    setLines(prev => {
+      const i = prev.findIndex(l => l.productId === p.id);
+      if (i >= 0) return prev.map((l, k) => (k === i ? { ...l, quantity: l.quantity + 1 } : l));
+      return [{ productId: p.id, name: p.name, code: p.code || '', quantity: 1, unitPrice: Number(p.retailPrice) || 0 }, ...prev];
+    });
+  };
+  const looseTotal = lines.reduce((a, l) => a + Math.round((Number(l.quantity) || 0) * (Number(l.unitPrice) || 0)), 0);
+  const cust = (customers as any[]).find(c => c.id === customerId);
+  const custDebt = Number(cust?.totalDebt) || 0;
+  const looseDebtCut = cust && custDebt > 0 ? Math.min(custDebt, looseTotal) : 0;
+
+  const confirmLoose = () => {
+    const r = returnLooseItems(lines, customerId || undefined, 'إرجاع مواد بدون قائمة');
+    if (!r.success) { setMsg({ ok: false, text: r.error || 'تعذّر الإرجاع' }); return; }
+    setLines([]);
+    setMsg({
+      ok: true,
+      text: `تم إرجاع المواد للمخزن. ${r.debtReduction > 0 ? `أُنقص ${formatMoney(r.debtReduction)} من دين الزبون. ` : ''}${r.cashRefund > 0 ? `المبلغ المُرجَع نقداً: ${formatMoney(r.cashRefund)}.` : ''}`,
+    });
+    inputRef.current?.focus();
+  };
+
+  // ---------- من قائمة ----------
+  const invoiceResults = useMemo(() => {
+    const list = (invoices as any[]).filter(i => i.status !== 'returned');
+    if (!q) return list.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 12);
+    const dg = digitsOf(query);
+    const asNumber = /^[\d\s-]*$/.test(query) || /^inv/i.test(query.trim());
+    const out = list.filter(inv => {
+      const num = String(inv.invoiceNumber || '');
+      if (asNumber && dg) {
+        const seq = seqOf(num);
+        if (!Number.isNaN(seq) && seq === parseInt(dg, 10)) return true;
+        if (num.toLowerCase().includes(q)) return true;
+      }
+      if (norm(num).includes(q)) return true;
+      if (norm(inv.customerName).includes(q)) return true;
+      return (inv.items || []).some((it: any) => norm(it.productName || it.name).includes(q) || norm(it.code) === q || norm(it.code).includes(q));
+    });
+    return out.sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 30);
+  }, [invoices, q, query]);
+
+  const selected = (invoices as any[]).find(i => i.id === selectedId) || null;
+  const selectInvoice = (inv: any) => { setSelectedId(inv.id); setRetQty({}); setMsg(null); };
+
+  const itemRemaining = (it: any) => Math.max(0, (it.quantity || 0) - (it.returnedQuantity || 0));
+  const returnable = (it: any) => !(it.isGift && it.promoLabel) && itemRemaining(it) > 0;
+  const setQty = (idx: number, v: number, max: number) =>
+    setRetQty(prev => ({ ...prev, [idx]: Math.max(0, Math.min(max, Number.isFinite(v) ? v : 0)) }));
+
+  const invRefund = selected
+    ? selected.items.reduce((a: number, it: any, idx: number) => a + Math.round((retQty[idx] || 0) * netUnitPrice(it)), 0)
+    : 0;
+  const invDebtCut = selected && selected.remainingAmount > 0 ? Math.min(selected.remainingAmount, invRefund) : 0;
+
+  const confirmInvoice = () => {
+    if (!selected) return;
+    // يجمع الكميات حسب المادة (الدالة تعمل بمعرّف المادة)
+    const agg = new Map<string, number>();
+    selected.items.forEach((it: any, idx: number) => {
+      const qn = retQty[idx] || 0;
+      if (qn > 0) agg.set(it.productId, (agg.get(it.productId) || 0) + qn);
+    });
+    const toReturn = Array.from(agg.entries()).map(([productId, quantity]) => ({ productId, quantity }));
+    if (!toReturn.length) { setMsg({ ok: false, text: 'حدّد كمية مادة واحدة على الأقل.' }); return; }
+    const run = async () => {
+      const r = await returnPartialInvoice(selected.id, toReturn, 'استرجاع من نافذة الاسترجاع');
+      if (r.success) {
+        setMsg({ ok: true, text: `تم الاسترجاع من القائمة ${selected.invoiceNumber}.` });
+        setSelectedId(null); setRetQty({});
+        inputRef.current?.focus();
+      } else setMsg({ ok: false, text: r.error || 'تعذّر الاسترجاع' });
+    };
+    requestApproval('return', selected.id, run);
+  };
+
+  // ---------- مدخل البحث / الماسح ----------
+  const onEnter = () => {
+    const txt = query.trim();
+    if (!txt) return;
+    const p = exactProduct(txt);
+    if (mode === 'loose') {
+      if (p) { addLoose(p); setQuery(''); return; }
+      if (productHits.length === 1) { addLoose(productHits[0]); setQuery(''); return; }
+      if (!productHits.length) setMsg({ ok: false, text: `لا توجد مادة بهذا الباركود/الاسم: ${txt}` });
+      return;
+    }
+    // وضع القائمة: إن كانت قائمة مختارة والمادة منها → زد كمية الإرجاع، وإلا يبقى النص في البحث ويظهر القوائم
+    if (selected && p) {
+      const idx = selected.items.findIndex((it: any, k: number) => it.productId === p.id && returnable(it) && (retQty[k] || 0) < itemRemaining(it));
+      if (idx >= 0) { setQty(idx, (retQty[idx] || 0) + 1, itemRemaining(selected.items[idx])); setQuery(''); setMsg(null); return; }
+      setMsg({ ok: false, text: 'هذه المادة غير موجودة في القائمة المختارة أو أُرجعت كاملة.' });
+      setQuery('');
+    }
+  };
+
+  const tabCls = (m: Mode) => `flex-1 py-2.5 rounded-xl text-sm font-black transition cursor-pointer ${mode === m ? 'bg-amber-500 text-slate-900 shadow' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`;
+  const canLoose = hasPermission ? hasPermission('canReturnInvoice') : true;
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4"
+      dir="rtl"
+      data-testid="return-modal"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white dark:bg-[#0b1728] rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-5xl h-[92vh] flex flex-col overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+          <h3 className="font-black text-base text-slate-900 dark:text-white">↩️ استرجاع المواد</h3>
+          <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer">إغلاق (Esc)</button>
+        </div>
+
+        <div className="px-4 pt-3 flex gap-2">
+          <button type="button" data-testid="tab-loose" className={tabCls('loose')} onClick={() => { setMode('loose'); setMsg(null); setQuery(''); }}>رجوع مواد صافي</button>
+          <button type="button" data-testid="tab-invoice" className={tabCls('invoice')} onClick={() => { setMode('invoice'); setMsg(null); setQuery(''); }}>رجوع من قائمة بيع</button>
+        </div>
+
+        <div className="px-4 pt-3">
+          <input
+            ref={inputRef}
+            data-testid="return-search"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setMsg(null); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter(); } }}
+            placeholder={mode === 'loose' ? 'امسح باركود المادة أو ابحث باسمها…' : 'رقم القائمة (الرقم بعد INV فقط) أو اسم مادة أو باركودها أو اسم الزبون…'}
+            className="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white text-sm font-bold"
+          />
+        </div>
+
+        {msg && (
+          <div data-testid="return-msg" className={`mx-4 mt-2 px-3 py-2 rounded-lg text-xs font-bold border ${msg.ok ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-red-50 border-red-300 text-red-700'}`}>{msg.text}</div>
+        )}
+
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-3 min-h-0">
+          {/* ===================== المواد الصافية ===================== */}
+          {mode === 'loose' && (
+            <>
+              {productHits.length > 1 && (
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800" data-testid="loose-hits">
+                  {productHits.map(p => (
+                    <button type="button" key={p.id} onClick={() => { addLoose(p); setQuery(''); inputRef.current?.focus(); }} className="w-full text-right px-3 py-2 flex items-center justify-between hover:bg-amber-50 dark:hover:bg-slate-800 cursor-pointer">
+                      <span className="text-sm font-bold text-slate-900 dark:text-white">{p.name} <span className="text-[10px] text-slate-500 font-mono">{p.code}</span></span>
+                      <span className="text-xs font-mono text-slate-600 dark:text-slate-300">{formatMoney(p.retailPrice)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800/60 text-xs font-black text-slate-700 dark:text-slate-200">قائمة الاسترجاع</div>
+                {lines.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-500">امسح باركود المادة أو ابحث عنها لتضاف هنا.</div>
+                ) : (
+                  <table className="w-full text-xs" data-testid="loose-table">
+                    <thead className="text-slate-500 dark:text-slate-400">
+                      <tr><th className="p-2 text-right">المادة</th><th className="p-2">الكمية</th><th className="p-2">السعر</th><th className="p-2">المبلغ</th><th /></tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((l, i) => (
+                        <tr key={l.productId} className="border-t border-slate-100 dark:border-slate-800">
+                          <td className="p-2 font-bold text-slate-900 dark:text-white">{l.name}</td>
+                          <td className="p-2 text-center">
+                            <input type="number" min={0} step="any" value={l.quantity}
+                              onChange={(e) => setLines(prev => prev.map((x, k) => k === i ? { ...x, quantity: Number(e.target.value) } : x))}
+                              className="w-20 px-2 py-1 text-center border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-mono" />
+                          </td>
+                          <td className="p-2 text-center">
+                            <input type="number" min={0} step="any" value={l.unitPrice}
+                              onChange={(e) => setLines(prev => prev.map((x, k) => k === i ? { ...x, unitPrice: Number(e.target.value) } : x))}
+                              className="w-24 px-2 py-1 text-center border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-mono" />
+                          </td>
+                          <td className="p-2 text-center font-mono font-bold text-slate-900 dark:text-white">{formatMoney(Math.round((l.quantity || 0) * (l.unitPrice || 0)))}</td>
+                          <td className="p-2"><button type="button" onClick={() => setLines(prev => prev.filter((_, k) => k !== i))} className="text-red-600 font-bold cursor-pointer">حذف</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">الزبون (اختياري — إن كان عليه دين يُخصم منه المبلغ)</label>
+                <select data-testid="loose-customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white text-sm">
+                  <option value="">بدون زبون (إرجاع نقدي)</option>
+                  {(customers as any[]).map(c => (
+                    <option key={c.id} value={c.id}>{c.name}{Number(c.totalDebt) > 0 ? ` — دين ${formatMoney(c.totalDebt)}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
+          {/* ===================== من قائمة بيع ===================== */}
+          {mode === 'invoice' && (
+            <>
+              {selected && (
+                <div className="rounded-xl border-2 border-amber-400 overflow-hidden" data-testid="selected-invoice">
+                  <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/30 flex items-center justify-between gap-2 flex-wrap">
+                    <div className="text-xs font-black text-slate-900 dark:text-white">
+                      القائمة المختارة: <span className="font-mono">{selected.invoiceNumber}</span> — {selected.customerName}
+                      {selected.remainingAmount > 0 && <span className="text-amber-700 dark:text-amber-300"> (عليها دين {formatMoney(selected.remainingAmount)})</span>}
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => {
+                        const all: Record<number, number> = {};
+                        selected.items.forEach((it: any, i: number) => { if (returnable(it)) all[i] = itemRemaining(it); });
+                        setRetQty(all);
+                      }} className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-bold cursor-pointer">إرجاع الكل</button>
+                      <button type="button" onClick={() => { setSelectedId(null); setRetQty({}); }} className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">إلغاء الاختيار</button>
+                    </div>
+                  </div>
+                  <table className="w-full text-xs">
+                    <thead className="text-slate-500 dark:text-slate-400">
+                      <tr><th className="p-2 text-right">المادة</th><th className="p-2">بيع</th><th className="p-2">أُرجع</th><th className="p-2">كمية الإرجاع</th><th className="p-2">المبلغ</th></tr>
+                    </thead>
+                    <tbody>
+                      {selected.items.map((it: any, idx: number) => {
+                        const max = itemRemaining(it);
+                        const ok = returnable(it);
+                        return (
+                          <tr key={idx} className={`border-t border-slate-100 dark:border-slate-800 ${ok ? '' : 'opacity-50'}`}>
+                            <td className="p-2 font-bold text-slate-900 dark:text-white">{it.productName || it.name}{it.packLabel ? ` (${it.packLabel})` : ''}</td>
+                            <td className="p-2 text-center font-mono">{it.quantity}</td>
+                            <td className="p-2 text-center font-mono">{it.returnedQuantity || 0}</td>
+                            <td className="p-2 text-center">
+                              {ok ? (
+                                <div className="inline-flex items-center gap-1">
+                                  <button type="button" onClick={() => setQty(idx, (retQty[idx] || 0) - 1, max)} className="w-7 h-7 rounded bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-black cursor-pointer">−</button>
+                                  <input type="number" min={0} max={max} step="any" value={retQty[idx] || 0}
+                                    onChange={(e) => setQty(idx, Number(e.target.value), max)}
+                                    className="w-16 px-1 py-1 text-center border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-mono" />
+                                  <button type="button" onClick={() => setQty(idx, (retQty[idx] || 0) + 1, max)} className="w-7 h-7 rounded bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-black cursor-pointer">+</button>
+                                </div>
+                              ) : <span className="text-[10px] text-slate-500">{it.isGift && it.promoLabel ? 'هدية عرض' : 'أُرجعت كاملة'}</span>}
+                            </td>
+                            <td className="p-2 text-center font-mono font-bold text-slate-900 dark:text-white">{formatMoney(Math.round((retQty[idx] || 0) * netUnitPrice(it)))}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden" data-testid="invoice-results">
+                <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800/60 text-xs font-black text-slate-700 dark:text-slate-200">
+                  {q ? `القوائم المطابقة (${invoiceResults.length})` : 'آخر القوائم — اكتب رقم القائمة أو امسح مادة لتظهر القوائم التي بيعت بها'}
+                </div>
+                {invoiceResults.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-500">لا توجد قوائم مطابقة.</div>
+                ) : invoiceResults.map((inv: any) => {
+                  const hit = q ? (inv.items || []).filter((it: any) => norm(it.productName || it.name).includes(q) || norm(it.code).includes(q)).slice(0, 3) : [];
+                  const isSel = inv.id === selectedId;
+                  return (
+                    <div key={inv.id} onClick={() => selectInvoice(inv)}
+                      className={`px-3 py-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 cursor-pointer hover:bg-amber-50 dark:hover:bg-slate-800 ${isSel ? 'bg-amber-50 dark:bg-slate-800' : ''}`}>
+                      <div className="min-w-0">
+                        <div className="text-xs font-black text-slate-900 dark:text-white font-mono">{inv.invoiceNumber}</div>
+                        <div className="text-[11px] text-slate-600 dark:text-slate-300">{inv.customerName} · {String(inv.date).slice(0, 10)} · {formatMoney(inv.total)}</div>
+                        {hit.length > 0 && <div className="text-[10px] text-emerald-700 dark:text-emerald-400 truncate">{hit.map((h: any) => `${h.productName || h.name} × ${h.quantity}`).join('، ')}</div>}
+                      </div>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); selectInvoice(inv); }}
+                        className="px-3 py-1.5 rounded-lg bg-amber-500 text-slate-900 text-xs font-black shrink-0 cursor-pointer">استرجاع</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* الشريط السفلي: المبلغ وزر التنفيذ */}
+        <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 flex-wrap">
+          {mode === 'loose' ? (
+            <>
+              <div className="text-xs text-slate-700 dark:text-slate-200" data-testid="loose-summary">
+                <div>مبلغ الإرجاع: <b className="font-mono text-base">{formatMoney(looseTotal)}</b></div>
+                {looseTotal > 0 && (looseDebtCut > 0
+                  ? <div className="text-emerald-700 dark:text-emerald-400 font-bold">سيُنقص {formatMoney(looseDebtCut)} من دين الزبون{looseTotal - looseDebtCut > 0 ? `، والباقي ${formatMoney(looseTotal - looseDebtCut)} يُرجَع نقداً` : ''}.</div>
+                  : <div className="text-slate-500">سيُرجَع المبلغ نقداً.</div>)}
+                {!canLoose && <div className="text-red-600 font-bold">لا تملك صلاحية الاسترجاع.</div>}
+              </div>
+              <button type="button" data-testid="confirm-loose" disabled={!lines.length || !canLoose} onClick={confirmLoose}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 disabled:opacity-40 text-white text-sm font-black cursor-pointer">تأكيد الإرجاع</button>
+            </>
+          ) : (
+            <>
+              <div className="text-xs text-slate-700 dark:text-slate-200" data-testid="invoice-summary">
+                <div>مبلغ الاسترجاع: <b className="font-mono text-base">{formatMoney(invRefund)}</b></div>
+                {invRefund > 0 && (invDebtCut > 0
+                  ? <div className="text-emerald-700 dark:text-emerald-400 font-bold">سيُنقص {formatMoney(invDebtCut)} من الدين{invRefund - invDebtCut > 0 ? `، والباقي ${formatMoney(invRefund - invDebtCut)} يُرجَع نقداً` : ''}.</div>
+                  : <div className="text-slate-500">سيُرجَع المبلغ نقداً.</div>)}
+              </div>
+              <button type="button" data-testid="confirm-invoice" disabled={!selected || invRefund <= 0} onClick={confirmInvoice}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 disabled:opacity-40 text-white text-sm font-black cursor-pointer">تأكيد الاسترجاع</button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
