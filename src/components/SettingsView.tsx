@@ -269,6 +269,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [invertEnterShortcuts, setInvertEnterShortcuts] = useState<boolean>(settings.invertEnterShortcuts === true);
   const [posKeyboardMode, setPosKeyboardMode] = useState<boolean>(settings.posKeyboardMode === true);
   const [unfoundBarcodeInline, setUnfoundBarcodeInline] = useState<boolean>(settings.unfoundBarcodeInline === true);
+  const [showLastCustomerPrice, setShowLastCustomerPrice] = useState<boolean>(settings.showLastCustomerPrice === true);
   const [enableChangeCalculator, setEnableChangeCalculator] = useState<boolean>(settings.enableChangeCalculator !== false);
   const [posClassicCart, setPosClassicCart] = useState<boolean>(settings.posClassicCart === true);
   const [separateCartonPieces, setSeparateCartonPieces] = useState<boolean>(settings.separateCartonPieces === true);
@@ -459,6 +460,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setInvertEnterShortcuts(settings.invertEnterShortcuts === true);
       setPosKeyboardMode(settings.posKeyboardMode === true);
       setUnfoundBarcodeInline(settings.unfoundBarcodeInline === true);
+      setShowLastCustomerPrice(settings.showLastCustomerPrice === true);
       setEnableChangeCalculator(settings.enableChangeCalculator !== false);
       setPosClassicCart(settings.posClassicCart === true);
       setSeparateCartonPieces(settings.separateCartonPieces === true);
@@ -567,6 +569,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       invertEnterShortcuts,
       posKeyboardMode,
       unfoundBarcodeInline,
+      showLastCustomerPrice,
       enableChangeCalculator,
       posClassicCart,
       separateCartonPieces,
@@ -1924,6 +1927,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="checkbox"
                 checked={unfoundBarcodeInline}
                 onChange={(e) => setUnfoundBarcodeInline(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">إظهار آخر سعر بيع للزبون</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">عند اختيار زبون مسجل (نقدي أو آجل) وإضافة مادة بيعت له سابقاً بسعر مختلف، تظهر ملاحظة فوق شريط البحث بآخر سعر بيعت به هذه المادة لنفس الزبون.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={showLastCustomerPrice}
+                onChange={(e) => setShowLastCustomerPrice(e.target.checked)}
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>

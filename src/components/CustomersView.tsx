@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import CustomerTelegramModal from './CustomerTelegramModal';
+import CustomerWhatsAppModal from './CustomerWhatsAppModal';
 import { Customer, Invoice, PaymentRecord } from '../types';
 import { 
   Users, 
@@ -63,6 +64,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
   // Modals state
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [telegramCustomer, setTelegramCustomer] = useState<Customer | null>(null);
+  const [waCustomer, setWaCustomer] = useState<Customer | null>(null);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
   // فترة التصفية (تحدد قوائم ودفعات ومواد الزبون في كشف الحساب). فارغة = كل الفترة
   const [periodFrom, setPeriodFrom] = useState('');
@@ -482,6 +484,19 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                               <Trash2 className="w-4 h-4" />
                             </button>
                           )}
+
+                          <button
+                            onClick={() => setWaCustomer(cust)}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-lg border flex items-center gap-1 transition ${
+                              cust.whatsappAuto
+                                ? 'text-emerald-800 bg-emerald-50 border-emerald-300'
+                                : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border-slate-200'
+                            }`}
+                            title="إعدادات واتساب الزبون وإرسال كشف الحساب"
+                          >
+                            <span>💬</span>
+                            <span>واتساب</span>
+                          </button>
 
                           {telegramOn && (
                           <button
@@ -1055,6 +1070,9 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
         </div>
       )}
 
+      {waCustomer && (
+        <CustomerWhatsAppModal customer={waCustomer} onClose={() => setWaCustomer(null)} />
+      )}
       {telegramCustomer && (
         <CustomerTelegramModal customer={telegramCustomer} onClose={() => setTelegramCustomer(null)} />
       )}

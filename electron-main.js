@@ -308,7 +308,7 @@ ipcMain.handle('product-image-list', () => {
 });
 
 // إرسال القائمة PDF عبر واتساب (ويندوز): حفظ الملف مؤقتاً، نسخه للحافظة كملف، وفتح محادثة واتساب ليلصقه المستخدم (Ctrl+V)
-ipcMain.handle('whatsapp-send-pdf', async (event, { base64, fileName, phone } = {}) => {
+ipcMain.handle('whatsapp-send-pdf', async (event, { base64, fileName, phone, text } = {}) => {
   try {
     if (!base64) return { success: false, error: 'no data' };
     const dir = path.join(os.tmpdir(), 'mufakkir-share');
@@ -328,15 +328,33 @@ ipcMain.handle('whatsapp-send-pdf', async (event, { base64, fileName, phone } = 
     const num = String(phone || '').replace(/[^0-9]/g, '');
     let opened = false;
     try {
-      await shell.openExternal(num ? `whatsapp://send?phone=${num}` : 'whatsapp://send');
+      const q = text ? `text=${encodeURIComponent(String(text))}` : '';
+      await shell.openExternal(num ? `whatsapp://send?phone=${num}${q ? '&' + q : ''}` : `whatsapp://send${q ? '?' + q : ''}`);
       opened = true;
     } catch (e) {
       try {
-        await shell.openExternal(num ? `https://wa.me/${num}` : 'https://web.whatsapp.com/');
+        const q2 = text ? `?text=${encodeURIComponent(String(text))}` : '';
+        await shell.openExternal(num ? `https://wa.me/${num}${q2}` : 'https://web.whatsapp.com/');
         opened = true;
       } catch (e2) {}
     }
     return { success: true, copied, opened, filePath };
+  } catch (e) {
+    return { success: false, error: e && e.message };
+  }
+});
+
+// فتح محادثة واتساب لرقم معيّن بنص جاهز (بنقرة «إرسال» واحدة من المستخدم)
+ipcMain.handle('whatsapp-open-chat', async (event, { phone, text } = {}) => {
+  try {
+    const num = String(phone || '').replace(/[^0-9]/g, '');
+    const q = text ? `text=${encodeURIComponent(String(text))}` : '';
+    try {
+      await shell.openExternal(num ? `whatsapp://send?phone=${num}${q ? '&' + q : ''}` : `whatsapp://send${q ? '?' + q : ''}`);
+    } catch (e) {
+      await shell.openExternal(num ? `https://wa.me/${num}${q ? '?' + q : ''}` : 'https://web.whatsapp.com/');
+    }
+    return { success: true };
   } catch (e) {
     return { success: false, error: e && e.message };
   }
