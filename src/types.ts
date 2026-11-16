@@ -109,6 +109,10 @@ export interface Customer {
   updatedAt?: string;
   telegramCode?: string;
   telegramLinked?: boolean;
+  /** رقم واتساب الزبون (إن اختلف عن رقم الهاتف) */
+  whatsappPhone?: string;
+  /** تجهيز رسالة واتساب تلقائياً عند كل حركة دين لهذا الزبون */
+  whatsappAuto?: boolean;
 }
 
 export interface InvoiceItem {
@@ -436,6 +440,8 @@ export interface CreateInvoiceInput {
   items: InvoiceItem[];
   discount: number;
   paidAmount: number;
+  /** مبلغ مدفوع زيادة عن قيمة القائمة: يُخصم من دين الزبون القديم (قد يصير رصيده سالباً) */
+  extraPaid?: number;
   paymentDueDate?: string;
   notes?: string;
   salesRepId?: string;
@@ -559,6 +565,8 @@ export interface StoreSettings {
   posKeyboardMode?: boolean;
   /** باركود غير مسجل: شريط أحمر ملفت تحت البحث مع زر إضافة وصوت تنبيه مختلف بدل النافذة الكبيرة */
   unfoundBarcodeInline?: boolean;
+  /** إظهار آخر سعر بيع لهذه المادة لنفس الزبون عند إضافتها للقائمة إن اختلف عن السعر الحالي */
+  showLastCustomerPrice?: boolean;
   /** حاسبة الباقي (F5): اختيار فئات النقود المستلمة لمعرفة الباقي للزبون. مفعّلة افتراضياً */
   enableChangeCalculator?: boolean;
   /** أقسام/تصنيفات المواد التي أضافها المستخدم يدوياً */

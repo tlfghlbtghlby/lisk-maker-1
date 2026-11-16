@@ -154,7 +154,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     clearCurrentDraft,
     deleteCurrentDraft,
     completeActiveDraft,
-    priceTypeOn
+    priceTypeOn,
+    invoices
   } = useApp();
 
   // فحص صلاحية إظهار سعر الشراء والتكلفة
@@ -440,6 +441,35 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => c.id === selectedCustomerId);
   }, [customers, selectedCustomerId]);
+
+  // آخر سعر بيع لكل مادة/وحدة لنفس الزبون (يظهر كملاحظة فوق شريط البحث إن اختلف عن السعر الحالي)
+  const lastPriceNotes = useMemo(() => {
+    if (settings.showLastCustomerPrice !== true || !selectedCustomerId) return [] as { key: string; name: string; last: number; current: number }[];
+    const keyOf = (it: any) => `${it.productId}|${it.unitType || 'piece'}|${it.piecesPerCarton || 1}`;
+    const wanted = new Set((cartItems || []).filter((c: any) => !c.isGift).map(keyOf));
+    if (wanted.size === 0) return [];
+    const last = new Map<string, number>();
+    const mine = (invoices || [])
+      .filter((inv: any) => inv.customerId === selectedCustomerId && inv.status !== 'returned')
+      .sort((a: any, b: any) => String(b.date).localeCompare(String(a.date)));
+    for (const inv of mine) {
+      for (const it of inv.items || []) {
+        if (it.isGift) continue;
+        const k = keyOf(it);
+        if (wanted.has(k) && !last.has(k)) last.set(k, Number(it.unitPrice) || 0);
+      }
+      if (last.size === wanted.size) break;
+    }
+    const out: { key: string; name: string; last: number; current: number }[] = [];
+    for (const c of [...(cartItems || [])].reverse() as any[]) {
+      const k = keyOf(c);
+      const l = last.get(k);
+      if (l !== undefined && Math.abs(l - (Number(c.unitPrice) || 0)) > 0.0005 && !out.some((o) => o.key === k)) {
+        out.push({ key: k, name: c.name || c.productName, last: l, current: Number(c.unitPrice) || 0 });
+      }
+    }
+    return out.slice(0, 4);
+  }, [settings.showLastCustomerPrice, selectedCustomerId, cartItems, invoices]);
 
   const handleSelectCustomer = (id: string) => {
     setSelectedCustomerId(id);
@@ -1285,8 +1315,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   const actualPaidAmount = saleType === 'direct' ? finalTotal : Math.min(paidAmount, finalTotal);
   const remainingDebt = Math.max(0, finalTotal - actualPaidAmount);
+  // المبلغ الزائد عن قيمة القائمة (آجل) يُخصم من الدين القديم بدل أن يضيع
+  const extraPaid = saleType === 'credit' ? Math.max(0, paidAmount - finalTotal) : 0;
   const previousCustomerDebt = selectedCustomer ? selectedCustomer.totalDebt : 0;
-  const newCustomerDebt = previousCustomerDebt + remainingDebt;
+  const newCustomerDebt = previousCustomerDebt + remainingDebt - extraPaid;
 
   const executeFinalizeInvoice = (repIdToUse?: string, andPrint = true) => {
     let finalCustomerId: string | undefined = selectedCustomerId || undefined;
@@ -1341,6 +1373,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       showGiftColumn: promoResult.showGiftColumn,
       discount: discountAmount,
       paidAmount: actualPaidAmount,
+      extraPaid,
       paymentDueDate: saleType === 'credit' ? dueDate : undefined,
       notes: notes.trim(),
       salesRepId: effectiveRepId || undefined,
@@ -1637,6 +1670,17 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       >
         {(!isMobileMode || mobileTab === 'products') && (
           <div className={`${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} flex flex-col gap-3 min-w-0`}>
+            {lastPriceNotes.length > 0 && (
+              <div data-testid="last-price-notes" className="flex flex-col gap-1">
+                {lastPriceNotes.map((n) => (
+                  <div key={n.key} className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-900 flex items-center gap-2 flex-wrap">
+                    <span>ملاحظة: آخر سعر بيع لـ«{selectedCustomer?.name}» لمادة «{n.name}» كان</span>
+                    <span className="font-mono text-sm">{formatMoney(n.last)}</span>
+                    <span className="font-normal">(السعر الحالي {formatMoney(n.current)})</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col gap-2.5">
               <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 <div className="relative flex-1 min-w-[200px]">
@@ -2982,7 +3026,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   {selectedCustomer && (
                     <div className="text-[10px] flex items-center justify-between text-slate-600 pt-0.5 border-t border-slate-100">
                       <span>الدين السابق: <strong className={selectedCustomer.totalDebt > 0 ? 'text-rose-700' : 'text-emerald-700'}>{formatMoney(selectedCustomer.totalDebt)}</strong></span>
-                      {saleType === 'credit' && remainingDebt > 0 && (
+                      {saleType === 'credit' && (remainingDebt > 0 || extraPaid > 0) && (
                         <span>الدين الجديد: <strong className="text-rose-800 font-bold">{formatMoney(newCustomerDebt)}</strong></span>
                       )}
                     </div>
@@ -2995,7 +3039,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         <input
                           type="number"
                           min="0"
-                          max={finalTotal}
                           value={paidAmount || ''}
                           placeholder="0"
                           onChange={(e) => setPaidAmount(Math.max(0, parseFloat(e.target.value) || 0))}
@@ -3003,8 +3046,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         />
                       </div>
                       <div className="flex items-center justify-between font-bold text-rose-700">
-                        <span>الباقي:</span>
-                        <span className="font-mono">{formatMoney(remainingDebt)}</span>
+                        {extraPaid > 0 ? (<><span className="text-emerald-700">زيادة تُخصم من الدين:</span><span className="font-mono text-emerald-700">{formatMoney(extraPaid)}</span></>) : (<><span>الباقي:</span><span className="font-mono">{formatMoney(remainingDebt)}</span></>)}
                       </div>
                     </div>
                   )}

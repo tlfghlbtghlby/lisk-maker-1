@@ -2225,7 +2225,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // الدين السابق للزبون المسجل قبل هذه القائمة، ويُضاف إليه الباقي من هذه القائمة
     const debtCustomer = data.customerId ? customers.find(c => c.id === data.customerId) : undefined;
     const previousDebt = debtCustomer ? (Number(debtCustomer.totalDebt) || 0) : 0;
-    const currentTotalDebt = previousDebt + remainingAmount;
+    // الزيادة المدفوعة عن قيمة القائمة تُخصم من الدين القديم (للزبون المسجل فقط)
+    const extraPaid = debtCustomer ? Math.max(0, Math.round((Number(data.extraPaid) || 0) * 1000) / 1000) : 0;
+    const currentTotalDebt = previousDebt + remainingAmount - extraPaid;
 
     // بصمة التحقق الخاصة بالمتجر
     let storeSecret = settings.invoiceSecret;
@@ -2276,6 +2278,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       remainingAmount,
       previousDebt,
       currentTotalDebt,
+      extraPaid: extraPaid > 0 ? extraPaid : undefined,
       // يدل على أن الباقي أُضيف فعلاً إلى رصيد الزبون (لتصحيح الرصيد عند حذف القائمة)
       debtApplied: Boolean(debtCustomer && remainingAmount > 0),
       paymentDueDate: data.paymentDueDate || '',
@@ -2330,7 +2333,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invoicesCount: (activeShift.invoicesCount || 0) + 1,
         invoicesIds: [...(activeShift.invoicesIds || []), newId],
         totalSales: (activeShift.totalSales || 0) + total,
-        totalPaid: (activeShift.totalPaid || 0) + paidAmount,
+        totalPaid: (activeShift.totalPaid || 0) + paidAmount + extraPaid,
         totalRemaining: (activeShift.totalRemaining || 0) + remainingAmount,
         totalCost: (activeShift.totalCost || 0) + totalCost,
         totalProfit: (activeShift.totalProfit || 0) + (total - totalCost),
@@ -2351,9 +2354,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // إضافة الباقي (الدين الجديد) إلى مجموع دين الزبون السابق
     let updatedCustomersList = customers;
-    if (debtCustomer && remainingAmount > 0) {
+    if (debtCustomer && (remainingAmount > 0 || extraPaid > 0)) {
       updatedCustomersList = customers.map(c =>
-        c.id === debtCustomer.id ? { ...c, updatedAt: new Date().toISOString(), totalDebt: previousDebt + remainingAmount } : c
+        c.id === debtCustomer.id ? { ...c, updatedAt: new Date().toISOString(), totalDebt: previousDebt + remainingAmount - extraPaid } : c
       );
       setCustomers(updatedCustomersList);
       try {
@@ -2361,11 +2364,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
     }
 
+    if (debtCustomer && (remainingAmount > 0 || extraPaid > 0)) {
+      try {
+        window.dispatchEvent(new CustomEvent('wa-debt', { detail: { customerId: debtCustomer.id, kind: 'invoice', amount: total, newDebt: previousDebt + remainingAmount - extraPaid, invoiceNumber: String(invoiceNumberNew), paid: paidAmount, extraPaid } }));
+      } catch {}
+    }
+
+    // سجل دفعة للزيادة المسددة كي تظهر في كشف حساب الزبون
+    let updatedPaymentsList = payments;
+    if (debtCustomer && extraPaid > 0) {
+      const extraPay: PaymentRecord = {
+        id: 'pay_' + Date.now() + '_x',
+        customerId: debtCustomer.id,
+        customerName: debtCustomer.name || '',
+        amount: extraPaid,
+        date: now,
+        notes: `زيادة مسددة مع القائمة ${invoiceNumberNew} (خُصمت من الدين القديم)`,
+        receiptNumber: `REC-${Date.now()}`,
+      };
+      updatedPaymentsList = [extraPay, ...payments];
+      setPayments(updatedPaymentsList);
+      try { localStorage.setItem('cached_pos_payments', JSON.stringify(updatedPaymentsList)); } catch {}
+    }
+
     saveStoreToCloud({
       products: updatedProducts,
       invoices: updatedInvoices,
       shifts: updatedShiftsList,
       ...(updatedCustomersList !== customers ? { customers: updatedCustomersList } : {}),
+      ...(updatedPaymentsList !== payments ? { payments: updatedPaymentsList } : {}),
     });
     if (updatedCustomersList !== customers) {
       broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomersList }, currentSessionId, currentUser?.uid);
@@ -2958,6 +2985,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveStoreToCloud({ customers: updatedCustomers, payments: updatedPayments });
     broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomers }, currentSessionId, currentUser?.uid);
     const remainingAfter = updatedCustomers.find(c => c.id === customerId)?.totalDebt || 0;
+    try {
+      window.dispatchEvent(new CustomEvent('wa-debt', { detail: { customerId, kind: 'payment', amount: paid, newDebt: remainingAfter } }));
+    } catch {}
     emitTelegram('debtPayment', ctx => ({
       store: formatPayment(p, remainingAfter, ctx),
       customerId,

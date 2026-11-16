@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
+import WhatsAppAutoPrompt from './components/WhatsAppAutoPrompt';
 import { Navigation, TabType } from './components/Navigation';
 import { POSView } from './components/POSView';
 import { InventoryView } from './components/InventoryView';
@@ -686,7 +687,10 @@ export default function App() {
       {showSplash ? (
         <SplashScreen onComplete={() => setShowSplash(false)} />
       ) : (
-        <MainContent />
+        <>
+          <MainContent />
+          <WhatsAppAutoPrompt />
+        </>
       )}
     </AppProvider>
   );
