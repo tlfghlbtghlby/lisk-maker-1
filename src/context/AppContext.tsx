@@ -191,6 +191,12 @@ interface AppContextType {
     reason: string,
     notes?: string
   ) => Promise<{ success: boolean; error?: string }>;
+  /** استرجاع مواد بدون قائمة: يعيدها للمخزن، ويخصم من دين الزبون إن وُجد دين وإلا يُرجَع المبلغ نقداً */
+  returnLooseItems: (
+    lines: { productId: string; name?: string; quantity: number; unitPrice: number }[],
+    customerId?: string,
+    note?: string
+  ) => { success: boolean; error?: string; refund: number; debtReduction: number; cashRefund: number };
   applyBulkPriceAdjustment: (percentage: number, priceTargets: { retail: boolean; wholesale: boolean; cost: boolean }, roundToHundreds?: boolean) => Promise<{ updatedCount: number }>;
   recordPayment: (customerId: string, amount: number, notes?: string) => PaymentRecord;
   /** إضافة دين بمبلغ محدد على زبون (يزيد رصيده ويُسجَّل في كشف حسابه) */
@@ -2688,6 +2694,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
 
+  const returnLooseItems = (
+    lines: { productId: string; name?: string; quantity: number; unitPrice: number }[],
+    customerId?: string,
+    note?: string
+  ): { success: boolean; error?: string; refund: number; debtReduction: number; cashRefund: number } => {
+    const fail = (error: string) => ({ success: false, error, refund: 0, debtReduction: 0, cashRefund: 0 });
+    if (!hasPermission('canReturnInvoice')) return fail('⚠️ لا تملك صلاحية استرجاع المواد.');
+    const valid = (lines || []).filter(l => l && l.productId && Number(l.quantity) > 0);
+    if (valid.length === 0) return fail('أضف مادة واحدة على الأقل للإرجاع.');
+    const refund = valid.reduce((a, l) => a + Math.round(Number(l.quantity) * (Number(l.unitPrice) || 0)), 0);
+    valid.forEach(l => adjustStock(l.productId, Number(l.quantity)));
+
+    const cust = customerId ? customers.find(c => c.id === customerId) : undefined;
+    let debtReduction = 0;
+    if (cust && (Number(cust.totalDebt) || 0) > 0) debtReduction = Math.min(Number(cust.totalDebt) || 0, refund);
+    const cashRefund = Math.max(0, refund - debtReduction);
+
+    if (cust && debtReduction > 0) {
+      const now = new Date().toISOString();
+      const updatedCustomers = customers.map(c => c.id === cust.id ? { ...c, updatedAt: now, totalDebt: (Number(c.totalDebt) || 0) - debtReduction } : c);
+      setCustomers(updatedCustomers);
+      try { localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers)); } catch {}
+      const names = valid.map(l => `${l.name || 'مادة'} × ${l.quantity}`).join('، ');
+      const rec: PaymentRecord = {
+        id: 'pay_' + Date.now() + '_ret',
+        customerId: cust.id,
+        customerName: cust.name || '',
+        amount: debtReduction,
+        date: now,
+        notes: `${note || 'إرجاع مواد بدون قائمة'} (خُصم من الدين): ${names}`,
+        receiptNumber: `RET-${Date.now()}`,
+      };
+      const updatedPayments = [rec, ...payments];
+      setPayments(updatedPayments);
+      try { localStorage.setItem('cached_pos_payments', JSON.stringify(updatedPayments)); } catch {}
+      saveStoreToCloud({ customers: updatedCustomers, payments: updatedPayments });
+      broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomers }, currentSessionId, currentUser?.uid);
+    }
+    return { success: true, refund, debtReduction, cashRefund };
+  };
+
   // ============ تعديل قائمة محفوظة (كامل): يعيد حساب المخزن والدين والشفت وعمولة المندوب ============
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   // ============ إذن المشرف لمرة واحدة (لقائمة واحدة وإجراء واحد) ============
@@ -3763,6 +3810,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addSupervisorBiometric,
         closeInvoiceEditor,
         returnPartialInvoice,
+        returnLooseItems,
         applyBulkPriceAdjustment,
         recordPayment,
         addManualDebt,

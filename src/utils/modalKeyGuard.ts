@@ -40,6 +40,23 @@ export function isOverlayOpen(): boolean {
   return topmostOverlay() !== null;
 }
 
+/** هل يستطيع عنصر داخل النافذة أن يتمرّر في هذا الاتجاه؟ (dy>0 للأسفل) */
+function canScrollWithin(start: Element | null, top: HTMLElement, dy: number): boolean {
+  let el: Element | null = start;
+  while (el && el !== document.documentElement) {
+    if (el instanceof HTMLElement) {
+      const oy = getComputedStyle(el).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && el.scrollHeight > el.clientHeight + 1) {
+        if (dy < 0 && el.scrollTop > 0) return true;
+        if (dy > 0 && el.scrollTop + el.clientHeight < el.scrollHeight - 1) return true;
+      }
+    }
+    if (el === top) break;
+    el = el.parentElement;
+  }
+  return false;
+}
+
 let installed = false;
 export function installModalKeyGuard() {
   if (installed || typeof window === 'undefined') return;
@@ -61,4 +78,28 @@ export function installModalKeyGuard() {
       try { f?.focus(); } catch { /* ignore */ }
     }
   }, true);
+
+  // التمرير (عجلة الماوس / الماوس باد / اللمس): فقط للنافذة الظاهرة، ولا يتسرّب إلى ما خلفها
+  window.addEventListener('wheel', (e: WheelEvent) => {
+    if (e.ctrlKey) return; // تكبير/تصغير
+    const top = topmostOverlay();
+    if (!top) return;
+    const target = e.target as Element | null;
+    if (!target || !top.contains(target)) { e.preventDefault(); return; }
+    if (Math.abs(e.deltaY) >= Math.abs(e.deltaX) && !canScrollWithin(target, top, e.deltaY)) e.preventDefault();
+  }, { capture: true, passive: false });
+
+  let lastY = 0;
+  window.addEventListener('touchstart', (e: TouchEvent) => { lastY = e.touches[0]?.clientY ?? 0; }, { capture: true, passive: true });
+  window.addEventListener('touchmove', (e: TouchEvent) => {
+    const top = topmostOverlay();
+    if (!top) return;
+    const y = e.touches[0]?.clientY ?? lastY;
+    const dy = lastY - y; // إصبع للأعلى = تمرير للأسفل
+    lastY = y;
+    const target = e.target as Element | null;
+    if (!target || !top.contains(target) || !canScrollWithin(target, top, dy)) {
+      if (e.cancelable) e.preventDefault();
+    }
+  }, { capture: true, passive: false });
 }

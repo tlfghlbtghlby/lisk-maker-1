@@ -1,3 +1,4 @@
+import ReturnItemsModal from './ReturnItemsModal';
 import { isOverlayOpen } from '../utils/modalKeyGuard';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { dozenName } from '../utils/packLabel';
@@ -223,6 +224,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   entryRef.current = entry;
   const [kbZone, setKbZone] = useState<'search' | 'list'>('search');
   const [kbIndex, setKbIndex] = useState(0);
+  const [isReturnOpen, setIsReturnOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   // تغيير عرض الجهات بالسحب (سطح المكتب)
   const splitWrapRef = useRef<HTMLDivElement>(null);
@@ -1796,6 +1798,17 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 >
                   <Plus className="w-4 h-4 text-emerald-400" />
                   <span className="hidden md:inline">مادة جديدة</span>
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="open-return"
+                  onClick={() => setIsReturnOpen(true)}
+                  className="px-3 py-2 bg-gradient-to-l from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shrink-0 shadow-md cursor-pointer"
+                  title="استرجاع مواد: صافي أو من قائمة بيع"
+                >
+                  <span className="text-sm leading-none">↩</span>
+                  <span>إرجاع مادة</span>
                 </button>
               </div>
 
@@ -3761,6 +3774,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           </div>
         </div>
       )}
+      {isReturnOpen && <ReturnItemsModal onClose={() => setIsReturnOpen(false)} />}
     </div>
   );
 };
