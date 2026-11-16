@@ -641,6 +641,7 @@ export interface StoreSettings {
   defaultShowRepOnInvoice?: boolean;
   repCommissionDefaultType?: 'percentage_profit' | 'percentage_sales' | 'fixed_per_invoice' | 'fixed_per_piece';
   theme?: 'light' | 'dark';
+  themeCustom?: import('./utils/themeCustom').ThemeCustom;
   enableShifts?: boolean;
   enableCustomerPriceChecker?: boolean;
   enableSupervisor?: boolean;

@@ -48,6 +48,7 @@ import {
 import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/invoiceSeal';
 import { netUnitPrice } from '../utils/promotions';
 import { reconcileBatches, addBatch } from '../utils/expiry';
+import { applyThemeCustom } from '../utils/themeCustom';
 
 export interface StockChangeInput {
   id: string;
@@ -800,6 +801,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('mufakir_theme', theme);
     } catch {}
   }, [theme]);
+
+  // مزامنة تخصيص الألوان القادم من الإعدادات (السحابة) مع هذا الجهاز
+  useEffect(() => {
+    const tc = settings?.themeCustom;
+    if (tc) {
+      try {
+        if (localStorage.getItem('mufakir_theme_custom') !== JSON.stringify(tc)) {
+          localStorage.setItem('mufakir_theme_custom', JSON.stringify(tc));
+          applyThemeCustom(tc);
+        }
+      } catch {}
+    }
+  }, [settings?.themeCustom]);
 
   const toggleTheme = () => {
     setTheme(prev => {

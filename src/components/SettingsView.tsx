@@ -79,6 +79,7 @@ import { collectImageBackup, restoreImageBackup, describeRestore } from '../util
 import { DuplicateProductsModal } from './DuplicateProductsModal';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { buildCheckerUrl, CHECKER_LEVEL_LABELS, STOCK_COLOR_DEFAULTS } from '../utils/checkerLinks';
+import ThemeCustomizer from './ThemeCustomizer';
 
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
 
@@ -1289,6 +1290,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               </button>
             </div>
           </div>
+
+          <ThemeCustomizer />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
