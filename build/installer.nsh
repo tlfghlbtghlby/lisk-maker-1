@@ -136,6 +136,14 @@
 
 !macro customUnInstall
   StrCpy $scShown ""
+  StrCpy $scMain ""
+  StrCpy $scPos ""
+  StrCpy $scInv ""
+  StrCpy $scStk ""
+  StrCpy $scShf ""
+  StrCpy $scDbt ""
+  StrCpy $scRep ""
+  StrCpy $scSet ""
   ; حذف الاختصارات تلقائياً عند إلغاء التثبيت
   Delete "$DESKTOP\${PRODUCT_FILENAME}.lnk"
   Delete "$DESKTOP\ نقطة البيع.lnk"
