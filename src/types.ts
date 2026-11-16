@@ -388,6 +388,8 @@ export interface PresetShift {
   /** اسم الكاشير الذي يعمل على هذا الشفت (يظهر في القوائم وشريط الشفت) */
   cashierName?: string;
   notes?: string;
+  /** قيود صلاحيات هذا الشفت: false = مغلقة. لا يمكن فتح ما هو مغلق في صلاحيات الموظف (تتبع الدور). */
+  permissions?: Partial<RolePermissions>;
   createdAt: string;
   createdBy?: string;
 }

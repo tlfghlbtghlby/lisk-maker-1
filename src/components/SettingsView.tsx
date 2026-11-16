@@ -81,6 +81,7 @@ import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { buildCheckerUrl, CHECKER_LEVEL_LABELS, STOCK_COLOR_DEFAULTS } from '../utils/checkerLinks';
 import ThemeCustomizer from './ThemeCustomizer';
 import AutoContrastToggle from './AutoContrastToggle';
+import PermissionSubsetEditor from './PermissionSubsetEditor';
 
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
 
@@ -275,6 +276,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [waTarget, setWaTarget] = useState<'app' | 'web'>(settings.waTarget === 'web' ? 'web' : 'app');
   const [waAutoOpen, setWaAutoOpen] = useState<boolean>(settings.waAutoOpen !== false);
   const [waAutoPaste, setWaAutoPaste] = useState<boolean>(settings.waAutoPaste !== false);
+  const [permSupId, setPermSupId] = useState<string | null>(null);
   const [waAttachPdf, setWaAttachPdf] = useState<boolean>(settings.waAttachPdf !== false);
   const [enableChangeCalculator, setEnableChangeCalculator] = useState<boolean>(settings.enableChangeCalculator !== false);
   const [posClassicCart, setPosClassicCart] = useState<boolean>(settings.posClassicCart === true);
@@ -2820,6 +2822,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                         رمز: {sup.pin}
                       </span>
                     </div>
+                    {permSupId === sup.id && (
+                      <div className="mt-2 p-2 rounded-lg border border-indigo-200 dark:border-indigo-900 bg-white dark:bg-[#0b1728]">
+                        <div className="text-[10px] text-slate-500 mb-1.5">صلاحيات المشرف «{sup.name}» (تتبع صلاحيات المشرف في الإعدادات — ما أُغلق هناك لا يُفتح هنا):</div>
+                        <PermissionSubsetEditor
+                          rolePerms={{ ...DEFAULT_SUPERVISOR_PERMISSIONS, ...(settings.supervisorPermissions || {}) } as any}
+                          value={sup.permissions}
+                          roleName="المشرف"
+                          onChange={(v) => updateSettings({ supervisors: (settings.supervisors || []).map(x => x.id === sup.id ? { ...x, permissions: v } : x) })}
+                        />
+                      </div>
+                    )}
                     <div className="mt-2">
                       {sup.canConfigureShifts ? (
                         <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-950 px-2 py-0.5 rounded-md">
@@ -2885,6 +2898,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                     >
                       <Edit2 className="w-3 h-3" />
                       <span>تعديل</span>
+                    </button>
+                    <button
+                      type="button"
+                      data-testid={`sup-perms-${sup.id}`}
+                      onClick={() => setPermSupId(permSupId === sup.id ? null : sup.id)}
+                      className="px-2 py-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>🔑 الصلاحيات</span>
                     </button>
                     {(settings.supervisors || []).length > 1 && (
                       <button

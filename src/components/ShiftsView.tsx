@@ -30,7 +30,8 @@ import {
   Users
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { Shift, Invoice, PresetShift } from '../types';
+import { Shift, Invoice, PresetShift, RolePermissions, DEFAULT_EMPLOYEE_PERMISSIONS } from '../types';
+import PermissionSubsetEditor from './PermissionSubsetEditor';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
 
 interface ShiftsViewProps {
@@ -85,6 +86,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
   const [presetCode, setPresetCode] = useState('');
   const [presetCashier, setPresetCashier] = useState('');
   const [presetNotes, setPresetNotes] = useState('');
+  const [presetPerms, setPresetPerms] = useState<Partial<RolePermissions>>({});
   const [presetFeedback, setPresetFeedback] = useState<string | null>(null);
 
   // قائمة الحسابات والكواشير المتاحة داخل المتجر للتصفية
@@ -263,6 +265,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
           code: presetCode.trim(),
           cashierName: presetCashier.trim(),
           notes: presetNotes.trim(),
+          permissions: presetPerms,
         });
         setPresetFeedback('تم حفظ تعديلات الشفت بنجاح');
       } else {
@@ -271,6 +274,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
           code: presetCode.trim(),
           cashierName: presetCashier.trim(),
           notes: presetNotes.trim(),
+          permissions: presetPerms,
         });
         setPresetFeedback('تمت إضافة قالب الشفت الجديد بنجاح');
       }
@@ -280,6 +284,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
       setPresetCode('');
       setPresetCashier('');
       setPresetNotes('');
+      setPresetPerms({});
       setTimeout(() => setPresetFeedback(null), 4000);
     } catch (err: any) {
       setPresetFeedback(err.message || 'حدث خطأ أثناء حفظ قالب الشفت');
@@ -292,6 +297,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
     setPresetCode(preset.code);
     setPresetCashier(preset.cashierName || '');
     setPresetNotes(preset.notes || '');
+    setPresetPerms(preset.permissions || {});
     setIsAddingPreset(false);
   };
 
@@ -445,6 +451,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
                     setPresetCode('');
                     setPresetCashier('');
                     setPresetNotes('');
+                    setPresetPerms({});
                   }}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
                 >
@@ -528,6 +535,18 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
                     onChange={(e) => setPresetNotes(e.target.value)}
                     placeholder="مثال: دوام من الساعة 8 صباحاً حتى 4 عصراً"
                     className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    صلاحيات هذا الشفت (تتبع صلاحيات الموظف في الإعدادات — ما أُغلق هناك لا يمكن تفعيله هنا):
+                  </label>
+                  <PermissionSubsetEditor
+                    rolePerms={{ ...DEFAULT_EMPLOYEE_PERMISSIONS, ...(settings.employeePermissions || {}) } as RolePermissions}
+                    value={presetPerms}
+                    onChange={setPresetPerms}
+                    roleName="الموظف"
                   />
                 </div>
 
