@@ -1051,25 +1051,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {}
   }, [sessionRole, settings.enableSupervisor, settings.enableEmployee, (currentUser as any)?.enableSupervisor, (currentUser as any)?.enableEmployee]);
 
+  // القيود الفرعية (شفت/مشرف) لا تفتح أبداً ما هو مغلق في صلاحيات الدور: false فقط تُغلق
+  const applyRestrictions = (base: RolePermissions, restrict?: Partial<RolePermissions>): RolePermissions => {
+    if (!restrict) return base;
+    const out: any = { ...base };
+    (Object.keys(restrict) as (keyof RolePermissions)[]).forEach(k => { if (restrict[k] === false) out[k] = false; });
+    return out as RolePermissions;
+  };
+
   const permissions: RolePermissions = useMemo(() => {
     if (sessionRole === 'admin') return DEFAULT_ADMIN_PERMISSIONS;
     if (sessionRole === 'supervisor') {
       const currentSup = (settings.supervisors || []).find(s => s.id === activeSupervisorId);
-      const base: RolePermissions = {
-        ...DEFAULT_SUPERVISOR_PERMISSIONS,
-        ...(settings.supervisorPermissions || {}),
-        ...(currentSup?.permissions || {}),
-      };
-      if (currentSup && typeof currentSup.canConfigureShifts === 'boolean') {
-        base.canConfigureShifts = currentSup.canConfigureShifts;
-      }
+      const role: RolePermissions = { ...DEFAULT_SUPERVISOR_PERMISSIONS, ...(settings.supervisorPermissions || {}) };
+      const base = applyRestrictions(role, currentSup?.permissions);
+      if (currentSup && currentSup.canConfigureShifts === false) base.canConfigureShifts = false;
       return base;
     }
-    return {
-      ...DEFAULT_EMPLOYEE_PERMISSIONS,
-      ...(settings.employeePermissions || {}),
-    };
-  }, [sessionRole, activeSupervisorId, settings.supervisors, settings.supervisorPermissions, settings.employeePermissions]);
+    const roleEmp: RolePermissions = { ...DEFAULT_EMPLOYEE_PERMISSIONS, ...(settings.employeePermissions || {}) };
+    const preset = activeShift?.presetShiftId ? (settings.presetShifts || []).find(p => p.id === activeShift.presetShiftId) : undefined;
+    return applyRestrictions(roleEmp, preset?.permissions);
+  }, [sessionRole, activeSupervisorId, settings.supervisors, settings.supervisorPermissions, settings.employeePermissions, settings.presetShifts, activeShift?.presetShiftId]);
 
   const hasPermission = (action: keyof RolePermissions): boolean => {
     if (sessionRole === 'admin' || currentUser?.role === 'admin') {
