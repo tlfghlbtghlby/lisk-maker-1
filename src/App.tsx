@@ -24,6 +24,7 @@ import { SessionSwitchModal } from './components/SessionSwitchModal';
 import { StartShiftModal } from './components/StartShiftModal';
 import { EndShiftModal } from './components/EndShiftModal';
 import { ShiftDetailsModal } from './components/ShiftDetailsModal';
+import { SessionBadgeButton } from './components/SessionBadgeButton';
 import { ShiftHeaderButton } from './components/ShiftHeaderButton';
 import { AuthView } from './components/AuthView';
 import { SplashScreen } from './components/SplashScreen';
@@ -316,11 +317,14 @@ const MainContent: React.FC = () => {
         <Navigation activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
       )}
 
-      {/* شريط الشفت داخل شاشة/نافذة البيع: لفتح الشفت من هنا (النافذة المنفصلة بلا شريط علوي، والموظف العادي يفتح الشفت من البيع فقط) */}
-      {activeTab === 'pos' && storeFeatures?.enableShifts !== false && (isStandaloneWindow || !hasPermission('canManageShifts')) && (
-        <div className="no-print bg-slate-900 border-b border-slate-800 text-white px-3 py-1.5 flex items-center justify-between gap-2" dir="rtl">
-          <span className="text-[11px] font-bold text-slate-300">نقطة البيع</span>
-          <ShiftHeaderButton posWindow />
+      {/* شريط الشفت والجلسة: يظهر في كل الخانات (وليس البيع فقط) للنافذة المنفصلة وللموظف العادي */}
+      {storeFeatures?.enableShifts !== false && (isStandaloneWindow || !hasPermission('canManageShifts')) && (
+        <div className="no-print bg-slate-900 border-b border-slate-800 text-white px-3 py-1.5 flex items-center justify-between gap-2 flex-wrap" dir="rtl" data-testid="shift-bar">
+          <span className="text-[11px] font-bold text-slate-300">{activeTab === 'pos' ? 'نقطة البيع' : getActiveTabTitle()}</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            {activeTab !== 'pos' && <SessionBadgeButton />}
+            <ShiftHeaderButton posWindow />
+          </div>
         </div>
       )}
 

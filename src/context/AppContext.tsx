@@ -194,7 +194,8 @@ interface AppContextType {
   returnLooseItems: (
     lines: { productId: string; name?: string; quantity: number; unitPrice: number }[],
     customerId?: string,
-    note?: string
+    note?: string,
+    opts?: { grantId?: string; consume?: boolean }
   ) => { success: boolean; error?: string; refund: number; debtReduction: number; cashRefund: number };
   applyBulkPriceAdjustment: (percentage: number, priceTargets: { retail: boolean; wholesale: boolean; cost: boolean }, roundToHundreds?: boolean) => Promise<{ updatedCount: number }>;
   recordPayment: (customerId: string, amount: number, notes?: string) => PaymentRecord;
@@ -2696,10 +2697,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const returnLooseItems = (
     lines: { productId: string; name?: string; quantity: number; unitPrice: number }[],
     customerId?: string,
-    note?: string
+    note?: string,
+    opts?: { grantId?: string; consume?: boolean }
   ): { success: boolean; error?: string; refund: number; debtReduction: number; cashRefund: number } => {
     const fail = (error: string) => ({ success: false, error, refund: 0, debtReduction: 0, cashRefund: 0 });
-    if (!hasPermission('canReturnInvoice')) return fail('⚠️ لا تملك صلاحية استرجاع المواد.');
+    const gid = opts?.grantId || 'loose';
+    if (!hasPermission('canReturnInvoice') && !grantAllows('return', gid)) return fail('⚠️ لا تملك صلاحية استرجاع المواد.');
     const valid = (lines || []).filter(l => l && l.productId && Number(l.quantity) > 0);
     if (valid.length === 0) return fail('أضف مادة واحدة على الأقل للإرجاع.');
     const refund = valid.reduce((a, l) => a + Math.round(Number(l.quantity) * (Number(l.unitPrice) || 0)), 0);
@@ -2731,6 +2734,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       saveStoreToCloud({ customers: updatedCustomers, payments: updatedPayments });
       broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomers }, currentSessionId, currentUser?.uid);
     }
+    if (opts?.consume !== false) consumeGrant('return', gid);
     return { success: true, refund, debtReduction, cashRefund };
   };
 

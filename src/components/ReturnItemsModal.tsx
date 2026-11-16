@@ -14,8 +14,8 @@ const seqOf = (n: string) => {
 };
 
 export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
-  const { products, invoices, customers, formatMoney, returnLooseItems, returnPartialInvoice, requestApproval, hasPermission } = useApp() as any;
-  const [mode, setMode] = useState<Mode>('loose');
+  const { products, invoices, customers, formatMoney, returnLooseItems, returnPartialInvoice, requestApproval, hasPermission, openInvoiceEditor } = useApp() as any;
+  const [mode, setMode] = useState<Mode>('invoice');
   const [query, setQuery] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -27,6 +27,10 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
   // ---- قسم الرجوع من قائمة ----
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [retQty, setRetQty] = useState<Record<number, number>>({}); // مفتاح = رقم سطر المادة داخل القائمة
+  // مواد مُسحت وليست في القائمة المختارة (تنبيه أحمر + تأكيد عند الحفظ)
+  const [extras, setExtras] = useState<LooseLine[]>([]);
+  const [alerts, setAlerts] = useState<string[]>([]);
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => { inputRef.current?.focus(); }, [mode]);
   useEffect(() => {
@@ -58,14 +62,18 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
   const looseDebtCut = cust && custDebt > 0 ? Math.min(custDebt, looseTotal) : 0;
 
   const confirmLoose = () => {
-    const r = returnLooseItems(lines, customerId || undefined, 'إرجاع مواد بدون قائمة');
-    if (!r.success) { setMsg({ ok: false, text: r.error || 'تعذّر الإرجاع' }); return; }
-    setLines([]);
-    setMsg({
-      ok: true,
-      text: `تم إرجاع المواد للمخزن. ${r.debtReduction > 0 ? `أُنقص ${formatMoney(r.debtReduction)} من دين الزبون. ` : ''}${r.cashRefund > 0 ? `المبلغ المُرجَع نقداً: ${formatMoney(r.cashRefund)}.` : ''}`,
-    });
-    inputRef.current?.focus();
+    // النافذة تفتح للجميع؛ عند الحفظ يُطلب رمز/بصمة المشرف إن لم تتوفر صلاحية الاسترجاع (صالح لهذا الحفظ فقط)
+    const run = () => {
+      const r = returnLooseItems(lines, customerId || undefined, 'إرجاع مواد بدون قائمة', { grantId: 'loose' });
+      if (!r.success) { setMsg({ ok: false, text: r.error || 'تعذّر الإرجاع' }); return; }
+      setLines([]);
+      setMsg({
+        ok: true,
+        text: `تم إرجاع المواد للمخزن. ${r.debtReduction > 0 ? `أُنقص ${formatMoney(r.debtReduction)} من دين الزبون. ` : ''}${r.cashRefund > 0 ? `المبلغ المُرجَع نقداً: ${formatMoney(r.cashRefund)}.` : ''}`,
+      });
+      inputRef.current?.focus();
+    };
+    requestApproval('return', 'loose', run);
   };
 
   // ---------- من قائمة ----------
@@ -89,20 +97,30 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
   }, [invoices, q, query]);
 
   const selected = (invoices as any[]).find(i => i.id === selectedId) || null;
-  const selectInvoice = (inv: any) => { setSelectedId(inv.id); setRetQty({}); setMsg(null); };
+  const selectInvoice = (inv: any) => { setSelectedId(inv.id); setRetQty({}); setExtras([]); setAlerts([]); setConfirming(false); setMsg(null); };
 
   const itemRemaining = (it: any) => Math.max(0, (it.quantity || 0) - (it.returnedQuantity || 0));
   const returnable = (it: any) => !(it.isGift && it.promoLabel) && itemRemaining(it) > 0;
   const setQty = (idx: number, v: number, max: number) =>
     setRetQty(prev => ({ ...prev, [idx]: Math.max(0, Math.min(max, Number.isFinite(v) ? v : 0)) }));
 
-  const invRefund = selected
+  const extrasTotal = extras.reduce((a, l) => a + Math.round((Number(l.quantity) || 0) * (Number(l.unitPrice) || 0)), 0);
+  const invRefund = (selected
     ? selected.items.reduce((a: number, it: any, idx: number) => a + Math.round((retQty[idx] || 0) * netUnitPrice(it)), 0)
-    : 0;
+    : 0) + extrasTotal;
   const invDebtCut = selected && selected.remainingAmount > 0 ? Math.min(selected.remainingAmount, invRefund) : 0;
 
-  const confirmInvoice = () => {
+  const startSave = () => {
     if (!selected) return;
+    const any = selected.items.some((_: any, idx: number) => (retQty[idx] || 0) > 0) || extras.some(e => e.quantity > 0);
+    if (!any) { setMsg({ ok: false, text: 'حدّد كمية مادة واحدة على الأقل.' }); return; }
+    if (extras.length) { setConfirming(true); return; } // مواد ليست في القائمة: تأكيد أولاً
+    doSave();
+  };
+
+  const doSave = () => {
+    if (!selected) return;
+    setConfirming(false);
     // يجمع الكميات حسب المادة (الدالة تعمل بمعرّف المادة)
     const agg = new Map<string, number>();
     selected.items.forEach((it: any, idx: number) => {
@@ -110,16 +128,29 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
       if (qn > 0) agg.set(it.productId, (agg.get(it.productId) || 0) + qn);
     });
     const toReturn = Array.from(agg.entries()).map(([productId, quantity]) => ({ productId, quantity }));
-    if (!toReturn.length) { setMsg({ ok: false, text: 'حدّد كمية مادة واحدة على الأقل.' }); return; }
     const run = async () => {
-      const r = await returnPartialInvoice(selected.id, toReturn, 'استرجاع من نافذة الاسترجاع');
-      if (r.success) {
-        setMsg({ ok: true, text: `تم الاسترجاع من القائمة ${selected.invoiceNumber}.` });
-        setSelectedId(null); setRetQty({});
+      let okAll = true; let err = '';
+      if (extras.length) {
+        const r = returnLooseItems(extras, selected.customerId || undefined, `إرجاع مادة ليست في القائمة ${selected.invoiceNumber}`, { grantId: selected.id, consume: toReturn.length === 0 });
+        if (!r.success) { okAll = false; err = r.error || ''; }
+      }
+      if (okAll && toReturn.length) {
+        const r = await returnPartialInvoice(selected.id, toReturn, 'استرجاع من نافذة الاسترجاع');
+        if (!r.success) { okAll = false; err = r.error || ''; }
+      }
+      if (okAll) {
+        setMsg({ ok: true, text: `تم الاسترجاع على القائمة ${selected.invoiceNumber}.` });
+        setSelectedId(null); setRetQty({}); setExtras([]); setAlerts([]);
         inputRef.current?.focus();
-      } else setMsg({ ok: false, text: r.error || 'تعذّر الاسترجاع' });
+      } else setMsg({ ok: false, text: err || 'تعذّر الاسترجاع' });
     };
+    // رمز/بصمة المشرف إن لم تتوفر الصلاحية؛ صالحة لهذا الاسترجاع فقط (تبقى جلسة الموظف كما هي)
     requestApproval('return', selected.id, run);
+  };
+
+  const editInvoice = (inv: any) => {
+    // تعديل القائمة بالكامل (إنقاص/زيادة) — يتطلب إذن المشرف إن لم تتوفر صلاحية التعديل
+    requestApproval('edit', inv.id, () => { onClose(); openInvoiceEditor(inv.id); });
   };
 
   // ---------- مدخل البحث / الماسح ----------
@@ -137,7 +168,22 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
     if (selected && p) {
       const idx = selected.items.findIndex((it: any, k: number) => it.productId === p.id && returnable(it) && (retQty[k] || 0) < itemRemaining(it));
       if (idx >= 0) { setQty(idx, (retQty[idx] || 0) + 1, itemRemaining(selected.items[idx])); setQuery(''); setMsg(null); return; }
-      setMsg({ ok: false, text: 'هذه المادة غير موجودة في القائمة المختارة أو أُرجعت كاملة.' });
+      const inInvoice = selected.items.some((it: any) => it.productId === p.id);
+      const text = inInvoice ? `«${p.name}» أُرجعت كاملة من هذه القائمة.` : `⚠️ «${p.name}» غير موجودة في القائمة ${selected.invoiceNumber}.`;
+      setAlerts(prev => (prev.includes(text) ? prev : [...prev, text]));
+      if (!inInvoice) {
+        setExtras(prev => {
+          const k = prev.findIndex(l => l.productId === p.id);
+          if (k >= 0) return prev.map((l, n) => (n === k ? { ...l, quantity: l.quantity + 1 } : l));
+          return [...prev, { productId: p.id, name: p.name, code: p.code || '', quantity: 1, unitPrice: Number(p.retailPrice) || 0 }];
+        });
+      }
+      setQuery('');
+      return;
+    }
+    if (selected && !p && /^\d{6,}$/.test(txt)) {
+      const text = `⚠️ الباركود ${txt} غير مسجّل في المخزن ولا في القائمة ${selected.invoiceNumber}.`;
+      setAlerts(prev => (prev.includes(text) ? prev : [...prev, text]));
       setQuery('');
     }
   };
@@ -159,8 +205,8 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="px-4 pt-3 flex gap-2">
-          <button type="button" data-testid="tab-loose" className={tabCls('loose')} onClick={() => { setMode('loose'); setMsg(null); setQuery(''); }}>رجوع مواد صافي</button>
           <button type="button" data-testid="tab-invoice" className={tabCls('invoice')} onClick={() => { setMode('invoice'); setMsg(null); setQuery(''); }}>رجوع من قائمة بيع</button>
+          <button type="button" data-testid="tab-loose" className={tabCls('loose')} onClick={() => { setMode('loose'); setMsg(null); setQuery(''); }}>رجوع مواد صافي (بدون قائمة)</button>
         </div>
 
         <div className="px-4 pt-3">
@@ -177,6 +223,17 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
 
         {msg && (
           <div data-testid="return-msg" className={`mx-4 mt-2 px-3 py-2 rounded-lg text-xs font-bold border ${msg.ok ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-red-50 border-red-300 text-red-700'}`}>{msg.text}</div>
+        )}
+
+        {mode === 'invoice' && alerts.length > 0 && (
+          <div data-testid="return-alerts" className="mx-4 mt-2 space-y-1">
+            {alerts.map((a, i) => (
+              <div key={i} className="px-3 py-2 rounded-lg text-xs font-black border-2 border-red-500 bg-red-600 text-white flex items-center justify-between gap-2">
+                <span>{a}</span>
+                <button type="button" onClick={() => setAlerts(prev => prev.filter((_, k) => k !== i))} className="text-white/80 hover:text-white cursor-pointer">✕</button>
+              </div>
+            ))}
+          </div>
         )}
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-3 space-y-3 min-h-0">
@@ -255,7 +312,8 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
                         selected.items.forEach((it: any, i: number) => { if (returnable(it)) all[i] = itemRemaining(it); });
                         setRetQty(all);
                       }} className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-bold cursor-pointer">إرجاع الكل</button>
-                      <button type="button" onClick={() => { setSelectedId(null); setRetQty({}); }} className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">إلغاء الاختيار</button>
+                      <button type="button" data-testid="edit-invoice" onClick={() => editInvoice(selected)} className="px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-[11px] font-bold cursor-pointer">✎ تعديل القائمة</button>
+                      <button type="button" onClick={() => { setSelectedId(null); setRetQty({}); setExtras([]); setAlerts([]); }} className="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer">إلغاء الاختيار</button>
                     </div>
                   </div>
                   <table className="w-full text-xs">
@@ -288,6 +346,19 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
                       })}
                     </tbody>
                   </table>
+                  {extras.length > 0 && (
+                    <div className="border-t-2 border-red-400 bg-red-50 dark:bg-red-950/30" data-testid="extras">
+                      <div className="px-3 py-1.5 text-[11px] font-black text-red-700">مواد ليست في هذه القائمة (ستُرجَع للمخزن وتُخصم من حساب الزبون)</div>
+                      {extras.map((l, i) => (
+                        <div key={l.productId} className="px-3 py-1.5 flex items-center gap-2 text-xs">
+                          <span className="flex-1 font-bold text-slate-900 dark:text-white">{l.name}</span>
+                          <input type="number" min={0} step="any" value={l.quantity} onChange={(e) => setExtras(prev => prev.map((x, k) => k === i ? { ...x, quantity: Number(e.target.value) } : x))} className="w-16 px-1 py-1 text-center border border-slate-300 rounded font-mono text-slate-900" />
+                          <input type="number" min={0} step="any" value={l.unitPrice} onChange={(e) => setExtras(prev => prev.map((x, k) => k === i ? { ...x, unitPrice: Number(e.target.value) } : x))} className="w-24 px-1 py-1 text-center border border-slate-300 rounded font-mono text-slate-900" />
+                          <button type="button" onClick={() => setExtras(prev => prev.filter((_, k) => k !== i))} className="text-red-600 font-bold cursor-pointer">حذف</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -308,8 +379,12 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
                         <div className="text-[11px] text-slate-600 dark:text-slate-300">{inv.customerName} · {String(inv.date).slice(0, 10)} · {formatMoney(inv.total)}</div>
                         {hit.length > 0 && <div className="text-[10px] text-emerald-700 dark:text-emerald-400 truncate">{hit.map((h: any) => `${h.productName || h.name} × ${h.quantity}`).join('، ')}</div>}
                       </div>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); selectInvoice(inv); }}
-                        className="px-3 py-1.5 rounded-lg bg-amber-500 text-slate-900 text-xs font-black shrink-0 cursor-pointer">استرجاع</button>
+                      <div className="flex gap-1.5 shrink-0">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); editInvoice(inv); }}
+                          className="px-2.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-black cursor-pointer">✎ تعديل</button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); selectInvoice(inv); }}
+                          className="px-3 py-1.5 rounded-lg bg-amber-500 text-slate-900 text-xs font-black cursor-pointer">استرجاع</button>
+                      </div>
                     </div>
                   );
                 })}
@@ -327,25 +402,42 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
                 {looseTotal > 0 && (looseDebtCut > 0
                   ? <div className="text-emerald-700 dark:text-emerald-400 font-bold">سيُنقص {formatMoney(looseDebtCut)} من دين الزبون{looseTotal - looseDebtCut > 0 ? `، والباقي ${formatMoney(looseTotal - looseDebtCut)} يُرجَع نقداً` : ''}.</div>
                   : <div className="text-slate-500">سيُرجَع المبلغ نقداً.</div>)}
-                {!canLoose && <div className="text-red-600 font-bold">لا تملك صلاحية الاسترجاع.</div>}
+                {!canLoose && <div className="text-amber-700 font-bold">سيُطلب رمز أو بصمة المشرف عند الحفظ.</div>}
               </div>
-              <button type="button" data-testid="confirm-loose" disabled={!lines.length || !canLoose} onClick={confirmLoose}
+              <button type="button" data-testid="confirm-loose" disabled={!lines.length} onClick={confirmLoose}
                 className="px-6 py-2.5 rounded-xl bg-emerald-600 disabled:opacity-40 text-white text-sm font-black cursor-pointer">تأكيد الإرجاع</button>
             </>
           ) : (
             <>
               <div className="text-xs text-slate-700 dark:text-slate-200" data-testid="invoice-summary">
                 <div>مبلغ الاسترجاع: <b className="font-mono text-base">{formatMoney(invRefund)}</b></div>
+                {selected && !canLoose && <div className="text-amber-700 font-bold">سيُطلب رمز أو بصمة المشرف عند الحفظ.</div>}
                 {invRefund > 0 && (invDebtCut > 0
                   ? <div className="text-emerald-700 dark:text-emerald-400 font-bold">سيُنقص {formatMoney(invDebtCut)} من الدين{invRefund - invDebtCut > 0 ? `، والباقي ${formatMoney(invRefund - invDebtCut)} يُرجَع نقداً` : ''}.</div>
                   : <div className="text-slate-500">سيُرجَع المبلغ نقداً.</div>)}
               </div>
-              <button type="button" data-testid="confirm-invoice" disabled={!selected || invRefund <= 0} onClick={confirmInvoice}
+              <button type="button" data-testid="confirm-invoice" disabled={!selected || invRefund <= 0} onClick={startSave}
                 className="px-6 py-2.5 rounded-xl bg-emerald-600 disabled:opacity-40 text-white text-sm font-black cursor-pointer">تأكيد الاسترجاع</button>
             </>
           )}
         </div>
       </div>
+
+      {confirming && (
+        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" data-testid="extras-confirm">
+          <div className="bg-white dark:bg-[#0b1728] rounded-2xl border-2 border-red-500 shadow-2xl max-w-md w-full p-5 text-right space-y-3">
+            <h4 className="font-black text-red-700 text-base">⚠️ تحذير: مواد ليست في هذه القائمة</h4>
+            <ul className="text-xs font-bold text-slate-800 dark:text-slate-200 list-disc pr-5 space-y-0.5">
+              {extras.map(e => <li key={e.productId}>{e.name} × {e.quantity}</li>)}
+            </ul>
+            <p className="text-xs text-slate-600 dark:text-slate-300">هل أنت متأكد أنك تريد إرجاع هذه المواد رغم أنها ليست في القائمة {selected?.invoiceNumber}؟{!canLoose ? ' سيُطلب بعد ذلك رمز أو بصمة المشرف.' : ''}</p>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setConfirming(false)} className="px-4 py-2 rounded-lg bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer">رجوع</button>
+              <button type="button" data-testid="extras-confirm-yes" onClick={doSave} className="px-4 py-2 rounded-lg bg-red-600 text-white text-xs font-black cursor-pointer">نعم، أرجِعها</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
