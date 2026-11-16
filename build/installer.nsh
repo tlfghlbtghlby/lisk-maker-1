@@ -135,6 +135,7 @@
 !macroend
 
 !macro customUnInstall
+  StrCpy $scShown ""
   ; حذف الاختصارات تلقائياً عند إلغاء التثبيت
   Delete "$DESKTOP\${PRODUCT_FILENAME}.lnk"
   Delete "$DESKTOP\ نقطة البيع.lnk"
