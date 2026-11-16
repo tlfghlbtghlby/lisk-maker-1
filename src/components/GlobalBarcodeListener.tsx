@@ -1,3 +1,4 @@
+import { isOverlayOpen } from '../utils/modalKeyGuard';
 import { useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { broadcastSync, subscribeSync, CURRENT_WINDOW_ID } from '../utils/syncChannel';
@@ -46,6 +47,7 @@ export const GlobalBarcodeListener: React.FC = () => {
         if (isPosMountedHere()) return; // نقطة البيع هنا تعالج الباركود بنفسها
         const target = e.target as HTMLElement | null;
         if (target && target.closest && target.closest('.fixed.inset-0')) return; // داخل نافذة منبثقة
+        if (isOverlayOpen()) return; // نافذة مفتوحة: لا تُضف شيئاً للقائمة خلفها
 
         const id = `${CURRENT_WINDOW_ID}_${now}`;
         broadcastSync('BARCODE_SCANNED', { code, id }, user.uid);
