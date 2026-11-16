@@ -1,3 +1,4 @@
+import { isOverlayOpen } from '../utils/modalKeyGuard';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { dozenName } from '../utils/packLabel';
 import { useApp } from '../context/AppContext';
@@ -905,6 +906,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   useEffect(() => {
     if (!kbMode || kbZone !== 'list' || entry) return;
     const onKey = (ev: KeyboardEvent) => {
+      if (isOverlayOpen()) return;
       if (showQuickAddModal || isScannerOpen || unfoundBarcodePrompt || productForPriceEdit || isSelectRepModalOpen || showClearConfirmModal || showChangeCalc || giftMenu) return;
       const t = ev.target as HTMLElement;
       if (t && (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(t.tagName) || t.isContentEditable)) return;
@@ -1011,6 +1013,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     };
 
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // نافذة منبثقة مفتوحة (من أي مكان في البرنامج): لوحة المفاتيح لها وحدها
+      if (isOverlayOpen()) { buffer = ''; return; }
       // إيقاف المعالجة إذا كانت هناك نوافذ تفاعلية منبثقة مفتوحة
       // (الإنذار الأحمر المضمّن ليس نافذة ولا يوقف المسح)
       if (
@@ -1560,6 +1564,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       if (e.key !== 'F5' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
       if (settings.enableChangeCalculator === false) return;
       e.preventDefault();
+      if (isOverlayOpen()) return;
       if (showQuickAddModal || isScannerOpen || unfoundBarcodePrompt || productForPriceEdit || isSelectRepModalOpen || showClearConfirmModal || showChangeCalc) return;
       openChangeCalc();
     };
@@ -3712,7 +3717,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
       {giftMenu && (
         <div
-          className="fixed inset-0 z-[90]"
+          className="fixed inset-0 z-[90]" data-key-passthrough
           onClick={() => setGiftMenu(null)}
           onContextMenu={(e) => {
             e.preventDefault();
