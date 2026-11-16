@@ -1689,7 +1689,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
             {lastPriceNotes.length > 0 && (
               <div data-testid="last-price-notes" className="flex flex-col gap-1">
                 {lastPriceNotes.map((n) => (
-                  <div key={n.key} className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-900 flex items-center gap-2 flex-wrap">
+                  <div key={n.key} className="rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 flex items-center gap-2 flex-wrap">
                     <span>ملاحظة: آخر سعر بيع لـ«{selectedCustomer?.name}» لمادة «{n.name}» كان</span>
                     <span className="font-mono text-sm">{formatMoney(n.last)}</span>
                     <span className="font-normal">(السعر الحالي {formatMoney(n.current)})</span>
