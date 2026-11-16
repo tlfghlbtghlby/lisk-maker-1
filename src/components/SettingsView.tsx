@@ -80,6 +80,7 @@ import { DuplicateProductsModal } from './DuplicateProductsModal';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { buildCheckerUrl, CHECKER_LEVEL_LABELS, STOCK_COLOR_DEFAULTS } from '../utils/checkerLinks';
 import ThemeCustomizer from './ThemeCustomizer';
+import AutoContrastToggle from './AutoContrastToggle';
 
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
 
@@ -274,7 +275,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [waTarget, setWaTarget] = useState<'app' | 'web'>(settings.waTarget === 'web' ? 'web' : 'app');
   const [waAutoOpen, setWaAutoOpen] = useState<boolean>(settings.waAutoOpen !== false);
   const [waAutoPaste, setWaAutoPaste] = useState<boolean>(settings.waAutoPaste !== false);
-  const [waAutoAttachPdf, setWaAutoAttachPdf] = useState<boolean>(settings.waAutoAttachPdf === true);
+  const [waAttachPdf, setWaAttachPdf] = useState<boolean>(settings.waAttachPdf !== false);
   const [enableChangeCalculator, setEnableChangeCalculator] = useState<boolean>(settings.enableChangeCalculator !== false);
   const [posClassicCart, setPosClassicCart] = useState<boolean>(settings.posClassicCart === true);
   const [separateCartonPieces, setSeparateCartonPieces] = useState<boolean>(settings.separateCartonPieces === true);
@@ -469,7 +470,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setWaTarget(settings.waTarget === 'web' ? 'web' : 'app');
       setWaAutoOpen(settings.waAutoOpen !== false);
       setWaAutoPaste(settings.waAutoPaste !== false);
-      setWaAutoAttachPdf(settings.waAutoAttachPdf === true);
+      setWaAttachPdf(settings.waAttachPdf !== false);
       setEnableChangeCalculator(settings.enableChangeCalculator !== false);
       setPosClassicCart(settings.posClassicCart === true);
       setSeparateCartonPieces(settings.separateCartonPieces === true);
@@ -582,7 +583,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       waTarget,
       waAutoOpen,
       waAutoPaste,
-      waAutoAttachPdf,
+      waAttachPdf,
       enableChangeCalculator,
       posClassicCart,
       separateCartonPieces,
@@ -1291,6 +1292,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
+          <AutoContrastToggle />
           <ThemeCustomizer />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1960,8 +1962,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 <span className="text-[11px] text-slate-600 dark:text-slate-300">عند تسجيل أي حركة دين لزبون فُعّل له «رسالة تلقائية»، افتح محادثته في واتساب مباشرة والرسالة جاهزة (وإلا يظهر إشعار صغير للاختيار).</span>
               </label>
               <label className="flex items-start gap-2 cursor-pointer">
-                <input type="checkbox" checked={waAutoAttachPdf} onChange={(e) => setWaAutoAttachPdf(e.target.checked)} className="mt-0.5 w-4 h-4 rounded text-emerald-600" />
-                <span className="text-[11px] text-slate-600 dark:text-slate-300">أرفق كشف الحساب PDF تلقائياً مع الرسالة عند الفتح التلقائي بعد حركة الدين.</span>
+                <input type="checkbox" checked={waAttachPdf} onChange={(e) => setWaAttachPdf(e.target.checked)} className="mt-0.5 w-4 h-4 rounded text-emerald-600" />
+                <span className="text-[11px] text-slate-600 dark:text-slate-300">أرفق ملف PDF (قائمة البيع، أو كشف الحساب عند التسديد) مع الرسالة عند الفتح التلقائي بعد حركة الدين.</span>
               </label>
               <label className="flex items-start gap-2 cursor-pointer">
                 <input type="checkbox" checked={waAutoPaste} onChange={(e) => setWaAutoPaste(e.target.checked)} className="mt-0.5 w-4 h-4 rounded text-emerald-600" />

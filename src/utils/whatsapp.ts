@@ -23,22 +23,27 @@ export interface DebtEvent {
   invoiceNumber?: string;
   paid?: number;
   extraPaid?: number;
+  invoice?: any;
+  prevDebt?: number;
 }
 
+const curName = (c: string) => (/^(د\.?\s?ع\.?|iqd)$/i.test((c || '').trim()) || !c ? 'دينار عراقي' : c);
+
 export function buildDebtMessage(c: Customer, ev: DebtEvent, storeName: string, currency: string): string {
-  const head = `مرحباً ${c.name}،\nإشعار من ${storeName}:`;
+  const cur = curName(currency);
+  const head = `مرحباً ${c.name} 👋${storeName ? `\n${storeName}` : ''}`;
   let body = '';
-  if (ev.kind === 'payment') body = `تم استلام دفعة بقيمة ${fmt(ev.amount)} ${currency}.`;
+  if (ev.kind === 'payment') body = `تم استلام دفعة بقيمة ${fmt(ev.amount)} ${cur}، عفواً وشكراً لكم.`;
   else if (ev.kind === 'invoice') {
-    body = `قائمة بيع${ev.invoiceNumber ? ' رقم ' + ev.invoiceNumber : ''} بقيمة ${fmt(ev.amount)} ${currency}.`;
-    if (ev.paid) body += `\nالمسدد: ${fmt(ev.paid)} ${currency}.`;
-    if (ev.extraPaid) body += `\nزيادة مسددة خُصمت من الدين القديم: ${fmt(ev.extraPaid)} ${currency}.`;
+    body = `قائمة البيع${ev.invoiceNumber ? ' رقم ' + ev.invoiceNumber : ''} بقيمة ${fmt(ev.amount)} ${cur}.`;
+    if (ev.paid) body += `\nالمسدد: ${fmt(ev.paid)} ${cur}.`;
+    if (ev.extraPaid) body += `\nزيادة مسددة خُصمت من الدين القديم: ${fmt(ev.extraPaid)} ${cur}.`;
   } else if (ev.kind === 'notice') body = 'نذكّركم بحسابكم لدينا.';
-  else body = `تم تسجيل حركة على حسابكم بقيمة ${fmt(ev.amount)} ${currency}.`;
+  else body = `تم تسجيل حركة على حسابكم بقيمة ${fmt(ev.amount)} ${cur}.`;
   const debtLine = ev.newDebt > 0
-    ? `إجمالي الدين الحالي: ${fmt(ev.newDebt)} ${currency}.`
-    : ev.newDebt < 0 ? `لكم رصيد: ${fmt(-ev.newDebt)} ${currency}.` : 'لا يوجد دين مستحق عليكم.';
-  return `${head}\n${body}\n${debtLine}\nشكراً لتعاملكم معنا.`;
+    ? `إجمالي الدين: ${fmt(ev.newDebt)} ${cur}.`
+    : ev.newDebt < 0 ? `لكم رصيد: ${fmt(-ev.newDebt)} ${cur}.` : 'لا يوجد دين مستحق عليكم.';
+  return `${head}\n\n${body}\n${debtLine}\n\nشكراً لتعاملكم معنا 🌹`;
 }
 
 export function buildStatementText(c: Customer, invoices: Invoice[], payments: PaymentRecord[], storeName: string, currency: string): string {
@@ -54,6 +59,51 @@ export function buildStatementText(c: Customer, invoices: Invoice[], payments: P
 }
 
 /** كشف حساب PDF (يُرسم في عنصر مخفي ثم يُلتقط كصورة داخل PDF لدعم العربية) */
+async function elementToPdf(el: HTMLElement): Promise<string> {
+  document.body.appendChild(el);
+  try {
+    const dataUrl = await toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+    const img = new Image();
+    img.src = dataUrl;
+    await new Promise((r) => { img.onload = r; });
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const w = 200;
+    const h = (img.naturalHeight * w) / img.naturalWidth;
+    const pageH = 287;
+    let y = 5, left = h;
+    pdf.addImage(dataUrl, 'PNG', 5, y, w, h, undefined, 'FAST');
+    left -= pageH;
+    while (left > 0) { pdf.addPage(); y -= pageH; pdf.addImage(dataUrl, 'PNG', 5, y, w, h, undefined, 'FAST'); left -= pageH; }
+    return pdf.output('datauristring').split(',')[1];
+  } finally {
+    el.remove();
+  }
+}
+
+/** PDF لقائمة البيع نفسها (مواد، مجموع، مسدد، دين) مع توقيع البرنامج */
+export async function buildInvoicePdf(inv: any, c: Customer, storeName: string, currency: string, prevDebt: number, newDebt: number): Promise<{ base64: string; fileName: string }> {
+  const cur = curName(currency);
+  const td = 'padding:5px 8px;border:1px solid #ccc';
+  const rows = (inv.items || []).map((it: any) =>
+    `<tr><td style="${td}">${it.productName || it.name || ''}${it.packLabel ? ' (' + it.packLabel + ')' : ''}</td><td style="${td};text-align:center">${fmt(it.quantity)}</td><td style="${td};text-align:left">${fmt(it.unitPrice)}</td><td style="${td};text-align:left">${fmt(it.total)}</td></tr>`).join('');
+  const el = document.createElement('div');
+  el.setAttribute('dir', 'rtl');
+  el.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff;color:#000;font-family:Tajawal,Arial,sans-serif;padding:24px;font-size:14px';
+  el.innerHTML = `<h2 style="margin:0 0 4px">${storeName}</h2>
+    <h3 style="margin:0 0 4px">قائمة بيع رقم ${inv.invoiceNumber}</h3>
+    <div style="margin-bottom:10px">الزبون: <b>${c.name}</b> &nbsp;|&nbsp; التاريخ: ${String(inv.date || '').slice(0, 10)}</div>
+    <table style="width:100%;border-collapse:collapse"><thead><tr style="background:#eee"><th style="${td}">المادة</th><th style="${td}">الكمية</th><th style="${td}">السعر</th><th style="${td}">المجموع</th></tr></thead><tbody>${rows}</tbody></table>
+    <div style="margin-top:12px;line-height:1.9">
+      ${inv.discount ? `<div>الخصم: ${fmt(inv.discount)} ${cur}</div>` : ''}
+      <div>مجموع القائمة: <b>${fmt(inv.total)} ${cur}</b></div>
+      <div>المسدد: ${fmt(inv.paidAmount || 0)} ${cur}</div>
+      <div>الدين القديم: ${fmt(prevDebt)} ${cur}</div>
+      <div style="font-size:16px">إجمالي الدين: <b>${fmt(newDebt)} ${cur}</b></div>
+    </div>
+    <div style="margin-top:18px;text-align:center;font-size:11px;color:#6b7280">✦ صدرت هذه القائمة من برنامج المفكر المحاسبي ✦</div>`;
+  return { base64: await elementToPdf(el), fileName: `invoice-${inv.invoiceNumber}.pdf` };
+}
+
 export async function buildStatementPdf(c: Customer, invoices: Invoice[], payments: PaymentRecord[], storeName: string, currency: string): Promise<{ base64: string; fileName: string }> {
   const rows: { d: string; t: string; debit: number; credit: number }[] = [];
   invoices.filter(i => i.customerId === c.id).forEach(i =>
@@ -68,7 +118,7 @@ export async function buildStatementPdf(c: Customer, invoices: Invoice[], paymen
   el.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff;color:#000;font-family:Tajawal,Arial,sans-serif;padding:24px;font-size:14px';
   el.innerHTML = `<h2 style="margin:0 0 4px">${storeName}</h2><h3 style="margin:0 0 12px">كشف حساب الزبون: ${c.name}</h3>
     <div style="margin-bottom:12px;font-weight:bold">الدين الحالي: ${fmt(c.totalDebt)} ${currency}</div>
-    <table style="width:100%;border-collapse:collapse"><thead><tr style="background:#eee"><th style="padding:5px 8px;border:1px solid #ccc">التاريخ</th><th style="padding:5px 8px;border:1px solid #ccc">البيان</th><th style="padding:5px 8px;border:1px solid #ccc">دين</th><th style="padding:5px 8px;border:1px solid #ccc">مسدد</th></tr></thead><tbody>${body}</tbody></table>`;
+    <table style="width:100%;border-collapse:collapse"><thead><tr style="background:#eee"><th style="padding:5px 8px;border:1px solid #ccc">التاريخ</th><th style="padding:5px 8px;border:1px solid #ccc">البيان</th><th style="padding:5px 8px;border:1px solid #ccc">دين</th><th style="padding:5px 8px;border:1px solid #ccc">مسدد</th></tr></thead><tbody>${body}</tbody></table><div style="margin-top:18px;text-align:center;font-size:11px;color:#6b7280">✦ صدرت هذه القائمة من برنامج المفكر المحاسبي ✦</div>`;
   document.body.appendChild(el);
   try {
     const dataUrl = await toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });

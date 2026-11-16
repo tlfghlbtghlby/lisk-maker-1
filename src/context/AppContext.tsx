@@ -49,6 +49,7 @@ import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/
 import { netUnitPrice } from '../utils/promotions';
 import { reconcileBatches, addBatch } from '../utils/expiry';
 import { applyThemeCustom } from '../utils/themeCustom';
+import { setAutoContrast } from '../utils/autoContrast';
 
 export interface StockChangeInput {
   id: string;
@@ -814,6 +815,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch {}
     }
   }, [settings?.themeCustom]);
+
+  useEffect(() => {
+    try {
+      if (typeof settings?.autoContrast === 'boolean' && localStorage.getItem('mufakir_auto_contrast') === null) setAutoContrast(settings.autoContrast);
+    } catch {}
+  }, [settings?.autoContrast]);
 
   const toggleTheme = () => {
     setTheme(prev => {
@@ -2380,7 +2387,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (debtCustomer && (remainingAmount > 0 || extraPaid > 0)) {
       try {
-        window.dispatchEvent(new CustomEvent('wa-debt', { detail: { customerId: debtCustomer.id, kind: 'invoice', amount: total, newDebt: previousDebt + remainingAmount - extraPaid, invoiceNumber: String(invoiceNumberNew), paid: paidAmount, extraPaid } }));
+        window.dispatchEvent(new CustomEvent('wa-debt', { detail: { customerId: debtCustomer.id, kind: 'invoice', amount: total, newDebt: previousDebt + remainingAmount - extraPaid, invoiceNumber: String(invoiceNumberNew), paid: paidAmount, extraPaid, invoice: newInv, prevDebt: previousDebt } }));
       } catch {}
     }
 

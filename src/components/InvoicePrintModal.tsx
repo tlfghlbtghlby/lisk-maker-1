@@ -14,6 +14,7 @@ import {
   PackageMinus,
   Sparkles
 } from 'lucide-react';
+import PromoFooter from './PromoFooter';
 import { toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -882,6 +883,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     <div>توقيع المستلم: .....................</div>
                     <div>توقيع البائع: .....................</div>
                   </div>
+                  <PromoFooter />
                 </div>
               )}
 
@@ -925,6 +927,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                       {settings.invoiceFooterNote}
                     </div>
                   )}
+                  <PromoFooter />
                 </div>
               )}
             </div>

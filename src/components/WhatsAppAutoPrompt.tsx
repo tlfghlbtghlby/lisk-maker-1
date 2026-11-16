@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { buildDebtMessage, buildStatementPdf, DebtEvent, normalizeWaPhone, sendViaWhatsApp } from '../utils/whatsapp';
+import { buildDebtMessage, buildInvoicePdf, buildStatementPdf, DebtEvent, normalizeWaPhone, sendViaWhatsApp } from '../utils/whatsapp';
 
 interface Item { id: number; name: string; phone: string; text: string }
 
@@ -23,9 +23,13 @@ export const WhatsAppAutoPrompt: React.FC = () => {
         (async () => {
           try {
             let pdf;
-            if (settings.waAutoAttachPdf === true) {
+            if (settings.waAttachPdf !== false) {
               const fresh = { ...c, totalDebt: ev.newDebt };
-              pdf = await buildStatementPdf(fresh, invoices, payments, settings.storeName || '', settings.currency || 'د.ع');
+              if (ev.kind === 'invoice' && ev.invoice) {
+                pdf = await buildInvoicePdf(ev.invoice, fresh, settings.storeName || '', settings.currency || 'د.ع', ev.prevDebt ?? 0, ev.newDebt);
+              } else {
+                pdf = await buildStatementPdf(fresh, invoices, payments, settings.storeName || '', settings.currency || 'د.ع');
+              }
             }
             await sendViaWhatsApp(phone, text, pdf, opts);
           } catch { /* ignore */ }
@@ -36,7 +40,7 @@ export const WhatsAppAutoPrompt: React.FC = () => {
     };
     window.addEventListener('wa-debt', onEv);
     return () => window.removeEventListener('wa-debt', onEv);
-  }, [customers, settings.storeName, settings.currency, settings.waTarget, settings.waAutoOpen, settings.waAutoPaste, settings.waAutoAttachPdf, invoices, payments]);
+  }, [customers, settings.storeName, settings.currency, settings.waTarget, settings.waAutoOpen, settings.waAutoPaste, settings.waAttachPdf, invoices, payments]);
 
   if (items.length === 0) return null;
   const drop = (id: number) => setItems((p) => p.filter((i) => i.id !== id));

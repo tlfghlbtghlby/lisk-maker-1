@@ -574,7 +574,7 @@ export interface StoreSettings {
   /** واتساب: لصق ملف PDF تلقائياً في المحادثة بعد فتحها (ويندوز) */
   waAutoPaste?: boolean;
   /** واتساب: إرفاق كشف الحساب PDF تلقائياً عند الفتح التلقائي بعد حركة دين */
-  waAutoAttachPdf?: boolean;
+  waAttachPdf?: boolean;
   /** حاسبة الباقي (F5): اختيار فئات النقود المستلمة لمعرفة الباقي للزبون. مفعّلة افتراضياً */
   enableChangeCalculator?: boolean;
   /** أقسام/تصنيفات المواد التي أضافها المستخدم يدوياً */
@@ -641,6 +641,7 @@ export interface StoreSettings {
   defaultShowRepOnInvoice?: boolean;
   repCommissionDefaultType?: 'percentage_profit' | 'percentage_sales' | 'fixed_per_invoice' | 'fixed_per_piece';
   theme?: 'light' | 'dark';
+  autoContrast?: boolean;
   themeCustom?: import('./utils/themeCustom').ThemeCustom;
   enableShifts?: boolean;
   enableCustomerPriceChecker?: boolean;
