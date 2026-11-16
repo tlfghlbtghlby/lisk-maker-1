@@ -4,6 +4,7 @@
 !macro customHeader
   !include "nsDialogs.nsh"
   !include "LogicLib.nsh"
+  !ifndef BUILD_UNINSTALLER
   Var scDlg
   Var scShown
   Var scMain
@@ -14,6 +15,7 @@
   Var scDbt
   Var scRep
   Var scSet
+  !endif
 !macroend
 
 !macro customPageAfterChangeDir
