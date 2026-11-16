@@ -19,6 +19,7 @@
 !macroend
 
 !macro customPageAfterChangeDir
+  !ifndef BUILD_UNINSTALLER
   Function ShortcutsPageCreate
     nsDialogs::Create 1018
     Pop $scDlg
@@ -103,9 +104,11 @@
   FunctionEnd
 
   Page custom ShortcutsPageCreate ShortcutsPageLeave
+  !endif
 !macroend
 
 !macro customInstall
+  !ifndef BUILD_UNINSTALLER
   ; إذا لم تظهر الصفحة (تثبيت صامت/تحديث تلقائي) يُنشأ الاختصار الرئيسي فقط كما كان
   ${If} $scShown != "1"
     CreateShortcut "$DESKTOP\${PRODUCT_FILENAME}.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0
@@ -135,6 +138,7 @@
       CreateShortcut "$DESKTOP\ الإعدادات.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--open-route=settings" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0 "" "" "تشغيل شاشة الإعدادات العامة مباشرة"
     ${EndIf}
   ${EndIf}
+  !endif
 !macroend
 
 !macro customUnInstall
