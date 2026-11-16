@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { isAndroidApp } from '../utils/platform';
 import { shiftDate, daysUntil, reconcileBatches, addBatch, ShelfUnit } from '../utils/expiry';
 import { generateInternalBarcode } from '../utils/barcodeGen';
 import { useApp } from '../context/AppContext';
@@ -686,6 +687,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     <span>الباركود / كود المادة</span>
                   </span>
                   <div className="flex items-center gap-1">
+                    {isAndroidApp() && (
                     <button
                       type="button"
                       onClick={() => setIsScannerOpen(true)}
@@ -695,6 +697,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       <Camera className="w-3 h-3" />
                       <span>كاميرا</span>
                     </button>
+                    )}
                     <button
                       type="button"
                       onClick={generateUniqueBarcode}
