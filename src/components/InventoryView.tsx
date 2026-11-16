@@ -1,4 +1,5 @@
 import { StockAdjustModal } from './StockAdjustModal';
+import { isAndroidApp } from '../utils/androidOnly';
 import { AiScanModal } from './AiScanModal';
 import { Sparkles as SparklesIcon } from 'lucide-react';
 import React, { useState, useMemo, useEffect } from 'react';
@@ -301,6 +302,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               )}
             </div>
 
+            {isAndroidApp() && (
             <button
               type="button"
               onClick={() => setIsScannerOpen(true)}
@@ -310,6 +312,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
               <Scan className="w-4 h-4 text-emerald-600" />
               <span className="hidden sm:inline">مسح باركود</span>
             </button>
+            )}
           </div>
 
           {/* Action buttons */}

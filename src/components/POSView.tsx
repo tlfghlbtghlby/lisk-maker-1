@@ -1,4 +1,5 @@
 import ReturnItemsModal from './ReturnItemsModal';
+import { isAndroidApp } from '../utils/androidOnly';
 import { isOverlayOpen } from '../utils/modalKeyGuard';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { dozenName } from '../utils/packLabel';
@@ -29,6 +30,7 @@ import {
   Scan,
   UserPlus,
   Pencil,
+  AlignJustify,
   Box,
   Save,
   X,
@@ -270,15 +272,15 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
   const [showChangeCalc, setShowChangeCalc] = useState(false);
   
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+  const [viewMode, setViewMode] = useState<'grid' | 'list' | 'strips'>(() => {
     try {
       const saved = localStorage.getItem('pos_products_view_mode');
-      if (saved === 'list' || saved === 'grid') return saved;
+      if (saved === 'list' || saved === 'grid' || saved === 'strips') return saved;
     } catch (e) {}
     return 'grid';
   });
 
-  const handleViewModeChange = (mode: 'grid' | 'list') => {
+  const handleViewModeChange = (mode: 'grid' | 'list' | 'strips') => {
     setViewMode(mode);
     try {
       localStorage.setItem('pos_products_view_mode', mode);
@@ -1684,7 +1686,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       <div
         ref={splitWrapRef}
         className={isMobileMode ? 'flex flex-col gap-4' : (isLgScreen ? 'grid gap-0' : 'grid grid-cols-12 gap-3')}
-        style={!isMobileMode && isLgScreen ? { gridTemplateColumns: `minmax(0,1fr) 12px ${cartWidth ? cartWidth + 'px' : (viewMode === 'grid' ? '33%' : '41%')}` } : undefined}
+        style={!isMobileMode && isLgScreen ? { gridTemplateColumns: `minmax(0,1fr) 12px ${cartWidth ? cartWidth + 'px' : (viewMode === 'list' ? '41%' : '33%')}` } : undefined}
       >
         {(!isMobileMode || mobileTab === 'products') && (
           <div className={`${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} flex flex-col gap-3 min-w-0`}>
@@ -1778,8 +1780,23 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     <List className="w-3.5 h-3.5" />
                     <span className="hidden sm:inline">قائمة</span>
                   </button>
+                  <button
+                    type="button"
+                    data-testid="view-strips"
+                    onClick={() => handleViewModeChange('strips')}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      viewMode === 'strips'
+                        ? 'bg-white text-emerald-800 shadow-xs border border-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                    title="عرض المواد كأشرطة مضغوطة: اسم + تعديل + المتوفر + التكلفة + السعر (يتسع لمواد أكثر)"
+                  >
+                    <AlignJustify className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">أشرطة</span>
+                  </button>
                 </div>
 
+                {isAndroidApp() && (
                 <button
                   type="button"
                   onClick={() => setIsScannerOpen(true)}
@@ -1789,6 +1806,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   <Scan className="w-4 h-4" />
                   <span className="hidden md:inline">مسح باركود</span>
                 </button>
+                )}
 
                 <button
                   type="button"
@@ -1984,6 +2002,50 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
                   <p className="text-sm font-semibold text-slate-700">لا توجد مواد تطابق البحث</p>
                   <p className="text-xs text-slate-400 mt-1">تأكد من كتابة الاسم بدقة</p>
+                </div>
+              ) : viewMode === 'strips' ? (
+                <div className="flex flex-col gap-1" data-testid="strips-list">
+                  {visibleProducts.map((prod, pIdx) => {
+                    const stripOut = prod.stock <= 0;
+                    const stripPrice = (tieredMode ? resolveFor(prod, globalPriceType) : prod.retailPrice) ?? 0;
+                    const ppc = prod.piecesPerCarton && prod.piecesPerCarton > 1 ? prod.piecesPerCarton : 0;
+                    const cartons = ppc ? Math.floor(prod.stock / ppc) : 0;
+                    const rest = ppc ? Math.round((prod.stock - cartons * ppc) * 1000) / 1000 : prod.stock;
+                    return (
+                      <div
+                        key={`${prod.id}_${pIdx}`}
+                        data-kb-index={pIdx}
+                        onClick={() => handleProductClick(prod)}
+                        onContextMenu={(e) => { e.preventDefault(); setGiftMenu({ x: e.clientX, y: e.clientY, product: prod }); }}
+                        className={`bg-white rounded-lg border px-2.5 py-1.5 flex items-center gap-2 text-right cursor-pointer select-none transition ${
+                          kbMode && kbZone === 'list' && pIdx === kbIndex ? 'ring-2 ring-emerald-500 border-emerald-500 ' : ''
+                        }${stripOut ? 'border-rose-300 bg-rose-50/30 hover:border-rose-500' : 'border-slate-200 hover:border-emerald-500'}`}
+                      >
+                        <div className="flex-1 min-w-0 text-[13px] sm:text-sm font-black text-slate-900 truncate" title={prod.name}>{prod.name}</div>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); onEditProduct(prod); }}
+                          className="shrink-0 w-7 h-7 rounded-md bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-700 flex items-center justify-center cursor-pointer"
+                          title="تعديل المادة"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <div className={`shrink-0 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-md border ${stripOut ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-emerald-50 text-emerald-800 border-emerald-200'}`} title="المتوفر">
+                          {ppc
+                            ? <>{cartons} كرتون{rest ? <> + {rest} {prod.unit}</> : null}</>
+                            : <>{prod.stock} {prod.unit}</>}
+                        </div>
+                        {canViewCost && (
+                          <div className="shrink-0 hidden sm:block text-[11px] font-bold text-slate-500 font-mono" title="سعر التكلفة (الشراء)">
+                            تكلفة {formatMoney(prod.costPrice || 0)}
+                          </div>
+                        )}
+                        <div className="shrink-0 text-xs sm:text-sm font-black text-emerald-700 font-mono min-w-[64px] text-left" title="سعر البيع">
+                          {formatMoney(stripPrice)}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : viewMode === 'grid' ? (
                 <div
