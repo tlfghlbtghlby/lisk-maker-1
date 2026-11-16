@@ -4,7 +4,6 @@
 !macro customHeader
   !include "nsDialogs.nsh"
   !include "LogicLib.nsh"
-  Var scDlg
   Var scShown
   Var scMain
   Var scPos
@@ -19,8 +18,8 @@
 !macro customPageAfterChangeDir
   Function ShortcutsPageCreate
     nsDialogs::Create 1018
-    Pop $scDlg
-    ${If} $scDlg == error
+    Pop $0
+    ${If} $0 == error
       Abort
     ${EndIf}
     StrCpy $scShown "1"
@@ -104,8 +103,6 @@
 !macroend
 
 !macro customInstall
-  ; مرجع إضافي للمتغير كي لا يُعدّه NSIS غير مستعمل (تحذير 6001 يُعامل كخطأ) في مرحلة تجميع برنامج الإزالة
-  StrCpy $scDlg ""
   ; إذا لم تظهر الصفحة (تثبيت صامت/تحديث تلقائي) يُنشأ الاختصار الرئيسي فقط كما كان
   ${If} $scShown != "1"
     CreateShortcut "$DESKTOP\${PRODUCT_FILENAME}.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0
