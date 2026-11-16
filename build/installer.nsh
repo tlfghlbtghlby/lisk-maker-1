@@ -4,7 +4,6 @@
 !macro customHeader
   !include "nsDialogs.nsh"
   !include "LogicLib.nsh"
-  !ifndef BUILD_UNINSTALLER
   Var scDlg
   Var scShown
   Var scMain
@@ -15,11 +14,9 @@
   Var scDbt
   Var scRep
   Var scSet
-  !endif
 !macroend
 
 !macro customPageAfterChangeDir
-  !ifndef BUILD_UNINSTALLER
   Function ShortcutsPageCreate
     nsDialogs::Create 1018
     Pop $scDlg
@@ -104,11 +101,11 @@
   FunctionEnd
 
   Page custom ShortcutsPageCreate ShortcutsPageLeave
-  !endif
 !macroend
 
 !macro customInstall
-  !ifndef BUILD_UNINSTALLER
+  ; مرجع إضافي للمتغير كي لا يُعدّه NSIS غير مستعمل (تحذير 6001 يُعامل كخطأ) في مرحلة تجميع برنامج الإزالة
+  StrCpy $scDlg ""
   ; إذا لم تظهر الصفحة (تثبيت صامت/تحديث تلقائي) يُنشأ الاختصار الرئيسي فقط كما كان
   ${If} $scShown != "1"
     CreateShortcut "$DESKTOP\${PRODUCT_FILENAME}.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0
@@ -138,7 +135,6 @@
       CreateShortcut "$DESKTOP\ الإعدادات.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--open-route=settings" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0 "" "" "تشغيل شاشة الإعدادات العامة مباشرة"
     ${EndIf}
   ${EndIf}
-  !endif
 !macroend
 
 !macro customUnInstall
