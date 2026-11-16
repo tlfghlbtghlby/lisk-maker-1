@@ -1,5 +1,5 @@
 import { StockAdjustModal } from './StockAdjustModal';
-import { isAndroidApp } from '../utils/platform';
+import { isAndroidApp } from '../utils/androidOnly';
 import { AiScanModal } from './AiScanModal';
 import { Sparkles as SparklesIcon } from 'lucide-react';
 import React, { useState, useMemo, useEffect } from 'react';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { isAndroidApp } from '../utils/platform';
+import { isAndroidApp } from '../utils/androidOnly';
 import { shiftDate, daysUntil, reconcileBatches, addBatch, ShelfUnit } from '../utils/expiry';
 import { generateInternalBarcode } from '../utils/barcodeGen';
 import { useApp } from '../context/AppContext';

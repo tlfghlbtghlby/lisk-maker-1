@@ -1,5 +1,5 @@
 import ReturnItemsModal from './ReturnItemsModal';
-import { isAndroidApp } from '../utils/platform';
+import { isAndroidApp } from '../utils/androidOnly';
 import { isOverlayOpen } from '../utils/modalKeyGuard';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { dozenName } from '../utils/packLabel';
