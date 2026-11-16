@@ -308,7 +308,24 @@ ipcMain.handle('product-image-list', () => {
 });
 
 // إرسال القائمة PDF عبر واتساب (ويندوز): حفظ الملف مؤقتاً، نسخه للحافظة كملف، وفتح محادثة واتساب ليلصقه المستخدم (Ctrl+V)
-ipcMain.handle('whatsapp-send-pdf', async (event, { base64, fileName, phone, text } = {}) => {
+// فتح محادثة واتساب: target='app' (تطبيق ويندوز) أو 'web' (واتساب ويب في المتصفح)
+async function openWhatsAppChat(num, text, target) {
+  const q = text ? `text=${encodeURIComponent(String(text))}` : '';
+  if (target === 'web') {
+    const url = num ? `https://web.whatsapp.com/send?phone=${num}${q ? '&' + q : ''}` : 'https://web.whatsapp.com/';
+    await shell.openExternal(url);
+    return true;
+  }
+  try {
+    await shell.openExternal(num ? `whatsapp://send?phone=${num}${q ? '&' + q : ''}` : `whatsapp://send${q ? '?' + q : ''}`);
+    return true;
+  } catch (e) {
+    await shell.openExternal(num ? `https://wa.me/${num}${q ? '?' + q : ''}` : 'https://web.whatsapp.com/');
+    return true;
+  }
+}
+
+ipcMain.handle('whatsapp-send-pdf', async (event, { base64, fileName, phone, text, target, autoPaste } = {}) => {
   try {
     if (!base64) return { success: false, error: 'no data' };
     const dir = path.join(os.tmpdir(), 'mufakkir-share');
@@ -327,33 +344,27 @@ ipcMain.handle('whatsapp-send-pdf', async (event, { base64, fileName, phone, tex
 
     const num = String(phone || '').replace(/[^0-9]/g, '');
     let opened = false;
-    try {
-      const q = text ? `text=${encodeURIComponent(String(text))}` : '';
-      await shell.openExternal(num ? `whatsapp://send?phone=${num}${q ? '&' + q : ''}` : `whatsapp://send${q ? '?' + q : ''}`);
-      opened = true;
-    } catch (e) {
-      try {
-        const q2 = text ? `?text=${encodeURIComponent(String(text))}` : '';
-        await shell.openExternal(num ? `https://wa.me/${num}${q2}` : 'https://web.whatsapp.com/');
-        opened = true;
-      } catch (e2) {}
+    try { opened = await openWhatsAppChat(num, text, target); } catch (e) {}
+
+    // لصق الملف تلقائياً في المحادثة (يظهر جاهزاً للإرسال؛ لا نضغط «إرسال» نيابة عنك)
+    let pasted = false;
+    if (opened && copied && autoPaste !== false && process.platform === 'win32') {
+      await new Promise((r) => setTimeout(r, target === 'web' ? 6000 : 3500));
+      pasted = await new Promise((resolve) => {
+        exec(`powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"`, { windowsHide: true }, (err) => resolve(!err));
+      });
     }
-    return { success: true, copied, opened, filePath };
+    return { success: true, copied, opened, pasted, filePath };
   } catch (e) {
     return { success: false, error: e && e.message };
   }
 });
 
-// فتح محادثة واتساب لرقم معيّن بنص جاهز (بنقرة «إرسال» واحدة من المستخدم)
-ipcMain.handle('whatsapp-open-chat', async (event, { phone, text } = {}) => {
+// فتح محادثة واتساب لرقم معيّن بنص جاهز
+ipcMain.handle('whatsapp-open-chat', async (event, { phone, text, target } = {}) => {
   try {
     const num = String(phone || '').replace(/[^0-9]/g, '');
-    const q = text ? `text=${encodeURIComponent(String(text))}` : '';
-    try {
-      await shell.openExternal(num ? `whatsapp://send?phone=${num}${q ? '&' + q : ''}` : `whatsapp://send${q ? '?' + q : ''}`);
-    } catch (e) {
-      await shell.openExternal(num ? `https://wa.me/${num}${q ? '?' + q : ''}` : 'https://web.whatsapp.com/');
-    }
+    await openWhatsAppChat(num, text, target);
     return { success: true };
   } catch (e) {
     return { success: false, error: e && e.message };

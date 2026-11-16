@@ -101,20 +101,22 @@ export interface WaResult { ok: boolean; note: string }
  * يفتح محادثة واتساب للرقم بالنص جاهزاً. واتساب لا يتيح الإرسال الصامت عبر التطبيق المثبّت،
  * لذا يلزم ضغط «إرسال» داخل واتساب (ومع ملف PDF: لصقه Ctrl+V).
  */
-export async function sendViaWhatsApp(phoneRaw: string, text: string, pdf?: { base64: string; fileName: string }): Promise<WaResult> {
+export interface WaOpts { target?: 'app' | 'web'; autoPaste?: boolean }
+
+export async function sendViaWhatsApp(phoneRaw: string, text: string, pdf?: { base64: string; fileName: string }, opts: WaOpts = {}): Promise<WaResult> {
   const phone = normalizeWaPhone(phoneRaw);
   if (!phone) return { ok: false, note: 'لا يوجد رقم واتساب للزبون' };
   const e = (window as any).electronAPI;
   try {
     if (pdf && e?.whatsappSendPdf) {
-      const r = await e.whatsappSendPdf({ base64: pdf.base64, fileName: pdf.fileName, phone, text });
-      if (r?.success) return { ok: true, note: r.copied ? 'فُتحت محادثة واتساب والنص جاهز، وملف PDF منسوخ: اضغط Ctrl+V في المحادثة ثم إرسال' : 'فُتحت محادثة واتساب؛ أرفق ملف PDF من المجلد المفتوح ثم أرسل' };
+      const r = await e.whatsappSendPdf({ base64: pdf.base64, fileName: pdf.fileName, phone, text, target: opts.target, autoPaste: opts.autoPaste });
+      if (r?.success) return { ok: true, note: r.pasted ? 'فُتحت المحادثة وأُلصق ملف PDF جاهزاً: راجع واضغط «إرسال»' : r.copied ? 'فُتحت محادثة واتساب والنص جاهز، وملف PDF منسوخ: اضغط Ctrl+V في المحادثة ثم إرسال' : 'فُتحت محادثة واتساب؛ أرفق ملف PDF من المجلد المفتوح ثم أرسل' };
     }
     if (!pdf && e?.whatsappOpenChat) {
-      const r = await e.whatsappOpenChat({ phone, text });
+      const r = await e.whatsappOpenChat({ phone, text, target: opts.target });
       if (r?.success) return { ok: true, note: 'فُتحت محادثة واتساب والنص جاهز: اضغط «إرسال»' };
     }
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+    window.open(opts.target === 'web' ? `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}` : `https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
     return { ok: true, note: 'فُتحت محادثة واتساب والنص جاهز: اضغط «إرسال»' };
   } catch (err: any) {
     return { ok: false, note: 'تعذر فتح واتساب: ' + (err?.message || '') };

@@ -270,6 +270,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [posKeyboardMode, setPosKeyboardMode] = useState<boolean>(settings.posKeyboardMode === true);
   const [unfoundBarcodeInline, setUnfoundBarcodeInline] = useState<boolean>(settings.unfoundBarcodeInline === true);
   const [showLastCustomerPrice, setShowLastCustomerPrice] = useState<boolean>(settings.showLastCustomerPrice === true);
+  const [waTarget, setWaTarget] = useState<'app' | 'web'>(settings.waTarget === 'web' ? 'web' : 'app');
+  const [waAutoOpen, setWaAutoOpen] = useState<boolean>(settings.waAutoOpen !== false);
+  const [waAutoPaste, setWaAutoPaste] = useState<boolean>(settings.waAutoPaste !== false);
+  const [waAutoAttachPdf, setWaAutoAttachPdf] = useState<boolean>(settings.waAutoAttachPdf === true);
   const [enableChangeCalculator, setEnableChangeCalculator] = useState<boolean>(settings.enableChangeCalculator !== false);
   const [posClassicCart, setPosClassicCart] = useState<boolean>(settings.posClassicCart === true);
   const [separateCartonPieces, setSeparateCartonPieces] = useState<boolean>(settings.separateCartonPieces === true);
@@ -461,6 +465,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setPosKeyboardMode(settings.posKeyboardMode === true);
       setUnfoundBarcodeInline(settings.unfoundBarcodeInline === true);
       setShowLastCustomerPrice(settings.showLastCustomerPrice === true);
+      setWaTarget(settings.waTarget === 'web' ? 'web' : 'app');
+      setWaAutoOpen(settings.waAutoOpen !== false);
+      setWaAutoPaste(settings.waAutoPaste !== false);
+      setWaAutoAttachPdf(settings.waAutoAttachPdf === true);
       setEnableChangeCalculator(settings.enableChangeCalculator !== false);
       setPosClassicCart(settings.posClassicCart === true);
       setSeparateCartonPieces(settings.separateCartonPieces === true);
@@ -570,6 +578,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       posKeyboardMode,
       unfoundBarcodeInline,
       showLastCustomerPrice,
+      waTarget,
+      waAutoOpen,
+      waAutoPaste,
+      waAutoAttachPdf,
       enableChangeCalculator,
       posClassicCart,
       separateCartonPieces,
@@ -1930,6 +1942,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>
+            <div className="p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 space-y-2.5">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">💬 واتساب الزبائن</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] text-slate-600 dark:text-slate-300">الفتح عبر:</span>
+                <select value={waTarget} onChange={(e) => setWaTarget(e.target.value as 'app' | 'web')}
+                  className="bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 dark:text-white">
+                  <option value="app">تطبيق واتساب (ويندوز / الهاتف)</option>
+                  <option value="web">واتساب ويب (المتصفح)</option>
+                </select>
+              </div>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={waAutoOpen} onChange={(e) => setWaAutoOpen(e.target.checked)} className="mt-0.5 w-4 h-4 rounded text-emerald-600" />
+                <span className="text-[11px] text-slate-600 dark:text-slate-300">عند تسجيل أي حركة دين لزبون فُعّل له «رسالة تلقائية»، افتح محادثته في واتساب مباشرة والرسالة جاهزة (وإلا يظهر إشعار صغير للاختيار).</span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={waAutoAttachPdf} onChange={(e) => setWaAutoAttachPdf(e.target.checked)} className="mt-0.5 w-4 h-4 rounded text-emerald-600" />
+                <span className="text-[11px] text-slate-600 dark:text-slate-300">أرفق كشف الحساب PDF تلقائياً مع الرسالة عند الفتح التلقائي بعد حركة الدين.</span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={waAutoPaste} onChange={(e) => setWaAutoPaste(e.target.checked)} className="mt-0.5 w-4 h-4 rounded text-emerald-600" />
+                <span className="text-[11px] text-slate-600 dark:text-slate-300">ألصق ملف PDF تلقائياً داخل المحادثة بعد فتحها (ويندوز). لا يُضغط «إرسال» نيابةً عنك.</span>
+              </label>
+            </div>
             <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
               <div>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">إظهار آخر سعر بيع للزبون</span>
