@@ -377,7 +377,7 @@ const MainContent: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen flex flex-col bg-slate-100 dark:bg-[#070d18] text-slate-800 dark:text-slate-100 transition-colors duration-200 print:min-h-0 print:h-auto print:block print:bg-white ${isMobile ? 'selection:bg-amber-500' : 'selection:bg-amber-500 selection:text-slate-950'}`}>
+    <div className={`app-root min-h-screen flex flex-col bg-slate-100 dark:bg-[#070d18] text-slate-800 dark:text-slate-100 transition-colors duration-200 print:min-h-0 print:h-auto print:block print:bg-white ${isMobile ? 'selection:bg-amber-500' : 'selection:bg-amber-500 selection:text-slate-950'}`}>
       
       {/* 1. الشريط الأسود العلوي (يختفي تماماً في أي نافذة منفصلة لأي خانة) */}
       {!isStandaloneWindow && !isAndroidNative && (
