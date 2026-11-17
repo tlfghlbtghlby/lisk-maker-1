@@ -132,6 +132,7 @@ interface AppContextType {
     invoicesCount: number;
     totalSales: number;
     totalPaid: number;
+    debtCollected: number;
     totalRemaining: number;
     totalCost: number;
     totalProfit: number;
@@ -2364,7 +2365,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         invoicesCount: (activeShift.invoicesCount || 0) + 1,
         invoicesIds: [...(activeShift.invoicesIds || []), newId],
         totalSales: (activeShift.totalSales || 0) + total,
-        totalPaid: (activeShift.totalPaid || 0) + paidAmount + extraPaid,
+        totalPaid: (activeShift.totalPaid || 0) + paidAmount,
         totalRemaining: (activeShift.totalRemaining || 0) + remainingAmount,
         totalCost: (activeShift.totalCost || 0) + totalCost,
         totalProfit: (activeShift.totalProfit || 0) + (total - totalCost),
@@ -3411,10 +3412,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     });
 
+    // الدين المستلم (تسديدات الزبائن + الزيادة المدفوعة عند البيع): نقد داخل الشفت لكنه ليس من المبيعات
+    const sStart = new Date(shift.startTime).getTime();
+    const sEnd = shift.endTime ? new Date(shift.endTime).getTime() : Date.now();
+    let debtCollected = 0;
+    (payments || []).forEach(pm => {
+      const t = new Date(pm.date).getTime();
+      if (t >= sStart && t <= sEnd) debtCollected += Number(pm.amount) || 0;
+    });
+    shiftInvoices.forEach(inv => { if (inv.status !== 'returned') debtCollected += Number((inv as any).extraPaid) || 0; });
+
     return {
       invoicesCount: shiftInvoices.filter(i => i.status !== 'returned').length,
       totalSales,
       totalPaid,
+      debtCollected,
       totalRemaining,
       totalCost,
       totalProfit,
@@ -3600,6 +3612,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       invoicesIds: stats.invoices.map(i => i.id),
       totalSales: stats.totalSales,
       totalPaid: stats.totalPaid,
+      debtCollected: stats.debtCollected,
       totalRemaining: stats.totalRemaining,
       totalCost: stats.totalCost,
       totalProfit: stats.totalProfit,

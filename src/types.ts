@@ -338,6 +338,8 @@ export interface Shift {
   totalSales: number;
   totalPaid: number;
   totalRemaining: number;
+  /** الدين المستلم خلال الشفت (تسديدات + زيادة مدفوعة) — ليس من المبيعات */
+  debtCollected?: number;
   totalCost: number;
   totalProfit: number;
   itemsSold: ShiftItemSold[];
