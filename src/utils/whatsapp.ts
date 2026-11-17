@@ -62,7 +62,9 @@ export function buildStatementText(c: Customer, invoices: Invoice[], payments: P
 async function elementToPdf(el: HTMLElement): Promise<string> {
   document.body.appendChild(el);
   try {
-    const dataUrl = await toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+    try { await (document as any).fonts?.ready; } catch { /* ignore */ }
+    // العنصر مخفي خارج الشاشة (left:-10000px) فتلتقطه المكتبة فارغاً؛ نلغي موضعه في النسخة الملتقطة فقط
+    const dataUrl = await toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true, style: { position: 'static', left: '0', top: '0' } });
     const img = new Image();
     img.src = dataUrl;
     await new Promise((r) => { img.onload = r; });
@@ -119,30 +121,7 @@ export async function buildStatementPdf(c: Customer, invoices: Invoice[], paymen
   el.innerHTML = `<h2 style="margin:0 0 4px">${storeName}</h2><h3 style="margin:0 0 12px">كشف حساب الزبون: ${c.name}</h3>
     <div style="margin-bottom:12px;font-weight:bold">الدين الحالي: ${fmt(c.totalDebt)} ${currency}</div>
     <table style="width:100%;border-collapse:collapse"><thead><tr style="background:#eee"><th style="padding:5px 8px;border:1px solid #ccc">التاريخ</th><th style="padding:5px 8px;border:1px solid #ccc">البيان</th><th style="padding:5px 8px;border:1px solid #ccc">دين</th><th style="padding:5px 8px;border:1px solid #ccc">مسدد</th></tr></thead><tbody>${body}</tbody></table><div style="margin-top:18px;text-align:center;font-size:11px;color:#6b7280">✦ صدرت هذه القائمة من برنامج المفكر المحاسبي ✦</div>`;
-  document.body.appendChild(el);
-  try {
-    const dataUrl = await toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
-    const img = new Image();
-    img.src = dataUrl;
-    await new Promise((r) => { img.onload = r; });
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const w = 200;
-    const h = (img.naturalHeight * w) / img.naturalWidth;
-    const pageH = 287;
-    let y = 5, left = h;
-    pdf.addImage(dataUrl, 'PNG', 5, y, w, h, undefined, 'FAST');
-    left -= pageH;
-    while (left > 0) {
-      pdf.addPage();
-      y -= pageH;
-      pdf.addImage(dataUrl, 'PNG', 5, y, w, h, undefined, 'FAST');
-      left -= pageH;
-    }
-    const uri = pdf.output('datauristring');
-    return { base64: uri.split(',')[1], fileName: `statement-${c.name.replace(/[\\/:*?"<>|\s]/g, '_')}.pdf` };
-  } finally {
-    el.remove();
-  }
+  return { base64: await elementToPdf(el), fileName: `statement-${c.name.replace(/[\\/:*?"<>|\s]/g, '_')}.pdf` };
 }
 
 export interface WaResult { ok: boolean; note: string }
