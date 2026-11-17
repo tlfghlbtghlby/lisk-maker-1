@@ -96,7 +96,7 @@ export function useNavItems() {
       icon: <Wallet className="w-4 h-4" />,
       badge: (settings.expenses || []).length || undefined,
       badgeColor: 'text-rose-700 bg-rose-50 font-bold',
-      permitted: hasPermission('canViewReports'),
+      permitted: hasPermission('canViewReports') && settings.showExpensesTab !== false,
     },
     {
       id: 'offers',

@@ -590,6 +590,12 @@ export interface StoreSettings {
   expenses?: ExpenseEntry[];
   /** هل تُخصم المصروفات من الأرباح في التقارير (الافتراضي: نعم) */
   expensesAffectProfit?: boolean;
+  /** إظهار خانة المصروفات (الخصومات) في القائمة؛ الافتراضي مفعّل */
+  showExpensesTab?: boolean;
+  /** داخل الخانة: المصروفات اليدوية / الثابتة */
+  expensesShowManual?: boolean;
+  expensesShowFixed?: boolean;
+  fixedExpenses?: FixedExpense[];
   /** أسماء المواد كما تظهر عند الموردين مربوطة بمواد المخزون (قراءة الصور): مفتاح 'معرّف المورد|الاسم المنظَّف' */
   aiScanAliases?: Record<string, string>;
   /** الشكل الكلاسيكي لقائمة البيع في نقطة البيع (جدول بخطوط كالقائمة المطبوعة) */
@@ -758,6 +764,14 @@ export interface Supplier {
   openingDebt?: number;
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface FixedExpense {
+  id: string;
+  name: string;            // مثل: راتب موظف، إيجار المحل
+  amount: number;          // المبلغ لكل دورة
+  cycle: 'monthly' | 'weekly' | 'yearly';
+  note?: string;
 }
 
 export interface ExpenseEntry {
