@@ -167,7 +167,7 @@ const MainContent: React.FC = () => {
         case 'invoices': return hasPermission('canViewInvoices');
         case 'customers': return hasPermission('canViewCustomers');
         case 'reports': return hasPermission('canViewReports');
-        case 'expenses': return hasPermission('canViewReports');
+        case 'expenses': return hasPermission('canViewReports') && settings.showExpensesTab !== false;
         case 'offers': return hasPermission('canAccessInventory');
         case 'sales-reps': return storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps');
         case 'shifts': return storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts');
@@ -556,7 +556,7 @@ const MainContent: React.FC = () => {
           />
         )}
 
-        {activeTab === 'expenses' && hasPermission('canViewReports') && (
+        {activeTab === 'expenses' && hasPermission('canViewReports') && settings.showExpensesTab !== false && (
           <ExpensesView />
         )}
 

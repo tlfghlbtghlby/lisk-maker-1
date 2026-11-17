@@ -4,12 +4,13 @@ import { useApp } from '../context/AppContext';
 import type { ExpenseEntry, Invoice } from '../types';
 import { inPeriod, PeriodFilter, EXPENSE_CATEGORIES } from '../utils/expenses';
 import { newId, todayIso, fmtDate } from '../utils/suppliers';
+import { FixedExpensesView } from './FixedExpensesView';
 
 const inputCls = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white text-slate-900 focus:outline-none focus:border-rose-500';
 const card = 'bg-white border border-slate-200 rounded-2xl shadow-xs';
 
 /** المصروفات: تسجيل كل مصروف (مستلزمات، رواتب، إيجار...) مع خيار خصمها من الأرباح */
-export function ExpensesView() {
+function ManualExpensesView() {
   const { settings, updateSettings, formatMoney, invoices, activeShift, hasPermission } = useApp() as any;
   // حجب سعر التكلفة يحجب الربح تلقائياً
   const showProfit = !!hasPermission?.('canViewCostPrice');
@@ -178,4 +179,27 @@ export function ExpensesView() {
 function localIso(d: string | number | Date): string {
   const x = new Date(d);
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+}
+
+/** خانة المصروفات (الخصومات): يدوية + ثابتة، وكل قسم يُظهَر/يُخفى من الإعدادات */
+export function ExpensesView() {
+  const { settings } = useApp() as any;
+  const showManual = settings.expensesShowManual !== false;
+  const showFixed = settings.expensesShowFixed !== false;
+  const [sec, setSec] = useState<'manual' | 'fixed'>('manual');
+  if (!showManual && !showFixed) {
+    return <div className="p-6 text-center text-sm text-slate-500" dir="rtl">أقسام المصروفات مخفية من الإعدادات.</div>;
+  }
+  const active = showManual && showFixed ? sec : (showManual ? 'manual' : 'fixed');
+  return (
+    <div className="space-y-3" dir="rtl">
+      {showManual && showFixed && (
+        <div className="flex gap-2">
+          <button type="button" data-testid="exp-tab-manual" onClick={() => setSec('manual')} className={`flex-1 py-2.5 rounded-xl text-sm font-black cursor-pointer ${active === 'manual' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'}`}>خصومات يدوية</button>
+          <button type="button" data-testid="exp-tab-fixed" onClick={() => setSec('fixed')} className={`flex-1 py-2.5 rounded-xl text-sm font-black cursor-pointer ${active === 'fixed' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'}`}>خصومات ثابتة</button>
+        </div>
+      )}
+      {active === 'manual' ? <ManualExpensesView /> : <FixedExpensesView />}
+    </div>
+  );
 }
