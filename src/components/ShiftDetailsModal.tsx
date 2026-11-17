@@ -32,7 +32,7 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
   onClose,
   onViewInvoice 
 }) => {
-  const { invoices, formatMoney, settings, hasPermission, openInvoiceEditor, requestApproval } = useApp();
+  const { invoices, formatMoney, settings, hasPermission, openInvoiceEditor, requestApproval, getShiftStats } = useApp();
   // حجب سعر التكلفة يحجب معه الربح تلقائياً في كل مكان
   const showProfit = hasPermission('canViewCostPrice');
   const [activeTab, setActiveTab] = useState<'items' | 'stats' | 'invoices'>('items');
@@ -113,9 +113,10 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
   const totalPieces = itemsSold.reduce((acc, i) => acc + i.quantity, 0);
   const totalPaid = shift.totalPaid || 0;
   const totalRemaining = shift.totalRemaining || 0;
+  const debtCollected = shift.debtCollected ?? getShiftStats(shift).debtCollected;
   const shiftExpenses = ((settings.expenses || []) as ExpenseEntry[]).filter((e) => e.shiftId === shift.id && e.fromCash !== false);
   const totalExpenses = shiftExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const expectedCash = (shift.startingCash || 0) + totalPaid - totalExpenses;
+  const expectedCash = (shift.startingCash || 0) + totalPaid + debtCollected - totalExpenses;
 
   // احتساب المدة
   const formatDuration = () => {
@@ -534,6 +535,11 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
+                    <span className="text-slate-500">دين مستلم من الزبائن (ليس من المبيعات):</span>
+                    <span className="font-extrabold text-sky-700">+{formatMoney(debtCollected)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
                     <span className="text-slate-500">مصروفات خرجت من الصندوق في الشفت:</span>
                     <span className="font-extrabold text-rose-600">−{formatMoney(totalExpenses)}</span>
                   </div>
@@ -549,14 +555,14 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
                   )}
 
                   <div className="flex items-center justify-between py-1.5 border-b border-slate-50">
-                    <span className="text-slate-500">النقد الحالي المتوقع في الدرج (افتتاحي + مبيعات − مصروفات):</span>
+                    <span className="text-slate-500">النقد الحالي المتوقع في الدرج (افتتاحي + مبيعات + دين مستلم − مصروفات):</span>
                     <span className="font-black text-indigo-950 text-sm">
                       {formatMoney(expectedCash)}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between py-1.5">
-                    <span className="text-slate-500">إجمالي المبيعات الآجلة (ديون في السوق):</span>
+                    <span className="text-slate-500">دين جديد في هذا الشفت (مبيعات آجلة):</span>
                     <span className="font-bold text-amber-700">{formatMoney(totalRemaining)}</span>
                   </div>
                 </div>

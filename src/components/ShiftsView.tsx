@@ -234,6 +234,7 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
         invoicesCount: liveStats.invoicesCount,
         totalSales: liveStats.totalSales,
         totalPaid: liveStats.totalPaid,
+        debtCollected: liveStats.debtCollected,
         totalRemaining: liveStats.totalRemaining,
         totalCost: liveStats.totalCost,
         totalProfit: liveStats.totalProfit,
@@ -687,6 +688,8 @@ export const ShiftsView: React.FC<ShiftsViewProps> = ({ onViewInvoice }) => {
                     <span className="text-[11px] text-slate-400 block">مبيعات الشفت الحالي:</span>
                     <span className="text-base font-black text-white">{formatMoney(activeStats.totalSales)}</span>
                     <span className="text-[10px] text-emerald-400 block mt-0.5">نقد: {formatMoney(activeStats.totalPaid)}</span>
+                    <span className="text-[10px] text-amber-400 block">دين جديد: {formatMoney(activeStats.totalRemaining)}</span>
+                    <span className="text-[10px] text-sky-300 block">دين مستلم: {formatMoney(activeStats.debtCollected)}</span>
                   </div>
 
                   {showProfit && <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
