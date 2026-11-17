@@ -349,9 +349,11 @@ ipcMain.handle('whatsapp-send-pdf', async (event, { base64, fileName, phone, tex
     // لصق الملف تلقائياً في المحادثة (يظهر جاهزاً للإرسال؛ لا نضغط «إرسال» نيابة عنك)
     let pasted = false;
     if (opened && copied && autoPaste !== false && process.platform === 'win32') {
-      await new Promise((r) => setTimeout(r, target === 'web' ? 6000 : 3500));
+      await new Promise((r) => setTimeout(r, target === 'web' ? 7000 : 5000));
+      // نُعيد التركيز لنافذة واتساب أولاً (وإلا ذهب اللصق لنافذة البرنامج نفسه) ثم نلصق
       pasted = await new Promise((resolve) => {
-        exec(`powershell -NoProfile -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"`, { windowsHide: true }, (err) => resolve(!err));
+        const ps = "Add-Type -AssemblyName System.Windows.Forms; $w = New-Object -ComObject WScript.Shell; [void]$w.AppActivate('WhatsApp'); Start-Sleep -Milliseconds 900; [System.Windows.Forms.SendKeys]::SendWait('^v')";
+        exec(`powershell -NoProfile -Command "${ps}"`, { windowsHide: true }, (err) => resolve(!err));
       });
     }
     return { success: true, copied, opened, pasted, filePath };
