@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { lookupProductDetails, LookupPreference } from '../utils/productLookup';
+import { catalogLookup, catalogSearch, CatalogHit, CatalogOffer } from '../utils/productCatalog';
 import { ProductImageModal } from './ProductImageModal';
 import { saveProductImage, removeProductImage, useProductImage, imagesSupported } from '../utils/productImages';
 import { ProductImageField } from './ProductImageField';
@@ -64,6 +65,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   }, [pendingImage]);
   useEffect(() => { if (!isOpen) setPendingImage(null); }, [isOpen]);
   const [name, setName] = useState('');
+  // الكتالوج المشترك: اقتراحات الاسم + العروض المقترحة
+  const [nameHits, setNameHits] = useState<CatalogHit[]>([]);
+  const [nameFocus, setNameFocus] = useState(false);
+  const suppressNameSearch = React.useRef(false);
+  const skipLookupFor = React.useRef('');
+  const [suggestedOffers, setSuggestedOffers] = useState<CatalogOffer[]>([]);
+  const [pickedOffers, setPickedOffers] = useState<number[]>([]);
+  const [offersOpen, setOffersOpen] = useState(false);
+  const [offersRetail, setOffersRetail] = useState(0);
   const [category, setCategory] = useState('عام');
   const [unit, setUnit] = useState('قطعة');
   
@@ -154,17 +164,63 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     setCode(newCode);
   };
 
+  const defaultCarton = Math.max(1, Math.round(Number((settings as any).defaultCartonSize) || 24));
+
+  // تعبئة كل الحقول من مادة الكتالوج المشترك (الاسم، الباركود، التعبئة، التكلفة، البيع، العروض) — قابلة للتعديل
+  const applyCatalog = (hit: CatalogHit) => {
+    const ppc = hit.pieces_per_carton && hit.pieces_per_carton > 1 ? hit.pieces_per_carton : defaultCarton;
+    suppressNameSearch.current = true;
+    skipLookupFor.current = hit.barcode;
+    setPriceCurrency('IQD');
+    setCode(hit.barcode);
+    setName(hit.name);
+    if (hit.category && hit.category !== 'عام') setCategory(hit.category);
+    if (hit.unit) setUnit(hit.unit);
+    setPiecesPerCarton(ppc);
+    const r2 = (n: number) => String(parseFloat(n.toFixed(2)));
+    if (hit.cost_price && hit.cost_price > 0) { setPieceCostInput(String(hit.cost_price)); setCartonCostInput(r2(hit.cost_price * ppc)); }
+    if (hit.retail_price && hit.retail_price > 0) { setPieceRetailInput(String(hit.retail_price)); setCartonRetailInput(r2(hit.retail_price * ppc)); }
+    setOffersRetail(hit.retail_price || 0);
+    setSuggestedOffers(hit.offers || []);
+    setPickedOffers([]);
+    setNameHits([]);
+  };
+
+  // بحث جزئي بالاسم أثناء الكتابة (مادة جديدة فقط)
+  useEffect(() => {
+    if (!isOpen || productToEdit) { setNameHits([]); return; }
+    if (suppressNameSearch.current) { suppressNameSearch.current = false; return; }
+    const q = name.trim();
+    if (q.length < 2) { setNameHits([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const r = await catalogSearch(q, 8);
+      if (!cancelled) setNameHits(r);
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [name, isOpen, productToEdit]);
+
   // البحث التلقائي عن المادة بالباركود
   const triggerAutoLookup = async (barcodeVal: string, pref: LookupPreference = lookupPreference) => {
     const clean = barcodeVal.trim();
     if (!clean || clean.length < 3) return;
     if (productToEdit) return;
+    // الباركود جاء من اختيار اسم في الكتالوج: الحقول مملوءة، فلا نعيد البحث
+    if (skipLookupFor.current === clean) { skipLookupFor.current = ''; return; }
 
     setIsSearchingBarcode(true);
     setNotFoundMessage(null);
     setFoundSuccessSource(null);
 
     try {
+      // أولاً: الكتالوج المشترك بين المتاجر (يجلب الاسم الأطول عند اختلاف الأسماء لنفس الباركود)
+      const hit = await catalogLookup(clean);
+      if (hit) {
+        applyCatalog(hit);
+        setFoundSuccessSource('community');
+        setTimeout(() => setFoundSuccessSource(null), 5000);
+        return;
+      }
       const result = await lookupProductDetails(clean, pref);
       if (result && result.name) {
         setName(result.name);
@@ -248,7 +304,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setCategory('عام');
       setUnit('قطعة');
       
-      setPiecesPerCarton(1);
+      setPiecesPerCarton(defaultCarton);
+      setSuggestedOffers([]);
+      setPickedOffers([]);
+      setNameHits([]);
       setDozenOn(false);
       setScanUnit('piece');
       setPiecesPerDozen(12);
@@ -542,6 +601,24 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       updateProduct(productToEdit.id, productData);
     } else {
       const created = addProduct(productData);
+      if (created?.id && pickedOffers.length) {
+        const nowIso = new Date().toISOString();
+        const promos = pickedOffers.map((i) => suggestedOffers[i]).filter(Boolean).map((o, k) => ({
+          id: `promo_${Date.now()}_${k}`,
+          kind: 'qty_discount' as const,
+          productId: created.id,
+          productName: created.name,
+          active: true,
+          discountType: o.discountType || 'amount',
+          discountScope: o.discountScope || 'total',
+          discountRepeat: o.discountRepeat !== false,
+          discountValue: o.discountValue,
+          buyQty: o.buyQty,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        }));
+        updateSettings({ promotions: [...((settings as any).promotions || []), ...promos] } as any);
+      }
       if (pendingImage && created?.id) {
         saveProductImage(created.id, pendingImage).catch(() => {});
       }
@@ -732,14 +809,40 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                   <span>اسم المادة *</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="مثال: شاي الوزة 400 غرام"
-                  className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    data-testid="product-name-input"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onFocus={() => setNameFocus(true)}
+                    onBlur={() => setTimeout(() => setNameFocus(false), 150)}
+                    placeholder="مثال: شاي الوزة 400 غرام"
+                    autoComplete="off"
+                    className="w-full bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                  />
+                  {!productToEdit && nameFocus && nameHits.length > 0 && (
+                    <div data-testid="name-hits" className="absolute z-30 right-0 left-0 top-full mt-1 max-h-64 overflow-y-auto overscroll-contain rounded-xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-[#0b1728] shadow-xl">
+                      <div className="px-3 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40">من قاعدة المتاجر المشتركة — اختر لملء كل الحقول تلقائياً</div>
+                      {nameHits.map((h) => {
+                        const exists = products.some((p: any) => p.code === h.barcode);
+                        return (
+                          <button
+                            type="button"
+                            key={h.barcode}
+                            disabled={exists}
+                            onMouseDown={(e) => { e.preventDefault(); applyCatalog(h); }}
+                            className="w-full text-right px-3 py-2 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
+                          >
+                            <span className="text-sm font-bold text-slate-900 dark:text-white truncate">{h.name}</span>
+                            <span className="text-[10px] font-mono text-slate-500 shrink-0">{exists ? 'مضافة عندك' : h.barcode}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -849,6 +952,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">
                   {numPieces > 1 ? `كل كرتون = ${numPieces} ${unit}` : 'يباع بالقطعة فقط'}
                 </p>
+                {!productToEdit && suggestedOffers.length > 0 && (
+                  <button
+                    type="button"
+                    data-testid="suggest-offers"
+                    onClick={() => setOffersOpen(true)}
+                    className="w-full mt-1 px-3 py-1.5 rounded-lg bg-gradient-to-l from-fuchsia-600 to-pink-500 text-white text-[11px] font-black cursor-pointer"
+                  >
+                    🏷️ عروض وخصومات مقترحة ({suggestedOffers.length}){pickedOffers.length ? ` — اخترت ${pickedOffers.length}` : ''}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1431,6 +1544,40 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
       {imageModalOpen && productToEdit && (
         <ProductImageModal product={productToEdit} onClose={() => setImageModalOpen(false)} />
+      )}
+      {offersOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-3" dir="rtl" data-testid="offers-panel">
+          <div className="bg-white dark:bg-[#0b1728] rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-xl p-5 space-y-3 max-h-[90vh] overflow-y-auto overscroll-contain">
+            <h4 className="font-black text-base text-slate-900 dark:text-white">🏷️ عروض وخصومات مقترحة لـ «{name}»</h4>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">عروض تطبّقها متاجر أخرى على هذه المادة. اضغط على ما يعجبك (يمكن اختيار أكثر من عرض)، وتُضاف عند حفظ المادة.</p>
+            <div className="grid grid-cols-2 gap-2">
+              {suggestedOffers.map((o, i) => {
+                const on = pickedOffers.includes(i);
+                const total = offersRetail > 0 && o.discountType !== 'percent' ? o.buyQty * offersRetail - (o.discountScope === 'per_piece' ? o.discountValue * o.buyQty : o.discountValue) : null;
+                return (
+                  <button
+                    type="button"
+                    key={i}
+                    data-testid={`offer-card-${i}`}
+                    onClick={() => setPickedOffers((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]))}
+                    className={`p-3 rounded-xl border-2 text-right cursor-pointer transition ${on ? 'border-fuchsia-500 bg-fuchsia-50 dark:bg-fuchsia-950/30' : 'border-slate-200 dark:border-slate-700 hover:border-fuchsia-300'}`}
+                  >
+                    <div className="text-sm font-black text-slate-900 dark:text-white">{o.buyQty} قطع{total !== null ? ` بـ ${formatMoney(total)}` : ''}</div>
+                    <div className="text-[11px] text-slate-600 dark:text-slate-300">
+                      {o.discountType === 'percent' ? `خصم ${o.discountValue}%` : `خصم ${formatMoney(o.discountValue)}${o.discountScope === 'per_piece' ? ' لكل قطعة' : ''}`}{o.discountRepeat !== false ? ' لكل مجموعة' : ''}
+                    </div>
+                    {!!o.stores && <div className="text-[10px] text-slate-400 mt-0.5">تطبّقه {o.stores} متجر</div>}
+                    {on && <div className="text-[10px] font-black text-fuchsia-700 mt-1">✓ مختار</div>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" data-testid="offers-cancel" onClick={() => { setPickedOffers([]); setOffersOpen(false); }} className="px-4 py-2 rounded-lg bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer">إلغاء</button>
+              <button type="button" data-testid="offers-ok" onClick={() => setOffersOpen(false)} className="px-4 py-2 rounded-lg bg-fuchsia-600 text-white text-xs font-black cursor-pointer">اعتماد المحدد</button>
+            </div>
+          </div>
+        </div>
       )}
       <BarcodeScannerModal
         isOpen={isScannerOpen}

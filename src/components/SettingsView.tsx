@@ -81,6 +81,7 @@ import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { buildCheckerUrl, CHECKER_LEVEL_LABELS, STOCK_COLOR_DEFAULTS } from '../utils/checkerLinks';
 import ThemeCustomizer from './ThemeCustomizer';
 import ExpensesSettingsCard from './ExpensesSettingsCard';
+import DefaultCartonSetting from './DefaultCartonSetting';
 import AutoContrastToggle from './AutoContrastToggle';
 import PermissionSubsetEditor from './PermissionSubsetEditor';
 
@@ -1298,6 +1299,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <AutoContrastToggle />
           <ThemeCustomizer />
           <ExpensesSettingsCard />
+          <DefaultCartonSetting />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

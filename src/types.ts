@@ -650,6 +650,8 @@ export interface StoreSettings {
   repCommissionDefaultType?: 'percentage_profit' | 'percentage_sales' | 'fixed_per_invoice' | 'fixed_per_piece';
   theme?: 'light' | 'dark';
   autoContrast?: boolean;
+  /** تعبئة الكرتون الافتراضية للمواد الجديدة (الافتراضي 24) */
+  defaultCartonSize?: number;
   themeCustom?: import('./utils/themeCustom').ThemeCustom;
   enableShifts?: boolean;
   enableCustomerPriceChecker?: boolean;
