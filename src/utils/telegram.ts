@@ -35,8 +35,12 @@ export const tgNotify = (p: {
   storeUid: string; secret: string; text?: string; customerId?: string; customerText?: string; repId?: string; repText?: string;
 }) => call({ action: 'notify', ...p });
 
+export const tgDocument = (p: { storeUid: string; secret: string; filename: string; caption: string; dataB64: string }) =>
+  call({ action: 'document', ...p });
+
 export const describeTelegramError = (e: any): string => {
   const m = String(e?.message || '');
+  if (m === 'too_large') return 'حجم النسخة أكبر من المسموح للإرسال.';
   if (m === 'forbidden') return 'رُفض الطلب: سرّ المتجر لا يطابق المسجّل. أعد إنشاء الرمز.';
   if (m === 'code_taken') return 'الرمز مستخدم، أعد المحاولة.';
   if (m === 'bot_token_not_configured') return 'لم يُضبط توكن البوت في Supabase بعد (راجع ملف الإعداد).';
