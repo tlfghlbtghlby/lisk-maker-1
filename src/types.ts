@@ -652,6 +652,8 @@ export interface StoreSettings {
   repCommissionDefaultType?: 'percentage_profit' | 'percentage_sales' | 'fixed_per_invoice' | 'fixed_per_piece';
   theme?: 'light' | 'dark';
   autoContrast?: boolean;
+  /** الوضع العصري: تنسيق شامل للواجهات (طبقة CSS) */
+  modernMode?: boolean;
   /** تعبئة الكرتون الافتراضية للمواد الجديدة (الافتراضي 24) */
   defaultCartonSize?: number;
   themeCustom?: import('./utils/themeCustom').ThemeCustom;

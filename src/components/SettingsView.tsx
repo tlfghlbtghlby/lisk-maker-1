@@ -83,6 +83,7 @@ import ThemeCustomizer from './ThemeCustomizer';
 import ExpensesSettingsCard from './ExpensesSettingsCard';
 import DefaultCartonSetting from './DefaultCartonSetting';
 import AutoContrastToggle from './AutoContrastToggle';
+import ModernModeToggle from './ModernModeToggle';
 import PermissionSubsetEditor from './PermissionSubsetEditor';
 
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
@@ -1296,6 +1297,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
+          <ModernModeToggle />
           <AutoContrastToggle />
           <ThemeCustomizer />
           <ExpensesSettingsCard />
