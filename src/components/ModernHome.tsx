@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { TabType } from './Navigation';
+import { TabContextMenu } from './TabContextMenu';
 
 interface Tile {
   id: TabType;
@@ -19,6 +20,7 @@ interface Tile {
 // الشاشة الرئيسية للوضع العصري: مربعات كبيرة بأيقونات ملوّنة (كلها مضمَّنة في البرنامج).
 export default function ModernHome({ onSelectTab }: { onSelectTab: (tab: TabType) => void }) {
   const { products, customers, settings, hasPermission, storeFeatures, activeShift } = useApp() as any;
+  const [menu, setMenu] = useState<{ x: number; y: number; tile: Tile } | null>(null);
   const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
 
   useEffect(() => {
@@ -58,6 +60,7 @@ export default function ModernHome({ onSelectTab }: { onSelectTab: (tab: TabType
             type="button"
             data-testid={`home-tile-${t.id}`}
             onClick={() => onSelectTab(t.id)}
+            onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, tile: t }); }}
             className="relative group text-center bg-white dark:bg-[#0b1728] rounded-3xl border border-orange-200 dark:border-orange-400/25 px-3 py-5 sm:py-6 cursor-pointer hover:-translate-y-1 transition-transform"
           >
             {t.badge && <span className={`absolute top-2.5 left-2.5 text-[10px] font-bold text-white px-2 py-0.5 rounded-full ${t.badgeTone || 'bg-orange-500'}`}>{t.badge}</span>}
@@ -69,6 +72,18 @@ export default function ModernHome({ onSelectTab }: { onSelectTab: (tab: TabType
           </button>
         ))}
       </div>
+
+      {menu && (
+        <TabContextMenu
+          x={menu.x}
+          y={menu.y}
+          tabId={menu.tile.id}
+          tabLabel={menu.tile.label}
+          tabIcon={menu.tile.icon}
+          onClose={() => setMenu(null)}
+          onSelectTab={(tab) => { setMenu(null); onSelectTab(tab); }}
+        />
+      )}
 
       <div className="flex items-center justify-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400">
         {online ? <Wifi className="w-3.5 h-3.5 text-emerald-500" /> : <WifiOff className="w-3.5 h-3.5 text-rose-500" />}

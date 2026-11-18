@@ -26,13 +26,16 @@ import { ShiftHeaderButton } from './ShiftHeaderButton';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { APP_ICON_URL } from '../utils/assetUrl';
 import { useModernMode } from '../utils/modernMode';
+import ModernClock from './ModernClock';
 
 interface HeaderProps {
   onOpenSettings?: () => void;
   onOpenAuth?: () => void;
+  /** الوضع العصري داخل قسم: شريط نحيف (وقت + شفت + جلسة) */
+  compact?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
+export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
   const { 
     products, 
     invoices, 
@@ -69,6 +72,32 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
 
   const isMobile = settings.deviceMode === 'mobile';
   const modern = useModernMode();
+
+  // الوضع العصري داخل أي قسم: شريط نحيف فيه الوقت والشفت والجلسة فقط
+  if (modern && compact) {
+    return (
+      <header className="no-print bg-[#091528] dark:bg-[#060e1d] text-white border-b border-slate-800 dark:border-amber-500/20 shadow-md" data-testid="compact-header">
+        <div className={`${isMobile ? 'max-w-2xl px-2.5 sm:px-4' : 'max-w-[1650px] px-3 sm:px-6'} w-full mx-auto py-2 flex items-center justify-between gap-2 flex-wrap`}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <SessionBadgeButton />
+            <ShiftHeaderButton />
+            <button
+              type="button"
+              onClick={() => setIsActiveSessionsModalOpen(true)}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer whitespace-nowrap"
+              title="إدارة الأجهزة والجلسات المتصلة"
+            >
+              <Cpu className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span className="hidden sm:inline">الجلسات</span>
+              <span className="text-[10px] px-1.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/30">{deviceSessions.length}</span>
+            </button>
+          </div>
+          <ModernClock variant="inline" />
+        </div>
+        <ActiveSessionsModal isOpen={isActiveSessionsModalOpen} onClose={() => setIsActiveSessionsModalOpen(false)} />
+      </header>
+    );
+  }
 
   return (
     <header className="no-print bg-[#091528] dark:bg-[#060e1d] text-white border-b border-slate-800 dark:border-amber-500/20 shadow-md">
