@@ -398,7 +398,7 @@ const MainContent: React.FC = () => {
       )}
 
       {/* 2. شريط التبويبات العلوي (يختفي تماماً في أي نافذة منفصلة لأي خانة) */}
-      {!isStandaloneWindow && !isFullComputerMode && !isAndroidNative && (
+      {!isStandaloneWindow && !isFullComputerMode && !isAndroidNative && !modern && (
         <Navigation activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
       )}
 
@@ -421,7 +421,23 @@ const MainContent: React.FC = () => {
             ? 'max-w-2xl px-2.5 sm:px-4 py-3 sm:py-4' 
             : 'max-w-[1650px] px-3 sm:px-6 py-3 sm:py-4'
       }`} style={isAndroidNative && !isStandaloneWindow ? { paddingBottom: 'calc(84px + env(safe-area-inset-bottom))' } : undefined}>
-        {!isStandaloneWindow && isFullComputerMode && activeTab !== 'pos' && (
+        {modern && !isStandaloneWindow && activeTab !== 'home' && (
+          <div data-testid="modern-back-bar" className="no-print flex items-center gap-3 mb-3">
+            <button
+              type="button"
+              data-testid="modern-back"
+              onClick={() => setActiveTab('home')}
+              aria-label="الرجوع إلى الرئيسية"
+              title="الرجوع إلى الرئيسية"
+              className="w-10 h-10 rounded-2xl bg-white dark:bg-[#0b1728] border border-orange-300 dark:border-orange-400/40 text-orange-600 dark:text-orange-300 flex items-center justify-center shadow-sm cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-500/10 transition"
+            >
+              <ArrowRight className="w-5 h-5" />
+            </button>
+            <span className="text-sm font-black text-slate-800 dark:text-white">{activeTab === 'pos' ? 'نقطة البيع' : getActiveTabTitle()}</span>
+          </div>
+        )}
+
+        {!isStandaloneWindow && isFullComputerMode && !modern && activeTab !== 'pos' && (
           <div className="bg-slate-900 text-white px-4 py-2.5 rounded-xl flex items-center justify-between mb-4 shadow-sm border border-slate-800">
             <div className="flex items-center gap-2 text-xs font-bold">
               <span className="text-slate-400">أنت تتصفح حالياً:</span>
@@ -438,7 +454,7 @@ const MainContent: React.FC = () => {
           </div>
         )}
 
-        {!isStandaloneWindow && isFullComputerMode && activeTab === 'pos' && (
+        {!isStandaloneWindow && isFullComputerMode && !modern && activeTab === 'pos' && (
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3 bg-white dark:bg-[#0b1728] p-2 sm:px-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs text-xs transition-colors">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-blue-900 dark:text-amber-300 bg-blue-50 dark:bg-amber-950/60 border border-blue-200 dark:border-amber-500/40 px-2 py-0.5 rounded-md flex items-center gap-1">
