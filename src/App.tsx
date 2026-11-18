@@ -3,6 +3,9 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import WhatsAppAutoPrompt from './components/WhatsAppAutoPrompt';
 import { Navigation, TabType } from './components/Navigation';
+import ModernHome from './components/ModernHome';
+import ModernDock from './components/ModernDock';
+import { isModernMode, useModernMode } from './utils/modernMode';
 import { POSView } from './components/POSView';
 import { InventoryView } from './components/InventoryView';
 import { InvoicesView } from './components/InvoicesView';
@@ -78,8 +81,10 @@ const MainContent: React.FC = () => {
         if (hash.includes('pos') || openRoute === 'pos') return 'pos';
       }
     }
-    return 'pos'; // الافتراضي للنافذة الكاملة
+    return isModernMode() ? 'home' : 'pos'; // الافتراضي للنافذة الكاملة (الرئيسية في الوضع العصري)
   });
+  const modern = useModernMode();
+  useEffect(() => { if (!modern && activeTab === 'home') setActiveTab('pos'); }, [modern, activeTab]);
 
   // 3. الاستماع لتغييرات المسار من Electron إذا تم تشغيل اختصار من سطح المكتب أو Hash
   useEffect(() => {
@@ -363,6 +368,7 @@ const MainContent: React.FC = () => {
 
   const getActiveTabTitle = () => {
     switch (activeTab) {
+      case 'home': return 'الرئيسية';
       case 'inventory': return 'جدول المخزون الكامل';
       case 'suppliers': return 'الموردون ومندوبو الشركات';
       case 'expenses': return 'المصروفات';
@@ -536,6 +542,10 @@ const MainContent: React.FC = () => {
           </div>
         )}
 
+        {activeTab === 'home' && modern && (
+          <ModernHome onSelectTab={(tab) => setActiveTab(tab)} />
+        )}
+
         {activeTab === 'pos' && (
           <POSView 
             onInvoiceCreated={handleInvoiceCreated}
@@ -601,6 +611,7 @@ const MainContent: React.FC = () => {
           <div className="bg-slate-800 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg">اضغط رجوع مرة أخرى للخروج</div>
         </div>
       )}
+      {modern && !isStandaloneWindow && !isAndroidNative && <ModernDock activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />}
 
       <ProductModal
         isOpen={isProductModalOpen}

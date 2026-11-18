@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock, Tag,
-  LayoutGrid, RefreshCw, Cloud, WifiOff, UserCircle2, Truck, Wallet,
+  Home, LayoutGrid, RefreshCw, Cloud, WifiOff, UserCircle2, Truck, Wallet,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { TabType, useNavItems } from './Navigation';
@@ -11,6 +11,7 @@ import { Header } from './Header';
 // تُستخدم فقط داخل تطبيق الأندرويد (انظر App.tsx).
 
 const ICONS: Record<TabType, React.ComponentType<{ className?: string }>> = {
+  home: Home,
   pos: ShoppingCart,
   inventory: Boxes,
   suppliers: Truck,
@@ -25,6 +26,7 @@ const ICONS: Record<TabType, React.ComponentType<{ className?: string }>> = {
 };
 
 const SHORT: Record<TabType, string> = {
+  home: 'الرئيسية',
   pos: 'البيع',
   inventory: 'المواد',
   suppliers: 'الموردون',
