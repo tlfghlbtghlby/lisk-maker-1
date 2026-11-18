@@ -84,6 +84,7 @@ import ExpensesSettingsCard from './ExpensesSettingsCard';
 import DefaultCartonSetting from './DefaultCartonSetting';
 import AutoContrastToggle from './AutoContrastToggle';
 import ModernModeToggle from './ModernModeToggle';
+import QuickCreditSetting from './QuickCreditSetting';
 import PermissionSubsetEditor from './PermissionSubsetEditor';
 
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
@@ -1302,6 +1303,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <ThemeCustomizer />
           <ExpensesSettingsCard />
           <DefaultCartonSetting />
+          <QuickCreditSetting />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
