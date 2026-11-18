@@ -51,6 +51,7 @@ import { isAndroidPhone } from '../utils/platform';
 import { reconcileBatches, addBatch } from '../utils/expiry';
 import { applyThemeCustom } from '../utils/themeCustom';
 import { setAutoContrast } from '../utils/autoContrast';
+import { setModernMode } from '../utils/modernMode';
 
 export interface StockChangeInput {
   id: string;
@@ -830,6 +831,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (typeof settings?.autoContrast === 'boolean' && localStorage.getItem('mufakir_auto_contrast') === null) setAutoContrast(settings.autoContrast);
     } catch {}
   }, [settings?.autoContrast]);
+
+  useEffect(() => {
+    try {
+      if (typeof settings?.modernMode === 'boolean' && localStorage.getItem('mufakir_modern') === null) setModernMode(settings.modernMode);
+    } catch {}
+  }, [settings?.modernMode]);
 
   const toggleTheme = () => {
     setTheme(prev => {
