@@ -102,6 +102,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [piecesPerCarton, setPiecesPerCarton] = useState<number | ''>(1);
   const [scanUnit, setScanUnit] = useState<'piece' | 'dozen' | 'carton'>('piece');
   const [clickUnit, setClickUnit] = useState<'piece' | 'dozen' | 'carton'>('piece');
+  const [scanAsPieces, setScanAsPieces] = useState(false);
+  const [clickAsPieces, setClickAsPieces] = useState(false);
   const [dozenOn, setDozenOn] = useState(false);
   const [dozenLabel, setDozenLabel] = useState('درزن');
   const [piecesPerDozen, setPiecesPerDozen] = useState<number | ''>(12);
@@ -269,6 +271,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setDozenLabel((productToEdit.dozenLabel || '').trim() || 'درزن');
       setScanUnit(productToEdit.scanUnit || 'piece');
       setClickUnit(productToEdit.clickUnit || productToEdit.scanUnit || 'piece');
+      setScanAsPieces(productToEdit.scanAsPieces === true);
+      setClickAsPieces(productToEdit.clickAsPieces === true);
       setPiecesPerDozen((productToEdit.piecesPerDozen || 0) > 1 ? productToEdit.piecesPerDozen! : 12);
 
       const isUsd = productToEdit.priceCurrency === 'USD' && !!productToEdit.usdPrices;
@@ -600,6 +604,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       piecesPerCarton: numPieces,
       scanUnit: (!isWeighted && ((scanUnit === 'dozen' && dozenOn) || (scanUnit === 'carton' && numPieces > 1))) ? scanUnit : 'piece',
       clickUnit: (!isWeighted && ((clickUnit === 'dozen' && dozenOn) || (clickUnit === 'carton' && numPieces > 1))) ? clickUnit : 'piece',
+      scanAsPieces: scanAsPieces && scanUnit !== 'piece' ? true : undefined,
+      clickAsPieces: clickAsPieces && clickUnit !== 'piece' ? true : undefined,
       dozenLabel: dozenOn && !isWeighted && dozenLabel.trim() && dozenLabel.trim() !== 'درزن' ? dozenLabel.trim() : undefined,
       piecesPerDozen: dozenOn && !isWeighted && typeof piecesPerDozen === 'number' && piecesPerDozen > 1 ? piecesPerDozen : 0,
       isWeighted,
@@ -1085,6 +1091,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   {dozenOn && <option value="dozen">{dozenLabel.trim() || 'درزن'}</option>}
                   {numPieces > 1 && <option value="carton">كرتون</option>}
                 </select>
+                {clickUnit !== 'piece' && (
+                  <select
+                    data-testid="click-as"
+                    value={clickAsPieces ? 'pieces' : 'unit'}
+                    onChange={(e) => setClickAsPieces(e.target.value === 'pieces')}
+                    className="bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="unit">كوحدة واحدة ({clickUnit === 'carton' ? 'كرتون' : (dozenLabel.trim() || 'درزن')})</option>
+                    <option value="pieces">كعدد قطع ({clickUnit === 'carton' ? numPieces : (piecesPerDozen || 12)} قطعة)</option>
+                  </select>
+                )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200">عند مسح الباركود تُضاف بوحدة:</span>
@@ -1097,6 +1114,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   {dozenOn && <option value="dozen">{dozenLabel.trim() || 'درزن'}</option>}
                   {numPieces > 1 && <option value="carton">كرتون</option>}
                 </select>
+                {scanUnit !== 'piece' && (
+                  <select
+                    data-testid="scan-as"
+                    value={scanAsPieces ? 'pieces' : 'unit'}
+                    onChange={(e) => setScanAsPieces(e.target.value === 'pieces')}
+                    className="bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="unit">كوحدة واحدة ({scanUnit === 'carton' ? 'كرتون' : (dozenLabel.trim() || 'درزن')})</option>
+                    <option value="pieces">كعدد قطع ({scanUnit === 'carton' ? numPieces : (piecesPerDozen || 12)} قطعة)</option>
+                  </select>
+                )}
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">تُضاف بها المادة أول مرة، ويمكنك تغيير الوحدة لاحقاً من أزرار السطر.</span>
               </div>
               </div>
