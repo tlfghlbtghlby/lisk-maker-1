@@ -25,6 +25,8 @@ import { SessionBadgeButton } from './SessionBadgeButton';
 import { ShiftHeaderButton } from './ShiftHeaderButton';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { APP_ICON_URL } from '../utils/assetUrl';
+import ModernClock from './ModernClock';
+import { useModernMode } from '../utils/modernMode';
 
 interface HeaderProps {
   onOpenSettings?: () => void;
@@ -67,6 +69,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
 
   const isMobile = settings.deviceMode === 'mobile';
+  const modern = useModernMode();
 
   return (
     <header className="no-print bg-[#091528] dark:bg-[#060e1d] text-white border-b border-slate-800 dark:border-amber-500/20 shadow-md">
@@ -120,6 +123,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
               </div>
             )}
           </div>
+
+          {modern && <ModernClock />}
 
           {/* Left Side: أزرار التحكم كاملة الكلمات بدون أي قص أو نقاط */}
           <div className="flex flex-wrap items-center gap-2">
@@ -315,7 +320,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
         <div className="flex items-center gap-2.5 overflow-x-auto pb-1 scrollbar-none text-xs pt-1 border-t border-slate-800/80">
           
           {/* Today Sales */}
-          <div className="bg-slate-800/90 border border-slate-700/70 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shrink-0 whitespace-nowrap">
+          <div data-m-stat="sales" className="bg-slate-800/90 border border-slate-700/70 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shrink-0 whitespace-nowrap">
             <div className="w-6 h-6 rounded-md bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
               <ShoppingBag className="w-3.5 h-3.5" />
             </div>
@@ -327,7 +332,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
 
           {/* Today Profit (للأدمن والمصرح لهم فقط) */}
           {hasPermission('canViewCostPrice') && hasPermission('canViewReports') && (
-            <div className="bg-slate-800/90 border border-slate-700/70 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shrink-0 whitespace-nowrap">
+            <div data-m-stat="profit" className="bg-slate-800/90 border border-slate-700/70 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shrink-0 whitespace-nowrap">
               <div className="w-6 h-6 rounded-md bg-blue-500/20 text-blue-400 flex items-center justify-center">
                 <TrendingUp className="w-3.5 h-3.5" />
               </div>
@@ -340,7 +345,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
 
           {/* Total Market Debt (للأدمن والمشرف) */}
           {hasPermission('canViewCustomers') && (
-            <div className="bg-slate-800/90 border border-slate-700/70 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shrink-0 whitespace-nowrap">
+            <div data-m-stat="debt" className="bg-slate-800/90 border border-slate-700/70 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shrink-0 whitespace-nowrap">
               <div className="w-6 h-6 rounded-md bg-amber-500/20 text-amber-400 flex items-center justify-center">
                 <CreditCard className="w-3.5 h-3.5" />
               </div>
@@ -351,9 +356,21 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
             </div>
           )}
 
+          {modern && (
+            <div data-m-stat="items" className="bg-slate-800/90 border border-slate-700/70 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shrink-0 whitespace-nowrap">
+              <div className="w-6 h-6 rounded-md bg-violet-500/20 text-violet-400 flex items-center justify-center">
+                <ShoppingBag className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="text-slate-400 text-[10px] block">عدد المواد</span>
+                <span className="font-bold text-white text-xs">{products.length}</span>
+              </div>
+            </div>
+          )}
+
           {/* Low Stock Warning */}
           {lowStockCount > 0 && (
-            <div className="bg-rose-950/50 border border-rose-800/60 rounded-lg px-3 py-1.5 flex items-center gap-2 text-rose-200 shrink-0 whitespace-nowrap">
+            <div data-m-stat="low" className="bg-rose-950/50 border border-rose-800/60 rounded-lg px-3 py-1.5 flex items-center gap-2 text-rose-200 shrink-0 whitespace-nowrap">
               <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
               <span className="text-xs font-bold">{lowStockCount} مواد قاربت على النفاد بالمخزن</span>
             </div>
