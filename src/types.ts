@@ -53,6 +53,9 @@ export interface Product {
   scanUnit?: 'piece' | 'dozen' | 'carton';
   /** وحدة البيع عند الضغط على المادة بالفأرة/اللمس؛ إن لم تُحدد تتبع وحدة المسح (توافق مع المواد القديمة) */
   clickUnit?: 'piece' | 'dozen' | 'carton';
+  /** عند المسح/الضغط بوحدة كرتون أو فئة وسطية: تُضاف كعدد قطع (مثلاً 12 قطعة) بدل وحدة واحدة */
+  scanAsPieces?: boolean;
+  clickAsPieces?: boolean;
   minStock: number;
   isWeighted?: boolean;
   itemCount?: number;

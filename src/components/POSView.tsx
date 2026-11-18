@@ -652,6 +652,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     const weighted = Boolean(prod.isWeighted || prod.unit === 'كغم' || prod.unit === 'كيلو');
     const dz = !weighted && (prod.piecesPerDozen || 0) > 1;
     const ok = !weighted && ((su === 'dozen' && dz) || (su === 'carton' && (prod.piecesPerCarton || 1) > 1));
+    const asPieces = via === 'click' ? (prod.clickAsPieces ?? false) : (prod.scanAsPieces ?? false);
+    if (ok && su && asPieces && resolveFor(prod, globalPriceType) !== null) {
+      // كعدد قطع: كرتون = N قطعة تُضاف قطعاً منفردة لا كرتوناً واحداً
+      const n = su === 'dozen' ? Math.floor(prod.piecesPerDozen || 1) : Math.floor(prod.piecesPerCarton || 1);
+      addToCartWithPrice(prod, globalPriceType, n);
+      return `${su === 'dozen' ? dozenName(prod) : 'كرتون'} = ${n} قطعة`;
+    }
     if (ok && su && resolveFor(prod, globalPriceType) !== null) {
       quickQtyArmedRef.current = null;
       addEntryLine(prod, su, 1);
@@ -3881,7 +3888,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           <div
             className="absolute bg-white border border-slate-300 rounded-xl shadow-2xl py-1 min-w-[190px] text-right"
             style={{
-              top: Math.min(giftMenu.y, window.innerHeight - 90),
+              top: Math.min(giftMenu.y, window.innerHeight - 170),
               left: Math.min(giftMenu.x, window.innerWidth - 210),
             }}
             dir="rtl"
@@ -3900,6 +3907,26 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
             >
               <span>🎁</span>
               <span>إضافة إلى القائمة كهدية (0 {settings.currency})</span>
+            </button>
+            {onEditProduct && (
+              <button
+                type="button"
+                data-testid="ctx-edit-product"
+                onClick={() => { const pr = giftMenu.product; setGiftMenu(null); onEditProduct(pr); }}
+                className="w-full text-right px-3 py-2 text-xs font-bold text-slate-800 hover:bg-amber-50 hover:text-amber-800 transition flex items-center gap-2"
+              >
+                <span>✏️</span>
+                <span>تعديل المادة</span>
+              </button>
+            )}
+            <button
+              type="button"
+              data-testid="ctx-edit-price"
+              onClick={() => { const pr = giftMenu.product; setGiftMenu(null); handleOpenPriceEdit(pr); }}
+              className="w-full text-right px-3 py-2 text-xs font-bold text-slate-800 hover:bg-sky-50 hover:text-sky-800 transition flex items-center gap-2"
+            >
+              <span>🏷️</span>
+              <span>تعديل أسعار المادة</span>
             </button>
           </div>
         </div>
