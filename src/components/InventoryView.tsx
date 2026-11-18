@@ -95,7 +95,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         const matchSearch =
           !q ||
           prod.name.toLowerCase().includes(q) ||
-          prod.code.toLowerCase().includes(q) ||
+          (prod.code || '').toLowerCase().includes(q) ||
+          (prod.extraCodes || []).some((c) => c.toLowerCase().includes(q)) ||
           (prod.category || '').toLowerCase().includes(q);
 
         let matchStock = true;

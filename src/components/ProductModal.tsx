@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { lookupProductDetails, LookupPreference } from '../utils/productLookup';
+import { allCodes, productsByCode } from '../utils/productCodes';
 import { catalogLookup, catalogSearch, CatalogHit, CatalogOffer } from '../utils/productCatalog';
 import { ProductImageModal } from './ProductImageModal';
 import { saveProductImage, removeProductImage, useProductImage, imagesSupported } from '../utils/productImages';
@@ -51,6 +52,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const { addProduct, updateProduct, products, formatMoney, settings, updateSettings, hasPermission, priceTypeOn } = useApp();
 
   const [code, setCode] = useState('');
+  const [extraCodes, setExtraCodes] = useState<string[]>([]);
+  const [extraInput, setExtraInput] = useState('');
+  const [allowDupCode, setAllowDupCode] = useState(false);
+  const [catPick, setCatPick] = useState<string | null>(null);
+  useEffect(() => { setAllowDupCode(false); }, [code, extraCodes]);
   // الصورة: للمادة الموجودة تُفتح نافذة الصور، وللمادة الجديدة تُختار الصورة وتُحفظ مع المادة
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [pendingImage, setPendingImage] = useState<File | null>(null);
@@ -251,6 +257,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
     if (productToEdit) {
       setCode(productToEdit.code || '');
+      setExtraCodes(productToEdit.extraCodes || []);
+      setExtraInput(''); setAllowDupCode(false); setCatPick(null);
       setName(productToEdit.name || '');
       setCategory(productToEdit.category || 'عام');
       setUnit(productToEdit.unit || 'قطعة');
@@ -300,6 +308,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setShelfAmount('');
       const initial = initialCode || '';
       setCode(initial);
+      setExtraCodes([]); setExtraInput(''); setAllowDupCode(false); setCatPick(null);
       setName('');
       setCategory('عام');
       setUnit('قطعة');
@@ -540,11 +549,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
     const finalCode = code.trim() || `${1000 + products.length + 1}`;
 
-    const duplicate = products.find(
-      (p) => p.code === finalCode && (!productToEdit || p.id !== productToEdit.id)
-    );
-    if (duplicate) {
-      setValidationError(`هذا الباركود مستخدم بالفعل للمادة: "${duplicate.name}"`);
+    const finalExtras = allCodes({ code: finalCode, extraCodes }).slice(1);
+    const dupNames = Array.from(new Set(
+      allCodes({ code: finalCode, extraCodes }).flatMap((c) => productsByCode(products as Product[], c).filter((p) => !productToEdit || p.id !== productToEdit.id).map((p) => p.name))
+    ));
+    if (dupNames.length && !allowDupCode) {
+      setValidationError(`توجد مادة أخرى بنفس الباركود: "${dupNames.join('"، "')}". إن كان مقصوداً (باركود واحد لعدة مواد) اضغط «حفظ» مرة أخرى، وعند المسح سيُطلب اختيار المادة.`);
+      setAllowDupCode(true);
       return;
     }
 
@@ -555,6 +566,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
     const productData = {
       code: finalCode,
+      extraCodes: finalExtras.length ? finalExtras : undefined,
       name: name.trim(),
       category: category.trim() || 'عام',
       unit: unit.trim() || 'قطعة',
@@ -802,6 +814,37 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     </div>
                   )}
                 </div>
+                {(() => {
+                  const dups = Array.from(new Set(allCodes({ code, extraCodes }).flatMap((c) => productsByCode(products as Product[], c).filter((p) => !productToEdit || p.id !== productToEdit.id).map((p) => p.name))));
+                  return dups.length ? (
+                    <div data-testid="dup-barcode-notice" className="text-[11px] font-bold text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 rounded-lg px-2 py-1">
+                      💡 توجد مادة أخرى بنفس الباركود: {dups.join('، ')} — عند المسح سيُطلب منك الاختيار بين المواد.
+                    </div>
+                  ) : null;
+                })()}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1" data-testid="extra-codes">
+                  {extraCodes.map((c) => (
+                    <span key={c} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-[11px] font-mono">
+                      {c}
+                      <button type="button" onClick={() => setExtraCodes(extraCodes.filter((x) => x !== c))} className="text-rose-500 font-bold cursor-pointer">×</button>
+                    </span>
+                  ))}
+                  <input
+                    type="text"
+                    data-testid="extra-code-input"
+                    value={extraInput}
+                    onChange={(e) => setExtraInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const t = extraInput.trim();
+                        if (t) { setExtraCodes(allCodes({ code, extraCodes: [...extraCodes, t] }).slice(1)); setExtraInput(''); }
+                      }
+                    }}
+                    placeholder="+ باركود إضافي لنفس المادة (Enter)"
+                    className="flex-1 min-w-[180px] bg-white dark:bg-[#060b13] border border-dashed border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
               </div>
 
               <div className="sm:col-span-6 space-y-1">
@@ -825,21 +868,48 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   {!productToEdit && nameFocus && nameHits.length > 0 && (
                     <div data-testid="name-hits" className="absolute z-30 right-0 left-0 top-full mt-1 max-h-64 overflow-y-auto overscroll-contain rounded-xl border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-[#0b1728] shadow-xl">
                       <div className="px-3 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40">من قاعدة المتاجر المشتركة — اختر لملء كل الحقول تلقائياً</div>
-                      {nameHits.map((h) => {
-                        const exists = products.some((p: any) => p.code === h.barcode);
-                        return (
-                          <button
-                            type="button"
-                            key={h.barcode}
-                            disabled={exists}
-                            onMouseDown={(e) => { e.preventDefault(); applyCatalog(h); }}
-                            className="w-full text-right px-3 py-2 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
-                          >
-                            <span className="text-sm font-bold text-slate-900 dark:text-white truncate">{h.name}</span>
-                            <span className="text-[10px] font-mono text-slate-500 shrink-0">{exists ? 'مضافة عندك' : h.barcode}</span>
-                          </button>
-                        );
-                      })}
+                      {(() => {
+                        const groups = new Map<string, CatalogHit[]>();
+                        nameHits.forEach((h) => {
+                          const k = (h.name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+                          groups.set(k, [...(groups.get(k) || []), h]);
+                        });
+                        return Array.from(groups.entries()).map(([k, hits]) => {
+                          const h = hits[0];
+                          if (hits.length === 1) {
+                            const exists = products.some((p: any) => allCodes(p).includes(h.barcode));
+                            return (
+                              <button type="button" key={k} disabled={exists}
+                                onMouseDown={(e) => { e.preventDefault(); applyCatalog(h); }}
+                                className="w-full text-right px-3 py-2 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer">
+                                <span className="text-sm font-bold text-slate-900 dark:text-white truncate">{h.name}</span>
+                                <span className="text-[10px] font-mono text-slate-500 shrink-0">{exists ? 'مضافة عندك' : h.barcode}</span>
+                              </button>
+                            );
+                          }
+                          return (
+                            <div key={k} className="border-t border-slate-100 dark:border-slate-800" data-testid="name-hit-multi">
+                              <button type="button"
+                                onMouseDown={(e) => { e.preventDefault(); setCatPick(catPick === k ? null : k); }}
+                                className="w-full text-right px-3 py-2 flex items-center justify-between gap-2 hover:bg-emerald-50 dark:hover:bg-slate-800 cursor-pointer">
+                                <span className="text-sm font-bold text-slate-900 dark:text-white truncate">{h.name}</span>
+                                <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 shrink-0">{hits.length} باركودات ▾</span>
+                              </button>
+                              {catPick === k && hits.map((x) => {
+                                const exists = products.some((p: any) => allCodes(p).includes(x.barcode));
+                                return (
+                                  <button type="button" key={x.barcode} disabled={exists}
+                                    onMouseDown={(e) => { e.preventDefault(); applyCatalog(x); setCatPick(null); }}
+                                    className="w-full text-right pr-6 pl-3 py-1.5 flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/60 hover:bg-emerald-50 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer">
+                                    <span className="text-xs font-mono text-slate-700 dark:text-slate-300">{x.barcode}</span>
+                                    <span className="text-[10px] text-slate-500">{exists ? 'مضافة عندك' : (x.retail_price ? `${x.retail_price} · ` : '') + (x.stores_count ? `${x.stores_count} متجر` : '')}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
                   )}
                 </div>

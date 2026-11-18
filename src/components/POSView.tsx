@@ -5,6 +5,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { dozenName } from '../utils/packLabel';
 import { useApp } from '../context/AppContext';
 import { registerPosScanHandler } from '../utils/barcodeBus';
+import { allCodes, productsByCode } from '../utils/productCodes';
 import { Product, SaleType, PriceType, InvoiceItem, Invoice } from '../types';
 import { getPiecePrice as getPiecePriceBase, resolvePiecePrice, hasOwnPrice, PRICE_TYPE_LABELS } from '../utils/pricing';
 import { applyPromotions } from '../utils/promotions';
@@ -231,6 +232,15 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const [creditPickOpen, setCreditPickOpen] = useState(false);
   const [creditSearch, setCreditSearch] = useState('');
   const [pendingCreditId, setPendingCreditId] = useState<string | null>(null);
+  const [pendingCash, setPendingCash] = useState(false);
+  const [debtorsView, setDebtorsViewState] = useState<'cards' | 'list' | 'strip'>(() => {
+    try { const v = localStorage.getItem('mufakir_debtors_view'); return v === 'cards' || v === 'strip' ? v : 'list'; } catch { return 'list'; }
+  });
+  const setDebtorsView = (v: 'cards' | 'list' | 'strip') => {
+    setDebtorsViewState(v);
+    try { localStorage.setItem('mufakir_debtors_view', v); } catch {}
+  };
+  const [scanChoice, setScanChoice] = useState<{ code: string; items: Product[] } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   // تغيير عرض الجهات بالسحب (سطح المكتب)
   const splitWrapRef = useRef<HTMLDivElement>(null);
@@ -431,7 +441,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       const matchSearch =
         !q ||
         (prod.name || '').toLowerCase().includes(q) ||
-        (prod.code || '').toLowerCase().includes(q) ||
+        allCodes(prod).some((c) => c.toLowerCase().includes(q)) ||
         (prod.category || '').toLowerCase().includes(q);
       return matchCat && matchSearch;
     });
@@ -677,8 +687,16 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     if (!clean) return;
     lastScanRef.current = Date.now();
 
-    const matched = products.find((p) => (p.code || '').toLowerCase() === clean.toLowerCase())
-      || products.find((p) => p.code === clean);
+    const matches = productsByCode(products as Product[], clean);
+    if (matches.length > 1) {
+      // نفس الباركود لأكثر من مادة: يُطلب اختيار المادة المقصودة
+      playScannerBeep('success');
+      setSearchQuery('');
+      setUnfoundBarcodePrompt(null);
+      setScanChoice({ code: clean, items: matches });
+      return;
+    }
+    const matched = matches[0];
 
     if (matched) {
       playScannerBeep('success');
@@ -710,7 +728,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   useEffect(() => {
     setUnfoundList((prev) => {
       if (!prev.length) return prev;
-      const next = prev.filter((c) => !products.some((p) => (p.code || '').toLowerCase() === c.toLowerCase()));
+      const next = prev.filter((c) => productsByCode(products as Product[], c).length === 0);
       return next.length === prev.length ? prev : next;
     });
   }, [products]);
@@ -915,7 +933,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     if (!kbMode || kbZone !== 'list' || entry) return;
     const onKey = (ev: KeyboardEvent) => {
       if (isOverlayOpen()) return;
-      if (showQuickAddModal || isScannerOpen || unfoundBarcodePrompt || productForPriceEdit || isSelectRepModalOpen || showClearConfirmModal || showChangeCalc || giftMenu) return;
+      if (scanChoice || showQuickAddModal || isScannerOpen || unfoundBarcodePrompt || productForPriceEdit || isSelectRepModalOpen || showClearConfirmModal || showChangeCalc || giftMenu) return;
       const t = ev.target as HTMLElement;
       if (t && (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(t.tagName) || t.isContentEditable)) return;
       if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
@@ -998,9 +1016,24 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     if (!pendingCreditId) return;
     if (saleType === 'credit' && selectedCustomerId === pendingCreditId) {
       setPendingCreditId(null);
-      handleSaveInvoiceRef.current(false);
+      handleSaveInvoiceRef.current((settings as any).creditSaleAction === 'print');
     }
   }, [pendingCreditId, saleType, selectedCustomerId]);
+
+  // زر «نقد»: يُحوَّل نوع البيع إلى نقد (إن كان آجلاً) ثم تُحفظ القائمة مرة واحدة
+  useEffect(() => {
+    if (!pendingCash) return;
+    if (saleType === 'direct') {
+      setPendingCash(false);
+      handleSaveInvoiceRef.current((settings as any).cashSaleAction !== 'save');
+    }
+  }, [pendingCash, saleType]);
+
+  const quickCashSale = () => {
+    if (saleType === 'direct') { handleSaveInvoiceRef.current((settings as any).cashSaleAction !== 'save'); return; }
+    updateActiveDraft({ saleType: 'direct', selectedCustomerId: '', paidAmount: 0 });
+    setPendingCash(true);
+  };
 
   const pickCreditCustomer = (id: string) => {
     setCreditPickOpen(false);
@@ -1044,6 +1077,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         showQuickAddModal || 
         isScannerOpen || 
         !!unfoundBarcodePrompt || 
+        !!scanChoice ||
         !!productForPriceEdit || 
         isSelectRepModalOpen || 
         showClearConfirmModal ||
@@ -1588,7 +1622,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       if (settings.enableChangeCalculator === false) return;
       e.preventDefault();
       if (isOverlayOpen()) return;
-      if (showQuickAddModal || isScannerOpen || unfoundBarcodePrompt || productForPriceEdit || isSelectRepModalOpen || showClearConfirmModal || showChangeCalc) return;
+      if (scanChoice || showQuickAddModal || isScannerOpen || unfoundBarcodePrompt || productForPriceEdit || isSelectRepModalOpen || showClearConfirmModal || showChangeCalc) return;
       openChangeCalc();
     };
     window.addEventListener('keydown', onF5);
@@ -1728,7 +1762,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       } else if (e.key === 'Enter' && kbMode) {
                         e.preventDefault();
                         const q = searchQuery.trim();
-                        const exactCode = q && products.some((p) => (p.code || '').toLowerCase() === q.toLowerCase());
+                        const exactCode = q && productsByCode(products as Product[], q).length > 0;
                         if (exactCode || (q && filteredProducts.length === 0)) {
                           handleBarcodeScanned(q);
                         } else if (visibleProducts.length > 0) {
@@ -3221,19 +3255,31 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   </button>
                 )}
 
-                {settings.quickCreditButton === true && (
-                  <button
-                    type="button"
-                    data-testid="quick-credit"
-                    disabled={cartItems.length === 0}
-                    onClick={() => { setCreditSearch(''); setCreditPickOpen(true); }}
-                    className="w-full py-2 px-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
-                    title="اختر زبوناً وتُحفظ القائمة عليه آجلاً مباشرة"
-                  >
-                    <span>🧾 بيع آجل — اختيار زبون وحفظ مباشر</span>
-                  </button>
-                )}
-
+                {settings.quickCreditButton === true ? (
+                  <div className="grid grid-cols-2 gap-1.5 pt-0.5" data-testid="two-sale-buttons">
+                    <button
+                      type="button"
+                      data-testid="quick-cash"
+                      disabled={cartItems.length === 0}
+                      onClick={quickCashSale}
+                      className="py-3 px-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-sm flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
+                      title={(settings as any).cashSaleAction === 'save' ? 'بيع نقداً مع حفظ القائمة فقط' : 'بيع نقداً مع حفظ وطباعة القائمة'}
+                    >
+                      {(settings as any).cashSaleAction === 'save' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <Printer className="w-4 h-4 shrink-0" />}
+                      <span>💵 نقد</span>
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="quick-credit"
+                      disabled={cartItems.length === 0}
+                      onClick={() => { setCreditSearch(''); setCreditPickOpen(true); }}
+                      className="py-3 px-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-sm flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
+                      title="اختر زبوناً وتُحفظ القائمة عليه ديناً آجلاً"
+                    >
+                      <span>🧾 دين آجل</span>
+                    </button>
+                  </div>
+                ) : (
                 <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                   <button
                     type="button"
@@ -3271,6 +3317,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     )}
                   </button>
                 </div>
+                )}
 
                 {cartItems.length > 0 && (
                   <button
@@ -3859,11 +3906,46 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       )}
       {isReturnOpen && <ReturnItemsModal onClose={() => setIsReturnOpen(false)} />}
 
+      {scanChoice && (
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-3" dir="rtl" data-testid="scan-choice" onClick={() => setScanChoice(null)}>
+          <div className="bg-white dark:bg-[#0b1728] rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-3 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800">
+              <div className="text-sm font-black text-amber-900 dark:text-amber-200">الباركود <span className="font-mono">{scanChoice.code}</span> لأكثر من مادة</div>
+              <div className="text-[11px] text-amber-800 dark:text-amber-300">اختر المادة المقصودة لإضافتها للقائمة</div>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto">
+              {scanChoice.items.map((it) => (
+                <button key={it.id} type="button" data-testid="scan-choice-item"
+                  onClick={() => {
+                    setScanChoice(null);
+                    const usedUnit = addWithDefaultUnit(it, 'scan');
+                    setScanNotice(`تمت إضافة "${it.name}" (+1${usedUnit ? ' ' + usedUnit : ''})`);
+                    setTimeout(() => setScanNotice(null), 3000);
+                  }}
+                  className="w-full text-right px-4 py-3 flex items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-800 cursor-pointer">
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">{it.name}</span>
+                  <span className="text-xs font-mono text-emerald-700 dark:text-emerald-400 shrink-0">{formatMoney(it.retailPrice)}</span>
+                </button>
+              ))}
+            </div>
+            <button type="button" onClick={() => setScanChoice(null)} className="w-full py-2.5 text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer">إلغاء</button>
+          </div>
+        </div>
+      )}
+
       {creditPickOpen && (
         <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3" data-testid="credit-pick" onClick={() => setCreditPickOpen(false)}>
           <div className="bg-white dark:bg-[#0b1728] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden" dir="rtl" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-              <div className="text-sm font-black text-slate-800 dark:text-white mb-2">🧾 بيع آجل — اختر الزبون</div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="text-sm font-black text-slate-800 dark:text-white">🧾 دين آجل — اختر الزبون</div>
+                <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600" data-testid="debtors-view-switch">
+                  {([['cards', '▦ مربعات'], ['list', '☰ قائمة'], ['strip', '⋯ شريط']] as const).map(([v, l]) => (
+                    <button key={v} type="button" data-testid={`view-${v}`} onClick={() => setDebtorsView(v)}
+                      className={`px-2 py-1 text-[10px] font-bold cursor-pointer ${debtorsView === v ? 'bg-amber-500 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'}`}>{l}</button>
+                  ))}
+                </div>
+              </div>
               <input
                 autoFocus
                 data-testid="credit-search"
@@ -3873,13 +3955,29 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white"
               />
             </div>
-            <div className="overflow-y-auto p-2 space-y-1.5">
+            <div className={`overflow-y-auto p-2 ${debtorsView === 'cards' ? 'grid grid-cols-2 gap-2' : debtorsView === 'strip' ? 'flex flex-wrap gap-1.5' : 'space-y-1.5'}`} data-testid="credit-list" data-view={debtorsView}>
               {customers
                 .filter((c) => {
                   const q = creditSearch.trim().toLowerCase();
                   return !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q);
                 })
-                .map((c) => (
+                .map((c) => {
+                  const debt = c.totalDebt > 0;
+                  if (debtorsView === 'strip') return (
+                    <button key={c.id} type="button" data-testid={`credit-cust-${c.id}`} onClick={() => pickCreditCustomer(c.id)}
+                      className={`px-3 py-1.5 rounded-full border text-xs font-bold cursor-pointer ${debt ? 'border-rose-300 bg-rose-50 text-rose-800 dark:bg-rose-500/10 dark:text-rose-200 dark:border-rose-500/40' : 'border-slate-300 bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600'} hover:ring-2 hover:ring-amber-400`}>
+                      {c.name}{debt ? <span className="mr-1.5 font-mono opacity-80">{formatMoney(c.totalDebt)}</span> : null}
+                    </button>
+                  );
+                  if (debtorsView === 'cards') return (
+                    <button key={c.id} type="button" data-testid={`credit-cust-${c.id}`} onClick={() => pickCreditCustomer(c.id)}
+                      className="text-right flex flex-col gap-1 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:border-amber-400 cursor-pointer">
+                      <span className="text-sm font-black text-slate-800 dark:text-white truncate">{c.name}</span>
+                      {c.phone && <span className="text-[10px] text-slate-500 dark:text-slate-400" dir="ltr">{c.phone}</span>}
+                      <span className={`text-xs font-black ${debt ? 'text-rose-600' : 'text-emerald-600'}`}>{debt ? `دين: ${formatMoney(c.totalDebt)}` : 'بلا دين'}</span>
+                    </button>
+                  );
+                  return (
                   <button
                     key={c.id}
                     type="button"
@@ -3891,11 +3989,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       <span className="block text-sm font-bold text-slate-800 dark:text-white truncate">{c.name}</span>
                       {c.phone && <span className="block text-[11px] text-slate-500 dark:text-slate-400" dir="ltr">{c.phone}</span>}
                     </span>
-                    <span className={`text-xs font-black whitespace-nowrap ${c.totalDebt > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                      {c.totalDebt > 0 ? `دين: ${formatMoney(c.totalDebt)}` : 'بلا دين'}
+                    <span className={`text-xs font-black whitespace-nowrap ${debt ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      {debt ? `دين: ${formatMoney(c.totalDebt)}` : 'بلا دين'}
                     </span>
                   </button>
-                ))}
+                  );
+                })}
               {customers.length === 0 && <div className="text-center text-xs text-slate-500 py-6">لا يوجد زبائن مضافون بعد.</div>}
             </div>
             <div className="p-3 border-t border-slate-200 dark:border-slate-700">
