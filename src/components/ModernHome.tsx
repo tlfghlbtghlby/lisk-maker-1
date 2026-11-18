@@ -18,26 +18,14 @@ interface Tile {
 
 // الشاشة الرئيسية للوضع العصري: مربعات كبيرة بأيقونات ملوّنة (كلها مضمَّنة في البرنامج).
 export default function ModernHome({ onSelectTab }: { onSelectTab: (tab: TabType) => void }) {
-  const { products, invoices, customers, settings, hasPermission, storeFeatures, formatMoney, activeShift } = useApp() as any;
-  const [now, setNow] = useState(() => new Date());
+  const { products, customers, settings, hasPermission, storeFeatures, activeShift } = useApp() as any;
   const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
 
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
     const on = () => setOnline(true), off = () => setOnline(false);
     window.addEventListener('online', on); window.addEventListener('offline', off);
-    return () => { clearInterval(t); window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
   }, []);
-
-  const today = useMemo(() => {
-    const d = now.toDateString();
-    let total = 0, count = 0;
-    (invoices || []).forEach((i: any) => {
-      if (i.status === 'returned') return;
-      if (new Date(i.date).toDateString() === d) { total += Number(i.total) || 0; count += 1; }
-    });
-    return { total, count };
-  }, [invoices, now.toDateString()]);
 
   const lowStock = useMemo(() => (products || []).filter((p: any) => p.stock <= p.minStock).length, [products]);
   const debtors = useMemo(() => (customers || []).filter((c: any) => c.totalDebt > 0).length, [customers]);
@@ -60,34 +48,9 @@ export default function ModernHome({ onSelectTab }: { onSelectTab: (tab: TabType
   ];
   const visible = tiles.filter((t) => t.permitted);
 
-  const time = now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const date = now.toLocaleDateString('ar-IQ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-  const currency = settings.currency || 'د.ع';
 
   return (
     <div data-testid="modern-home" className="space-y-4" dir="rtl">
-      <section className="bg-white dark:bg-[#0b1728] rounded-3xl border border-orange-200 dark:border-orange-400/30 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="text-lg sm:text-2xl font-black text-slate-800 dark:text-white">{settings.storeName || 'برنامج المفكر المحاسبي'}</div>
-          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{date}</div>
-          <div className="text-2xl sm:text-3xl font-black text-orange-500 mt-1 tabular-nums" dir="ltr">{time}</div>
-        </div>
-        <div className="text-center">
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">مبيعات اليوم</div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{formatMoney ? formatMoney(today.total) : today.total} <span className="text-sm">{currency}</span></div>
-        </div>
-        <div className="flex gap-3">
-          <div className="rounded-2xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-400/30 px-4 py-2 text-center">
-            <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">قوائم اليوم</div>
-            <div className="text-lg font-black text-orange-600 dark:text-orange-300">{today.count}</div>
-          </div>
-          <div className="rounded-2xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-400/30 px-4 py-2 text-center">
-            <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">عدد المواد</div>
-            <div className="text-lg font-black text-orange-600 dark:text-orange-300">{(products || []).length}</div>
-          </div>
-        </div>
-      </section>
-
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
         {visible.map((t) => (
           <button
