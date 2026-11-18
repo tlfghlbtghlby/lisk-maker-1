@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Send, Copy, Check, Link2, Unlink, Bell } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { TelegramEventKey, TelegramSettings } from '../types';
+import { TelegramBackupSection } from './TelegramBackup';
 import {
   DEFAULT_TELEGRAM_SETTINGS,
   TELEGRAM_EVENT_LABELS,
@@ -232,6 +233,8 @@ export const TelegramSettingsCard: React.FC = () => {
         <Toggle label="إظهار الأرباح والتكلفة" hint="ربح القائمة وعمولة المندوب وتكلفة المواد" checked={tg.includeProfit} onChange={v => save({ includeProfit: v })} />
         <Toggle label="إشعارات الزبائن المرتبطين" hint="إرسال قوائم الزبون ودينه ودفعاته لمن ربط رمزه بالبوت" checked={tg.customerNotifications} onChange={v => save({ customerNotifications: v })} />
       </div>
+
+      <TelegramBackupSection />
 
       {/* إشعار الديون لكل الزبائن */}
       <div className="bg-sky-50/60 dark:bg-[#070e1b] border border-sky-200 dark:border-slate-700 rounded-xl p-4 space-y-2">

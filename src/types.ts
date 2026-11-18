@@ -201,6 +201,20 @@ export interface TelegramSettings {
   includeItems: boolean;
   includeProfit: boolean;
   customerNotifications: boolean;
+  /** النسخ الاحتياطي اليومي إلى تليجرام */
+  backup?: TelegramBackupSettings;
+}
+
+export interface TelegramBackupSettings {
+  enabled: boolean;
+  /** ساعة الإرسال اليومية (0-23) */
+  hour: number;
+  /** الهاشتاق الذي يوضع على كل نسخة للبحث عنها */
+  hashtag: string;
+  /** إخراج الفواتير الأقدم من 6 أشهر من المزامنة السحابية بعد نجاح النسخة (تبقى في الأرشيف المحلي وفي نسخ تليجرام) */
+  archiveOld: boolean;
+  /** تاريخ آخر نسخة ناجحة YYYY-MM-DD */
+  lastDate?: string;
 }
 
 export interface SalesRep {

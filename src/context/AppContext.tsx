@@ -216,6 +216,10 @@ interface AppContextType {
   exportDataJSON: () => string;
   exportCustomBackup: (options: CustomBackupOptions) => string;
   importDataJSON: (jsonStr: string) => { success: boolean; error?: string };
+  /** يُخرج فواتير من المزامنة السحابية (بدون سلة محذوفات ولا تعديل مخزون/دين). الأرشفة المحلية مسؤولية المستدعي. */
+  archiveInvoicesByIds: (ids: string[]) => number;
+  /** يستعيد فواتير من نسخة قديمة (يضيف غير الموجود فقط، بلا تعديل مخزون/دين) */
+  restoreInvoicesFromBackup: (list: Invoice[]) => { added: number; skipped: number };
   importProductsOnly: (
     jsonStr: string,
     mode?: 'merge' | 'replace',
@@ -2506,6 +2510,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     broadcastSyncEvent('INVOICE_DELETED', { invoiceId: id, updatedInvoices: updated }, currentSessionId, currentUser?.uid);
   };
 
+  const archiveInvoicesByIds = (ids: string[]): number => {
+    const idSet = new Set(ids.map(String));
+    const cur: Invoice[] = stateRef.current.invoices as Invoice[];
+    const moved = cur.filter(i => idSet.has(String(i.id)));
+    if (moved.length === 0) return 0;
+    const nowIso = new Date().toISOString();
+    const tombs: Tombstones = { ...stateRef.current.tombstones };
+    const secMap = { ...(tombs.invoices || {}) };
+    moved.forEach(i => { secMap[String(i.id)] = nowIso; });
+    tombs.invoices = secMap;
+    persistTrash(stateRef.current.trash, tombs);
+    const updated = cur.filter(i => !idSet.has(String(i.id)));
+    setInvoices(updated);
+    stateRef.current = { ...stateRef.current, invoices: updated };
+    try {
+      localStorage.setItem('cached_pos_invoices', JSON.stringify(updated));
+    } catch {}
+    saveStoreToCloud({ invoices: updated });
+    return moved.length;
+  };
+
+  const restoreInvoicesFromBackup = (list: Invoice[]): { added: number; skipped: number } => {
+    const cur: Invoice[] = stateRef.current.invoices as Invoice[];
+    const have = new Set(cur.map(i => String(i.id)));
+    const nowIso = new Date().toISOString();
+    const fresh: Invoice[] = [];
+    let skipped = 0;
+    for (const inv of list || []) {
+      if (!inv || inv.id === undefined || inv.id === null || !Array.isArray((inv as any).items)) { skipped++; continue; }
+      if (have.has(String(inv.id))) { skipped++; continue; }
+      have.add(String(inv.id));
+      fresh.push({ ...inv, updatedAt: nowIso });
+    }
+    if (fresh.length === 0) return { added: 0, skipped };
+    let tombs: Tombstones = stateRef.current.tombstones;
+    fresh.forEach(i => { tombs = cleanTombstone('invoices', String(i.id), tombs); });
+    persistTrash(stateRef.current.trash, tombs);
+    const updated = [...fresh, ...cur];
+    setInvoices(updated);
+    stateRef.current = { ...stateRef.current, invoices: updated };
+    try {
+      localStorage.setItem('cached_pos_invoices', JSON.stringify(updated));
+    } catch {}
+    saveStoreToCloud({ invoices: updated });
+    return { added: fresh.length, skipped };
+  };
+
   const returnInvoice = async (id: string, reason?: string): Promise<boolean> => {
     if (!hasPermission('canReturnInvoice') && !grantAllows('return', id)) {
       setSyncNotice('⚠️ لا تملك صلاحية استرجاع الفواتير.');
@@ -3852,6 +3903,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         exportDataJSON,
         exportCustomBackup,
         importDataJSON,
+        archiveInvoicesByIds,
+        restoreInvoicesFromBackup,
         importProductsOnly,
         addProductsBulk,
         wipeAllProductsFromServer,

@@ -7,6 +7,7 @@
 //   status    : عدد المحادثات المرتبطة
 //   notify    : إرسال رسالة للمتجر و/أو للزبون
 //   unlink    : فك الربط
+//   document  : إرسال ملف (نسخة احتياطية مضغوطة base64) إلى محادثات المتجر
 // وبالإضافة لذلك تستقبل ويب هوك التليجرام (رسائل المستخدمين للبوت).
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
@@ -286,6 +287,28 @@ Deno.serve(async req => {
       for (const c of chats || []) if (await sendTo(Number(c.chat_id), repText)) sent++;
     }
     return json({ ok: true, sent });
+  }
+
+  if (action === 'document') {
+    const b64 = String(body.dataB64 || '');
+    if (!b64) return json({ error: 'bad_request' }, 400);
+    if (b64.length > 28_000_000) return json({ error: 'too_large' }, 413);
+    const filename = String(body.filename || 'backup.json.gz').replace(/[\\/:*?"<>|\r\n]/g, '_').slice(0, 120);
+    const caption = String(body.caption || '').slice(0, 1000);
+    const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const { data: chats } = await sb.from('tg_chats').select('chat_id').eq('store_uid', storeUid).eq('kind', 'store');
+    let sent = 0;
+    for (const c of chats || []) {
+      const fd = new FormData();
+      fd.append('chat_id', String(c.chat_id));
+      if (caption) fd.append('caption', caption);
+      fd.append('document', new Blob([bin], { type: 'application/gzip' }), filename);
+      const res = await fetch(`https://api.telegram.org/bot${TOKEN}/sendDocument`, { method: 'POST', body: fd });
+      const r = await res.json().catch(() => ({ ok: false }));
+      if (r.ok) sent++;
+      else if (r.error_code === 403) await sb.from('tg_chats').delete().eq('chat_id', c.chat_id);
+    }
+    return json({ ok: true, sent, linked: (chats || []).length });
   }
 
   return json({ error: 'unknown_action' }, 400);

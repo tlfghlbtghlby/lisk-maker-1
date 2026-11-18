@@ -71,6 +71,8 @@ import {
 import { registerBiometric, biometricSupported } from '../utils/biometric';
 import { QuickAddItemsSection } from './QuickAddItemsSection';
 import { ExportBackupModal } from './ExportBackupModal';
+import { readBackupFileText } from '../utils/backupFile';
+import { InvoiceArchiveModal } from './InvoiceArchiveModal';
 import { WipeProductsModal } from './WipeProductsModal';
 import { ModernInvoiceHeader } from './ModernInvoiceHeader';
 import { resizeImageFile } from '../utils/imageResize';
@@ -789,6 +791,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
 
   const [isImagesBusy, setIsImagesBusy] = useState(false);
   const imagesBackupInputRef = useRef<HTMLInputElement>(null);
+  const [isInvoiceArchiveOpen, setIsInvoiceArchiveOpen] = useState(false);
 
   const handleExportImagesOnly = async () => {
     setIsImagesBusy(true);
@@ -875,7 +878,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         setTimeout(() => setImportError(null), 5000);
       }
     };
-    reader.readAsText(file);
+    readBackupFileText(file)
+      .then((c) => (reader.onload as any)({ target: { result: c } }))
+      .catch((err) => { setImportError(err?.message || 'تعذر قراءة الملف'); setTimeout(() => setImportError(null), 5000); });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -2519,7 +2524,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 onClick={() => fileInputRef.current?.click()}
                 className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
               >
-                <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".json" className="hidden" />
+                <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept=".json,.gz,application/gzip" className="hidden" />
                 <div className="flex items-center justify-between w-full mb-3">
                   <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition">
                     <Upload className="w-4 h-4" />
@@ -2531,6 +2536,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">رفع ملف نسخة سابقة واسترجاع كافة البيانات (المواد، العملاء، الفواتير، الإعدادات).</div>
                 </div>
               </div>
+
+              {/* 2.5 تصفح/استعادة الفواتير من نسخة قديمة */}
+              <button
+                type="button"
+                data-testid="open-invoice-archive"
+                onClick={() => setIsInvoiceArchiveOpen(true)}
+                className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-violet-500 bg-white dark:bg-[#070e1b] text-right flex flex-col justify-between transition group cursor-pointer shadow-2xs"
+              >
+                <div className="flex items-center justify-between w-full mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 flex items-center justify-center group-hover:bg-violet-600 group-hover:text-white transition">
+                    <Upload className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900 text-violet-800 dark:text-violet-200">الفواتير فقط 🧾</span>
+                </div>
+                <div>
+                  <div className="font-extrabold text-sm text-slate-900 dark:text-white">تصفح أو استعادة القوائم والفواتير من نسخة قديمة</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">افتح ملف نسخة (أو الأرشيف المحلي) وتصفح فواتيره فقط، أو استعدها إلى البرنامج دون المساس بالمواد والزبائن.</div>
+                </div>
+              </button>
 
               {/* 3. استعادة نسخة المواد فقط */}
               <div
@@ -3264,6 +3288,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
 
       {/* النوافذ المنبثقة */}
       <ExportBackupModal isOpen={isExportModalOpen} onClose={() => setIsExportModalOpen(false)} />
+      {isInvoiceArchiveOpen && <InvoiceArchiveModal onClose={() => setIsInvoiceArchiveOpen(false)} />}
       <WipeProductsModal isOpen={isWipeModalOpen} onClose={() => setIsWipeModalOpen(false)} />
       <DuplicateProductsModal isOpen={isDuplicatesModalOpen} onClose={() => setIsDuplicatesModalOpen(false)} />
       <ActiveSessionsModal isOpen={isActiveSessionsModalOpen} onClose={() => setIsActiveSessionsModalOpen(false)} />
