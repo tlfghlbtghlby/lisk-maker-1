@@ -53,30 +53,80 @@
   }
   html.modern .app-root { background: transparent; }
 
-  /* ---------- الترويسة (بطاقة بحدّ برتقالي وزوايا سفلية دائرية) ---------- */
+  /* ---------- الترويسة الموحَّدة: بطاقة واحدة (الاسم + الساعة + الإحصاءات + أزرار التحكم) ---------- */
   html.modern header.no-print {
-    margin: 0 10px;
-    border-radius: 0 0 var(--m-r-xl) var(--m-r-xl);
-    border: 2px solid var(--m-line);
-    border-top: 0;
-    box-shadow: var(--m-shadow);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    position: relative;
+    margin: 10px 10px 0;
+    border-radius: var(--m-r-xl);
+    border: 1.5px solid var(--m-line);
+    box-shadow: var(--m-shadow-lg);
+    overflow: hidden;
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+  }
+  /* خيط لوني متدرّج أعلى البطاقة */
+  html.modern header.no-print::before {
+    content: "";
+    position: absolute; inset: 0 0 auto 0; height: 3px;
+    background: linear-gradient(90deg, #f97316, #fbbf24, #10b981, #3b82f6, #a855f7, #f97316);
+    opacity: 0.9;
   }
   html.modern:not(.dark) header.no-print {
-    background: linear-gradient(135deg, rgba(255, 252, 247, 0.96), rgba(255, 240, 224, 0.94));
+    background: linear-gradient(135deg, rgba(255, 252, 247, 0.97), rgba(255, 238, 220, 0.95));
     color: var(--m-ink);
   }
   html.modern.dark header.no-print {
-    background: linear-gradient(135deg, rgba(16, 28, 50, 0.92), rgba(10, 18, 34, 0.92));
+    background:
+      radial-gradient(520px 160px at 85% -30%, rgba(251, 146, 60, 0.16), transparent 70%),
+      linear-gradient(135deg, rgba(16, 28, 50, 0.94), rgba(8, 15, 30, 0.94));
   }
+  /* بلا حدّ فاصل بين صفّي الترويسة؛ الإحصاءات تصبح بلاطات */
+  html.modern header.no-print .border-t { border-top-color: transparent; }
+  html.modern header.no-print .scrollbar-none { gap: 10px; padding-top: 2px; }
+
+  /* الساعة */
+  html.modern header [data-m="clock"] {
+    background: var(--m-accent-soft);
+    border-color: var(--m-line);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  }
+  html.modern:not(.dark) header [data-m="clock"] { color: var(--m-ink); background: rgba(249, 115, 22, 0.09); }
+  html.modern.dark header [data-m="clock"] { color: #e2e8f0; }
+
+  /* بلاطات الإحصاءات: شريط لوني جانبي + زوايا دائرية */
+  html.modern header [data-m-stat] {
+    border-radius: 16px;
+    border: 1px solid var(--m-line);
+    border-inline-start: 4px solid var(--c, var(--m-accent));
+    box-shadow: var(--m-shadow);
+    padding: 8px 14px;
+  }
+  html.modern header [data-m-stat="sales"] { --c: #10b981; }
+  html.modern header [data-m-stat="profit"] { --c: #3b82f6; }
+  html.modern header [data-m-stat="debt"] { --c: #f59e0b; }
+  html.modern header [data-m-stat="items"] { --c: #8b5cf6; }
+  html.modern header [data-m-stat="low"] { --c: #f43f5e; }
+  html.modern:not(.dark) header [data-m-stat] { background: rgba(255, 255, 255, 0.85) !important; }
+  html.modern.dark header [data-m-stat]:not([data-m-stat="low"]) { background: rgba(255, 255, 255, 0.05) !important; }
+  html.modern header [data-m-stat] > div:first-child { border-radius: 10px; width: 30px; height: 30px; }
+
+  /* أزرار التحكم: أقراص ناعمة */
+  html.modern header.no-print button { border-radius: 999px; }
+  html.modern header.no-print .rounded-lg { border-radius: 14px; }
   html.modern:not(.dark) header.no-print .text-white { color: var(--m-ink) !important; }
   html.modern:not(.dark) header.no-print .text-slate-200 { color: #374151 !important; }
+  html.modern:not(.dark) header.no-print .text-slate-300 { color: #4b5563 !important; }
   html.modern:not(.dark) header.no-print .text-slate-400 { color: #6b7280 !important; }
-  html.modern:not(.dark) header.no-print .bg-slate-800 { background: #ffffff !important; border-color: var(--m-line) !important; }
+  html.modern:not(.dark) header.no-print .bg-slate-800,
+  html.modern:not(.dark) header.no-print .bg-slate-800\/90 { background: #ffffff !important; border-color: var(--m-line) !important; }
   html.modern:not(.dark) header.no-print .bg-slate-800:hover,
   html.modern:not(.dark) header.no-print .hover\:bg-slate-700:hover { background: #fff3e6 !important; }
   html.modern:not(.dark) header.no-print .text-emerald-200 { color: #047857 !important; }
+  html.modern:not(.dark) header.no-print .text-emerald-400 { color: #059669 !important; }
+  html.modern:not(.dark) header.no-print .text-amber-300 { color: #b45309 !important; }
+  html.modern:not(.dark) header.no-print .bg-amber-950\/70 { background: #fff1dc !important; }
+  html.modern:not(.dark) header.no-print .bg-rose-950\/50 { background: #ffe4e6 !important; border-color: #fda4af !important; }
+  html.modern:not(.dark) header.no-print .text-rose-200 { color: #be123c !important; }
 
   /* ---------- شريط التبويبات (حبّات عائمة) ---------- */
   html.modern nav.no-print {
