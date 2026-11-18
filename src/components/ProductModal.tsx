@@ -557,7 +557,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
     const finalCode = code.trim() || `${1000 + products.length + 1}`;
 
-    const finalExtras = allCodes({ code: finalCode, extraCodes }).slice(1);
+    const finalExtras = allCodes({ code: finalCode, extraCodes: [...extraCodes, extraInput] }).slice(1);
     const dupNames = Array.from(new Set(
       allCodes({ code: finalCode, extraCodes }).flatMap((c) => productsByCode(products as Product[], c).filter((p) => !productToEdit || p.id !== productToEdit.id).map((p) => p.name))
     ));
@@ -853,9 +853,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         if (t) { setExtraCodes(allCodes({ code, extraCodes: [...extraCodes, t] }).slice(1)); setExtraInput(''); }
                       }
                     }}
-                    placeholder="+ باركود إضافي لنفس المادة (Enter)"
+                    placeholder="+ باركود إضافي (أي عدد) ثم Enter أو زر إضافة"
                     className="flex-1 min-w-[180px] bg-white dark:bg-[#060b13] border border-dashed border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono focus:outline-none focus:border-emerald-500"
                   />
+                  <button type="button" data-testid="extra-code-add"
+                    onClick={() => { const t = extraInput.trim(); if (t) { setExtraCodes(allCodes({ code, extraCodes: [...extraCodes, t] }).slice(1)); setExtraInput(''); } }}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-600 text-white cursor-pointer">+ إضافة</button>
                 </div>
               </div>
 
@@ -907,6 +910,20 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                                 <span className="text-sm font-bold text-slate-900 dark:text-white truncate">{h.name}</span>
                                 <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300 shrink-0">{hits.length} باركودات ▾</span>
                               </button>
+                              {catPick === k && (
+                                <button type="button" data-testid="catalog-add-all"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault();
+                                    const free = hits.filter((x) => !products.some((p: any) => allCodes(p).includes(x.barcode)));
+                                    if (!free.length) return;
+                                    applyCatalog(free[0]);
+                                    setExtraCodes(free.slice(1).map((x) => x.barcode));
+                                    setCatPick(null);
+                                  }}
+                                  className="w-full text-right pr-6 pl-3 py-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 cursor-pointer">
+                                  ✚ إضافة كل الباركودات ({hits.length}) لهذه المادة
+                                </button>
+                              )}
                               {catPick === k && hits.map((x) => {
                                 const exists = products.some((p: any) => allCodes(p).includes(x.barcode));
                                 return (
