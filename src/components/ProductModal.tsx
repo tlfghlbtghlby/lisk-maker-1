@@ -1163,7 +1163,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       {g === 1000 ? 'كيلو' : g === 500 ? 'نصف كيلو' : g + ' غرام'}
                     </button>
                   ))}
-                  <input type="number" min={1} step={25} value={clickGrams} onChange={(e) => setClickGrams(Math.max(0, Number(e.target.value) || 0))}
+                  <input type="number" inputMode="numeric" min={0} step="any" value={clickGrams} onChange={(e) => setClickGrams(Math.max(0, Number(e.target.value) || 0))}
                     className="w-20 bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-emerald-500" />
                   <span className="text-[11px] text-slate-500">غرام</span>
                 </div>
@@ -1175,7 +1175,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       {g === 1000 ? 'كيلو' : g === 500 ? 'نصف كيلو' : g + ' غرام'}
                     </button>
                   ))}
-                  <input type="number" min={1} step={25} value={scanGrams} onChange={(e) => setScanGrams(Math.max(0, Number(e.target.value) || 0))}
+                  <input type="number" inputMode="numeric" min={0} step="any" value={scanGrams} onChange={(e) => setScanGrams(Math.max(0, Number(e.target.value) || 0))}
                     className="w-20 bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-emerald-500" />
                   <span className="text-[11px] text-slate-500">غرام</span>
                 </div>
