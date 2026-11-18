@@ -227,6 +227,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const [kbZone, setKbZone] = useState<'search' | 'list'>('search');
   const [kbIndex, setKbIndex] = useState(0);
   const [isReturnOpen, setIsReturnOpen] = useState(false);
+  // «بيع آجل» السريع: اختيار زبون من قائمة ثم حفظ القائمة آجلاً مباشرة
+  const [creditPickOpen, setCreditPickOpen] = useState(false);
+  const [creditSearch, setCreditSearch] = useState('');
+  const [pendingCreditId, setPendingCreditId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   // تغيير عرض الجهات بالسحب (سطح المكتب)
   const splitWrapRef = useRef<HTMLDivElement>(null);
@@ -988,6 +992,21 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   useEffect(() => {
     handleSaveInvoiceRef.current = handleSaveInvoice;
   });
+
+  // بعد أن تُطبَّق حالة (آجل + الزبون المختار) على المسودة نحفظ القائمة مرة واحدة
+  useEffect(() => {
+    if (!pendingCreditId) return;
+    if (saleType === 'credit' && selectedCustomerId === pendingCreditId) {
+      setPendingCreditId(null);
+      handleSaveInvoiceRef.current(false);
+    }
+  }, [pendingCreditId, saleType, selectedCustomerId]);
+
+  const pickCreditCustomer = (id: string) => {
+    setCreditPickOpen(false);
+    updateActiveDraft({ saleType: 'credit', selectedCustomerId: id, paidAmount: 0 });
+    setPendingCreditId(id);
+  };
 
   const cartItemsRef = useRef(cartItems);
   useEffect(() => {
@@ -3213,6 +3232,19 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   </button>
                 )}
 
+                {settings.quickCreditButton === true && (
+                  <button
+                    type="button"
+                    data-testid="quick-credit"
+                    disabled={cartItems.length === 0}
+                    onClick={() => { setCreditSearch(''); setCreditPickOpen(true); }}
+                    className="w-full py-2 px-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
+                    title="اختر زبوناً وتُحفظ القائمة عليه آجلاً مباشرة"
+                  >
+                    <span>🧾 بيع آجل — اختيار زبون وحفظ مباشر</span>
+                  </button>
+                )}
+
                 <div className="grid grid-cols-2 gap-1.5 pt-0.5">
                   <button
                     type="button"
@@ -3837,6 +3869,52 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         </div>
       )}
       {isReturnOpen && <ReturnItemsModal onClose={() => setIsReturnOpen(false)} />}
+
+      {creditPickOpen && (
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3" data-testid="credit-pick" onClick={() => setCreditPickOpen(false)}>
+          <div className="bg-white dark:bg-[#0b1728] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="text-sm font-black text-slate-800 dark:text-white mb-2">🧾 بيع آجل — اختر الزبون</div>
+              <input
+                autoFocus
+                data-testid="credit-search"
+                value={creditSearch}
+                onChange={(e) => setCreditSearch(e.target.value)}
+                placeholder="ابحث باسم الزبون أو رقم هاتفه..."
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white"
+              />
+            </div>
+            <div className="overflow-y-auto p-2 space-y-1.5">
+              {customers
+                .filter((c) => {
+                  const q = creditSearch.trim().toLowerCase();
+                  return !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q);
+                })
+                .map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    data-testid={`credit-cust-${c.id}`}
+                    onClick={() => pickCreditCustomer(c.id)}
+                    className="w-full text-right flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-amber-500/10 cursor-pointer"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold text-slate-800 dark:text-white truncate">{c.name}</span>
+                      {c.phone && <span className="block text-[11px] text-slate-500 dark:text-slate-400" dir="ltr">{c.phone}</span>}
+                    </span>
+                    <span className={`text-xs font-black whitespace-nowrap ${c.totalDebt > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                      {c.totalDebt > 0 ? `دين: ${formatMoney(c.totalDebt)}` : 'بلا دين'}
+                    </span>
+                  </button>
+                ))}
+              {customers.length === 0 && <div className="text-center text-xs text-slate-500 py-6">لا يوجد زبائن مضافون بعد.</div>}
+            </div>
+            <div className="p-3 border-t border-slate-200 dark:border-slate-700">
+              <button type="button" onClick={() => setCreditPickOpen(false)} className="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

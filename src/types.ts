@@ -654,6 +654,8 @@ export interface StoreSettings {
   autoContrast?: boolean;
   /** الوضع العصري: تنسيق شامل للواجهات (طبقة CSS) */
   modernMode?: boolean;
+  /** زر «بيع آجل» السريع في واجهة البيع: يختار زبوناً ويحفظ القائمة آجلاً مباشرة */
+  quickCreditButton?: boolean;
   /** تعبئة الكرتون الافتراضية للمواد الجديدة (الافتراضي 24) */
   defaultCartonSize?: number;
   themeCustom?: import('./utils/themeCustom').ThemeCustom;
