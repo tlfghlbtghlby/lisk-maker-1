@@ -43,6 +43,8 @@ export interface Product {
   specialPrice?: number;
   stock: number;
   piecesPerCarton?: number;
+  /** باركودات إضافية للمادة نفسها (الباركود الأساسي في code) */
+  extraCodes?: string[];
   /** اسم الفئة الوسطية (الافتراضي «درزن»): مثل علبة، باكيت، شد... */
   dozenLabel?: string;
   /** فئة وسطية اختيارية (درزن): عدد القطع في الدرزن؛ 0/غير موجود = معطّلة */
@@ -656,6 +658,9 @@ export interface StoreSettings {
   modernMode?: boolean;
   /** زر «بيع آجل» السريع في واجهة البيع: يختار زبوناً ويحفظ القائمة آجلاً مباشرة */
   quickCreditButton?: boolean;
+  /** في وضع زرّي «نقد/آجل»: إجراء كل زر — حفظ وطباعة أو حفظ فقط */
+  cashSaleAction?: 'print' | 'save';
+  creditSaleAction?: 'print' | 'save';
   /** تعبئة الكرتون الافتراضية للمواد الجديدة (الافتراضي 24) */
   defaultCartonSize?: number;
   themeCustom?: import('./utils/themeCustom').ThemeCustom;

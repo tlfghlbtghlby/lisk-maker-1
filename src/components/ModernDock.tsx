@@ -11,7 +11,7 @@ export default function ModernDock({ activeTab, onSelectTab }: { activeTab: TabT
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ x: number; y: number }>(() => {
     try { const r = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); if (r && typeof r.x === 'number') return r; } catch { /* ignore */ }
-    return { x: 12, y: Math.max(12, (typeof window !== 'undefined' ? window.innerHeight : 700) - 72) }; // أسفل اليسار افتراضياً حتى لا يغطي الترويسة
+    return { x: Math.max(12, (typeof window !== 'undefined' ? window.innerWidth : 1000) - 190), y: Math.max(12, (typeof window !== 'undefined' ? window.innerHeight : 700) - 72) }; // أسفل اليمين افتراضياً (الساعة في أسفل اليسار)
   });
   const drag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
   const ref = useRef<HTMLDivElement>(null);

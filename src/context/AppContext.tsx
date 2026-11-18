@@ -916,7 +916,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addBarcodeToActiveDraft = (code: string): { found: boolean; name?: string } => {
     const clean = (code || '').trim();
     if (!clean) return { found: false };
-    const product = products.find(p => (p.code || '').toLowerCase() === clean.toLowerCase());
+    const product = products.find(p => [p.code, ...(p.extraCodes || [])].some(c => (c || '').toLowerCase() === clean.toLowerCase()));
     if (!product) return { found: false };
     const isWeighted = Boolean(product.isWeighted || product.unit === 'كغم' || product.unit === 'كيلو');
     setDraftOrders(prev => prev.map(order => {

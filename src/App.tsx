@@ -5,6 +5,7 @@ import WhatsAppAutoPrompt from './components/WhatsAppAutoPrompt';
 import { Navigation, TabType } from './components/Navigation';
 import ModernHome from './components/ModernHome';
 import ModernDock from './components/ModernDock';
+import ModernClock from './components/ModernClock';
 import { isModernMode, useModernMode } from './utils/modernMode';
 import { POSView } from './components/POSView';
 import { InventoryView } from './components/InventoryView';
@@ -85,6 +86,19 @@ const MainContent: React.FC = () => {
   });
   const modern = useModernMode();
   useEffect(() => { if (!modern && activeTab === 'home') setActiveTab('pos'); }, [modern, activeTab]);
+  // اتجاه انتقال الشاشات في الوضع العصري: الدخول من الأسفل للأعلى، والخروج بنزول الشاشة للأسفل
+  const prevTabRef = useRef(activeTab);
+  const navDirRef = useRef<'up' | 'down'>('up');
+  if (prevTabRef.current !== activeTab) {
+    navDirRef.current = activeTab === 'home' ? 'down' : 'up';
+    prevTabRef.current = activeTab;
+  }
+  const [leaving, setLeaving] = useState(false);
+  const goHomeAnimated = () => {
+    if (leaving) return;
+    setLeaving(true);
+    setTimeout(() => { setActiveTab('home'); setLeaving(false); }, 280);
+  };
 
   // 3. الاستماع لتغييرات المسار من Electron إذا تم تشغيل اختصار من سطح المكتب أو Hash
   useEffect(() => {
@@ -414,7 +428,7 @@ const MainContent: React.FC = () => {
       )}
 
       {/* 3. منطقة المحتوى فقط (تأخذ الشاشة كاملة 100% بدون أي أشرطة مشتتة) */}
-      <main key={isAndroidNative ? activeTab : 'main'} className={`no-print flex-1 w-full mx-auto ${isAndroidNative && !isStandaloneWindow ? 'android-page ' : ''}${
+      <main key={isAndroidNative ? activeTab : 'main'} data-dir={modern ? navDirRef.current : undefined} data-leaving={modern && leaving ? '1' : undefined} className={`no-print flex-1 w-full mx-auto ${isAndroidNative && !isStandaloneWindow ? 'android-page ' : ''}${
         isStandaloneWindow
           ? 'w-full h-full p-2 max-w-full overflow-auto'
           : isMobile 
@@ -426,7 +440,7 @@ const MainContent: React.FC = () => {
             <button
               type="button"
               data-testid="modern-back"
-              onClick={() => setActiveTab('home')}
+              onClick={goHomeAnimated}
               aria-label="الرجوع إلى الرئيسية"
               title="الرجوع إلى الرئيسية"
               className="w-10 h-10 rounded-2xl bg-white dark:bg-[#0b1728] border border-orange-300 dark:border-orange-400/40 text-orange-600 dark:text-orange-300 flex items-center justify-center shadow-sm cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-500/10 transition"
@@ -627,6 +641,7 @@ const MainContent: React.FC = () => {
           <div className="bg-slate-800 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg">اضغط رجوع مرة أخرى للخروج</div>
         </div>
       )}
+      {modern && !isStandaloneWindow && !isAndroidNative && <ModernClock />}
       {modern && !isStandaloneWindow && !isAndroidNative && <ModernDock activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />}
 
       <ProductModal
