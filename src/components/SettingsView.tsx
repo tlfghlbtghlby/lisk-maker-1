@@ -966,6 +966,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       <div className="flex items-center gap-1.5 p-1.5 bg-slate-200/80 dark:bg-[#070e1b] rounded-2xl overflow-x-auto border border-slate-300/60 dark:border-slate-800 shadow-2xs">
         <button
           type="button"
+          onClick={() => setActiveSettingsTab('all')}
+          className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 whitespace-nowrap cursor-pointer ${
+            activeSettingsTab === 'all'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
+          }`}
+        >
+          <span>عرض الكل</span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveSettingsTab('store')}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
             activeSettingsTab === 'store'
@@ -1059,17 +1070,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => setActiveSettingsTab('all')}
-          className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 whitespace-nowrap cursor-pointer mr-auto ${
-            activeSettingsTab === 'all'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white'
-          }`}
-        >
-          <span>عرض الكل</span>
-        </button>
       </div>
 
       {featureOn('enableTelegram') && (activeSettingsTab === 'telegram' || activeSettingsTab === 'all') && <TelegramSettingsCard />}

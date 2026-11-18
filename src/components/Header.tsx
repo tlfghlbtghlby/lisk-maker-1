@@ -81,16 +81,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
           <div className="flex items-center gap-2 flex-wrap">
             <SessionBadgeButton />
             <ShiftHeaderButton />
-            <button
-              type="button"
-              onClick={() => setIsActiveSessionsModalOpen(true)}
-              className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer whitespace-nowrap"
-              title="إدارة الأجهزة والجلسات المتصلة"
-            >
-              <Cpu className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span className="hidden sm:inline">الجلسات</span>
-              <span className="text-[10px] px-1.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/30">{deviceSessions.length}</span>
-            </button>
           </div>
           <ModernClock variant="inline" />
         </div>
@@ -215,7 +205,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
             <ShiftHeaderButton />
 
             {/* Connected Devices & Sessions Button (زر الجلسات المتصلة) */}
-            <button
+            {!modern && <button
               type="button"
               onClick={() => setIsActiveSessionsModalOpen(true)}
               className="px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer shadow-xs whitespace-nowrap"
@@ -226,7 +216,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
               <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/30">
                 {deviceSessions.length}
               </span>
-            </button>
+            </button>}
 
             {/* Device Mode Toggle */}
             <button
@@ -314,14 +304,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
                   {currentUser.displayName || currentUser.email?.split('@')[0]}
                 </span>
 
-                <button
+                {!modern && <button
                   type="button"
                   onClick={logout}
                   className="p-1 hover:bg-slate-700 text-slate-400 hover:text-rose-400 rounded transition cursor-pointer"
                   title="تسجيل الخروج والعودة لشاشة الدخول"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                </button>
+                </button>}
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -382,18 +372,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
             </div>
           )}
 
-          {modern && (
-            <div data-m-stat="items" className="bg-slate-800/90 border border-slate-700/70 rounded-lg px-3 py-1.5 flex items-center gap-2.5 shrink-0 whitespace-nowrap">
-              <div className="w-6 h-6 rounded-md bg-violet-500/20 text-violet-400 flex items-center justify-center">
-                <ShoppingBag className="w-3.5 h-3.5" />
-              </div>
-              <div>
-                <span className="text-slate-400 text-[10px] block">عدد المواد</span>
-                <span className="font-bold text-white text-xs">{products.length}</span>
-              </div>
-            </div>
-          )}
-
           {/* Low Stock Warning */}
           {lowStockCount > 0 && (
             <div data-m-stat="low" className="bg-rose-950/50 border border-rose-800/60 rounded-lg px-3 py-1.5 flex items-center gap-2 text-rose-200 shrink-0 whitespace-nowrap">
@@ -401,6 +379,9 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
               <span className="text-xs font-bold">{lowStockCount} مواد قاربت على النفاد بالمخزن</span>
             </div>
           )}
+
+          {/* الوقت في نهاية صف الأرقام (الوضع العصري) */}
+          {modern && <div className="mr-auto shrink-0"><ModernClock variant="inline" /></div>}
         </div>
 
       </div>

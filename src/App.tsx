@@ -5,7 +5,6 @@ import WhatsAppAutoPrompt from './components/WhatsAppAutoPrompt';
 import { Navigation, TabType } from './components/Navigation';
 import ModernHome from './components/ModernHome';
 import ModernDock from './components/ModernDock';
-import ModernClock from './components/ModernClock';
 import { isModernMode, useModernMode } from './utils/modernMode';
 import { POSView } from './components/POSView';
 import { InventoryView } from './components/InventoryView';
@@ -572,9 +571,6 @@ const MainContent: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'home' && modern && !isStandaloneWindow && (
-          <div className="no-print hidden sm:flex justify-end mb-3"><ModernClock /></div>
-        )}
         {activeTab === 'home' && modern && (
           <ModernHome onSelectTab={(tab) => setActiveTab(tab)} />
         )}
