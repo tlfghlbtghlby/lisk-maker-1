@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
-import { ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock, Tag, Truck, Wallet } from 'lucide-react';
+import { Home, ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefcase, Clock, Tag, Truck, Wallet } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { ContextMenuWrapper } from './ContextMenuWrapper';
+import { useModernMode } from '../utils/modernMode';
 
-export type TabType = 'pos' | 'inventory' | 'suppliers' | 'invoices' | 'customers' | 'reports' | 'expenses' | 'sales-reps' | 'offers' | 'shifts' | 'settings';
+export type TabType = 'home' | 'pos' | 'inventory' | 'suppliers' | 'invoices' | 'customers' | 'reports' | 'expenses' | 'sales-reps' | 'offers' | 'shifts' | 'settings';
 
 interface NavigationProps {
   activeTab: TabType;
@@ -30,6 +31,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
   const isShiftsPermitted = storeFeatures?.enableShifts !== false && settings.enableShifts !== false && hasPermission('canAccessShifts');
   const isSalesRepsPermitted = storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps');
 
+  const modern = useModernMode();
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
   const activeDebtCustomers = customers.filter((c) => c.totalDebt > 0).length;
 
@@ -60,6 +62,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }
   }, [shifts, currentUser?.uid, sessionRole, activeSupervisorId, currentDeviceId]);
 
   const allNavItems: { id: TabType; label: string; icon: React.ReactNode; badge?: number | string; badgeColor?: string; permitted: boolean }[] = [
+    { id: 'home', label: 'الرئيسية', icon: <Home className="w-4 h-4" />, permitted: modern },
     {
       id: 'pos',
       label: 'نقطة البيع وقائمة جديدة',
