@@ -650,6 +650,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     // المسح يستعمل وحدة المسح؛ الضغط يستعمل وحدة الضغط (وإن لم تُحدد تتبع وحدة المسح كما كان سابقاً)
     const su = via === 'click' ? (prod.clickUnit || prod.scanUnit) : prod.scanUnit;
     const weighted = Boolean(prod.isWeighted || prod.unit === 'كغم' || prod.unit === 'كيلو');
+    if (weighted) {
+      // مادة وزنية: الكمية الافتراضية بالغرام للضغط/للمسح (الافتراضي كيلو)
+      const g = (via === 'click' ? prod.clickWeightGrams : prod.scanWeightGrams) || 1000;
+      addToCartWithPrice(prod, globalPriceType, g / 1000);
+      return g === 1000 ? 'كيلو' : g === 500 ? 'نصف كيلو' : `${g} غرام`;
+    }
     const dz = !weighted && (prod.piecesPerDozen || 0) > 1;
     const ok = !weighted && ((su === 'dozen' && dz) || (su === 'carton' && (prod.piecesPerCarton || 1) > 1));
     const asPieces = via === 'click' ? (prod.clickAsPieces ?? false) : (prod.scanAsPieces ?? false);

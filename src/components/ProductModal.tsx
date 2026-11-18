@@ -103,6 +103,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [scanUnit, setScanUnit] = useState<'piece' | 'dozen' | 'carton'>('piece');
   const [clickUnit, setClickUnit] = useState<'piece' | 'dozen' | 'carton'>('piece');
   const [scanAsPieces, setScanAsPieces] = useState(false);
+  const [clickGrams, setClickGrams] = useState<number>(1000);
+  const [scanGrams, setScanGrams] = useState<number>(1000);
   const [clickAsPieces, setClickAsPieces] = useState(false);
   const [dozenOn, setDozenOn] = useState(false);
   const [dozenLabel, setDozenLabel] = useState('درزن');
@@ -272,6 +274,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setScanUnit(productToEdit.scanUnit || 'piece');
       setClickUnit(productToEdit.clickUnit || productToEdit.scanUnit || 'piece');
       setScanAsPieces(productToEdit.scanAsPieces === true);
+      setClickGrams(productToEdit.clickWeightGrams || 1000);
+      setScanGrams(productToEdit.scanWeightGrams || 1000);
       setClickAsPieces(productToEdit.clickAsPieces === true);
       setPiecesPerDozen((productToEdit.piecesPerDozen || 0) > 1 ? productToEdit.piecesPerDozen! : 12);
 
@@ -604,6 +608,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       piecesPerCarton: numPieces,
       scanUnit: (!isWeighted && ((scanUnit === 'dozen' && dozenOn) || (scanUnit === 'carton' && numPieces > 1))) ? scanUnit : 'piece',
       clickUnit: (!isWeighted && ((clickUnit === 'dozen' && dozenOn) || (clickUnit === 'carton' && numPieces > 1))) ? clickUnit : 'piece',
+      clickWeightGrams: isWeighted && clickGrams > 0 && clickGrams !== 1000 ? clickGrams : undefined,
+      scanWeightGrams: isWeighted && scanGrams > 0 && scanGrams !== 1000 ? scanGrams : undefined,
       scanAsPieces: scanAsPieces && scanUnit !== 'piece' ? true : undefined,
       clickAsPieces: clickAsPieces && clickUnit !== 'piece' ? true : undefined,
       dozenLabel: dozenOn && !isWeighted && dozenLabel.trim() && dozenLabel.trim() !== 'درزن' ? dozenLabel.trim() : undefined,
@@ -1127,6 +1133,35 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 )}
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">تُضاف بها المادة أول مرة، ويمكنك تغيير الوحدة لاحقاً من أزرار السطر.</span>
               </div>
+              </div>
+            )}
+
+            {isWeighted && (
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#070e1b] px-3 py-2.5 space-y-2" data-testid="weighted-defaults">
+                <div className="flex items-center gap-1.5 flex-wrap" data-testid="weighted-click">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 w-48">عند الضغط على المادة يُضاف:</span>
+                  {[100, 250, 500, 1000].map((g) => (
+                    <button key={g} type="button" onClick={() => setClickGrams(g)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${clickGrams === g ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-[#060b13] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}>
+                      {g === 1000 ? 'كيلو' : g === 500 ? 'نصف كيلو' : g + ' غرام'}
+                    </button>
+                  ))}
+                  <input type="number" min={1} step={25} value={clickGrams} onChange={(e) => setClickGrams(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-20 bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-emerald-500" />
+                  <span className="text-[11px] text-slate-500">غرام</span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap" data-testid="weighted-scan">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 w-48">عند مسح الباركود يُضاف:</span>
+                  {[100, 250, 500, 1000].map((g) => (
+                    <button key={g} type="button" onClick={() => setScanGrams(g)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer ${scanGrams === g ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-[#060b13] text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700'}`}>
+                      {g === 1000 ? 'كيلو' : g === 500 ? 'نصف كيلو' : g + ' غرام'}
+                    </button>
+                  ))}
+                  <input type="number" min={1} step={25} value={scanGrams} onChange={(e) => setScanGrams(Math.max(0, Number(e.target.value) || 0))}
+                    className="w-20 bg-white dark:bg-[#060b13] border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 text-xs font-mono text-center focus:outline-none focus:border-emerald-500" />
+                  <span className="text-[11px] text-slate-500">غرام</span>
+                </div>
               </div>
             )}
 
