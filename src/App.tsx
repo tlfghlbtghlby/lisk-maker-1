@@ -5,6 +5,7 @@ import WhatsAppAutoPrompt from './components/WhatsAppAutoPrompt';
 import { Navigation, TabType } from './components/Navigation';
 import ModernHome from './components/ModernHome';
 import ModernDock from './components/ModernDock';
+import { TelegramBackupRunner } from './components/TelegramBackup';
 import { isModernMode, useModernMode } from './utils/modernMode';
 import { POSView } from './components/POSView';
 import { InventoryView } from './components/InventoryView';
@@ -640,6 +641,7 @@ const MainContent: React.FC = () => {
           <div className="bg-slate-800 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg">اضغط رجوع مرة أخرى للخروج</div>
         </div>
       )}
+      {!isStandaloneWindow && <TelegramBackupRunner />}
       {modern && !isStandaloneWindow && !isAndroidNative && <ModernDock activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />}
 
       <ProductModal
