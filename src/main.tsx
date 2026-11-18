@@ -6,11 +6,14 @@ import { installNumpadFix } from './utils/numpadFix';
 import { installModalKeyGuard } from './utils/modalKeyGuard';
 import { installThemeCustom } from './utils/themeCustom';
 import { installAutoContrast } from './utils/autoContrast';
+import { installModernMode } from './utils/modernMode';
+import './modern.css';
 
 installNativeDialogFix();
 installNumpadFix();
 installModalKeyGuard();
 installThemeCustom();
 installAutoContrast();
+installModernMode();
 
 createRoot(document.getElementById('root')!).render(<App />);

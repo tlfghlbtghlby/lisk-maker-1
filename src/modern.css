@@ -1,0 +1,195 @@
+/* ===================================================================
+   «الوضع العصري» — يُفعَّل بالصنف html.modern (من الإعدادات).
+   تنسيق فقط: لا يمسّ البيانات ولا المزامنة. يعمل مع الفاتح والداكن.
+   - داخل @media screen فلا تتأثر الطباعة.
+   - القواعد غير المطبقة بـ !important حتى تغلب عليها ألوان «تخصيص الثيم» إن اختارها المستخدم.
+   - التمويه (blur) على الترويسة والتبويبات والنوافذ فقط، لأن تمويه كل البطاقات يبطئ الأجهزة الضعيفة.
+   =================================================================== */
+@media screen {
+  html.modern {
+    --m-accent: #f97316;
+    --m-accent-2: #fb923c;
+    --m-accent-soft: rgba(249, 115, 22, 0.14);
+    --m-line: rgba(249, 115, 22, 0.24);
+    --m-ink: #1f2937;
+    --m-card: rgba(255, 255, 255, 0.82);
+    --m-card-solid: rgba(255, 255, 255, 0.96);
+    --m-field: rgba(255, 255, 255, 0.9);
+    --m-shadow: 0 8px 24px -12px rgba(180, 100, 30, 0.34), 0 1px 2px rgba(180, 100, 30, 0.08);
+    --m-shadow-lg: 0 24px 60px -18px rgba(150, 80, 20, 0.45);
+    --m-r-sm: 10px;
+    --m-r: 16px;
+    --m-r-lg: 22px;
+    --m-r-xl: 28px;
+  }
+  html.modern.dark {
+    --m-accent: #fb923c;
+    --m-accent-2: #fdba74;
+    --m-accent-soft: rgba(251, 146, 60, 0.16);
+    --m-line: rgba(251, 146, 60, 0.26);
+    --m-ink: #f1f5f9;
+    --m-card: rgba(18, 30, 52, 0.78);
+    --m-card-solid: rgba(14, 24, 42, 0.97);
+    --m-field: rgba(10, 18, 34, 0.7);
+    --m-shadow: 0 8px 26px -12px rgba(0, 0, 0, 0.7), 0 1px 2px rgba(0, 0, 0, 0.3);
+    --m-shadow-lg: 0 26px 64px -18px rgba(0, 0, 0, 0.85);
+  }
+
+  /* ---------- الخلفية ---------- */
+  html.modern:not(.dark) body {
+    background:
+      radial-gradient(900px 520px at 88% -8%, #ffe3c7 0, transparent 62%),
+      radial-gradient(820px 520px at -6% 108%, #ffe8d6 0, transparent 58%),
+      radial-gradient(600px 400px at 50% 50%, #fff3e6 0, transparent 70%),
+      linear-gradient(180deg, #fff9f2, #fdefe2);
+    background-attachment: fixed;
+  }
+  html.modern.dark body {
+    background:
+      radial-gradient(900px 520px at 90% -10%, rgba(251, 146, 60, 0.13) 0, transparent 62%),
+      radial-gradient(800px 520px at -8% 110%, rgba(59, 130, 246, 0.12) 0, transparent 58%),
+      linear-gradient(180deg, #0a1322, #070d18);
+    background-attachment: fixed;
+  }
+  html.modern .app-root { background: transparent; }
+
+  /* ---------- الترويسة (بطاقة بحدّ برتقالي وزوايا سفلية دائرية) ---------- */
+  html.modern header.no-print {
+    margin: 0 10px;
+    border-radius: 0 0 var(--m-r-xl) var(--m-r-xl);
+    border: 2px solid var(--m-line);
+    border-top: 0;
+    box-shadow: var(--m-shadow);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+  html.modern:not(.dark) header.no-print {
+    background: linear-gradient(135deg, rgba(255, 252, 247, 0.96), rgba(255, 240, 224, 0.94));
+    color: var(--m-ink);
+  }
+  html.modern.dark header.no-print {
+    background: linear-gradient(135deg, rgba(16, 28, 50, 0.92), rgba(10, 18, 34, 0.92));
+  }
+  html.modern:not(.dark) header.no-print .text-white { color: var(--m-ink) !important; }
+  html.modern:not(.dark) header.no-print .text-slate-200 { color: #374151 !important; }
+  html.modern:not(.dark) header.no-print .text-slate-400 { color: #6b7280 !important; }
+  html.modern:not(.dark) header.no-print .bg-slate-800 { background: #ffffff !important; border-color: var(--m-line) !important; }
+  html.modern:not(.dark) header.no-print .bg-slate-800:hover,
+  html.modern:not(.dark) header.no-print .hover\:bg-slate-700:hover { background: #fff3e6 !important; }
+  html.modern:not(.dark) header.no-print .text-emerald-200 { color: #047857 !important; }
+
+  /* ---------- شريط التبويبات (حبّات عائمة) ---------- */
+  html.modern nav.no-print {
+    margin: 10px 10px 0;
+    border: 1px solid var(--m-line);
+    border-radius: var(--m-r-xl);
+    box-shadow: var(--m-shadow);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+  html.modern:not(.dark) nav.no-print { background: rgba(255, 255, 255, 0.78); }
+  html.modern.dark nav.no-print { background: rgba(14, 24, 42, 0.8); }
+  html.modern nav.no-print button { border-radius: 999px; }
+  html.modern:not(.dark) nav.no-print button.bg-emerald-600,
+  html.modern.dark nav.no-print button[class*="dark:from-amber-500"] {
+    background: linear-gradient(135deg, #fb923c, #f97316);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 6px 16px -6px rgba(249, 115, 22, 0.7);
+  }
+  html.modern:not(.dark) nav.no-print button:not(.bg-emerald-600):hover { background: var(--m-accent-soft); color: #9a3412; }
+
+  /* ---------- البطاقات والأسطح ---------- */
+  html.modern:not(.dark) .bg-white:not(.keep-light):not(button):not(input):not(select):not(textarea) {
+    background-color: var(--m-card);
+    border-color: var(--m-line);
+  }
+  html.modern:not(.dark) .bg-slate-50:not(.keep-light):not(button):not(input):not(select):not(textarea) { background-color: rgba(255, 247, 237, 0.7); }
+  html.modern:not(.dark) .border-slate-100,
+  html.modern:not(.dark) .border-slate-200 { border-color: rgba(249, 115, 22, 0.18); }
+  html.modern.dark [class*="dark:bg-[#0b1728]"]:not(button):not(input):not(select):not(textarea),
+  html.modern.dark [class*="dark:bg-[#0e1c33]"]:not(button):not(input):not(select):not(textarea) {
+    background-color: var(--m-card);
+    border-color: var(--m-line);
+  }
+  html.modern.dark [class*="dark:border-slate-800"],
+  html.modern.dark [class*="dark:border-slate-700"] { border-color: rgba(251, 146, 60, 0.16); }
+
+  /* ---------- الزوايا الدائرية الأكبر ---------- */
+  html.modern .rounded-md { border-radius: var(--m-r-sm); }
+  html.modern .rounded-lg { border-radius: 14px; }
+  html.modern .rounded-xl { border-radius: var(--m-r); }
+  html.modern .rounded-2xl { border-radius: var(--m-r-lg); }
+  html.modern .rounded-3xl { border-radius: var(--m-r-xl); }
+
+  /* ---------- ظلال دافئة ناعمة ---------- */
+  html.modern .shadow-xs,
+  html.modern .shadow-sm,
+  html.modern .shadow-md { box-shadow: var(--m-shadow); }
+  html.modern .shadow-lg,
+  html.modern .shadow-xl,
+  html.modern .shadow-2xl { box-shadow: var(--m-shadow-lg); }
+
+  /* ---------- الحقول ---------- */
+  html.modern input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  html.modern select,
+  html.modern textarea {
+    border-radius: 14px;
+    border-color: var(--m-line);
+    transition: box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
+  }
+  html.modern:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  html.modern:not(.dark) select,
+  html.modern:not(.dark) textarea { background-color: var(--m-field); }
+  html.modern input:focus,
+  html.modern select:focus,
+  html.modern textarea:focus {
+    outline: none;
+    border-color: var(--m-accent);
+    box-shadow: 0 0 0 4px var(--m-accent-soft);
+  }
+  html.modern input[type="checkbox"],
+  html.modern input[type="radio"],
+  html.modern input[type="range"] { accent-color: var(--m-accent); }
+
+  /* ---------- الأزرار: حركة ضغط ورفع خفيف ---------- */
+  html.modern button:not(:disabled) { transition: transform 120ms ease, box-shadow 160ms ease, background-color 160ms ease, filter 160ms ease; }
+  html.modern button:not(:disabled):hover { filter: brightness(1.03); }
+  html.modern button:not(:disabled):active { transform: scale(0.97); }
+  html.modern .bg-emerald-600:not(nav *),
+  html.modern .bg-amber-500:not(nav *):not(.keep-light) { box-shadow: 0 6px 16px -8px currentColor; }
+
+  /* ---------- النوافذ المنبثقة (تمويه الخلفية + حركة ظهور) ---------- */
+  html.modern .fixed.inset-0[class*="bg-black"] {
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    animation: m-fade 160ms ease-out;
+  }
+  html.modern:not(.dark) .fixed.inset-0[class*="bg-black"] > .bg-white,
+  html.modern:not(.dark) .fixed.inset-0[class*="bg-black"] > div > .bg-white { background-color: var(--m-card-solid); border: 1px solid var(--m-line); border-radius: var(--m-r-xl); animation: m-pop 200ms cubic-bezier(0.2, 0.9, 0.3, 1.15); }
+  html.modern.dark .fixed.inset-0[class*="bg-black"] > [class*="dark:bg-"],
+  html.modern.dark .fixed.inset-0[class*="bg-black"] > div > [class*="dark:bg-"] { background-color: var(--m-card-solid); border-radius: var(--m-r-xl); animation: m-pop 200ms cubic-bezier(0.2, 0.9, 0.3, 1.15); }
+
+  /* ---------- الجداول والصفوف ---------- */
+  html.modern table { border-collapse: separate; border-spacing: 0; }
+  html.modern thead th:first-child { border-top-right-radius: 12px; }
+  html.modern thead th:last-child { border-top-left-radius: 12px; }
+  html.modern tbody tr { transition: background-color 140ms ease; }
+  html.modern:not(.dark) tbody tr:hover { background-color: rgba(249, 115, 22, 0.06); }
+  html.modern.dark tbody tr:hover { background-color: rgba(251, 146, 60, 0.08); }
+
+  /* ---------- شريط التمرير ---------- */
+  html.modern ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #fdba74, #fb923c); border-radius: 999px; }
+  html.modern ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------- دخول ناعم للمحتوى عند تبديل الشاشة ---------- */
+  html.modern main.no-print > * { animation: m-rise 240ms ease-out; }
+
+  @keyframes m-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes m-pop { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
+  @keyframes m-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+}
+
+@media screen and (prefers-reduced-motion: reduce) {
+  html.modern *, html.modern *::before, html.modern *::after { animation: none !important; transition: none !important; }
+}
