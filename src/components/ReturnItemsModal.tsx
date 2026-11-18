@@ -45,7 +45,7 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
     return (products as any[]).filter(p => norm(p.name).includes(q) || norm(p.code).includes(q)).slice(0, 8);
   }, [products, q]);
 
-  const exactProduct = (txt: string) => (products as any[]).find(p => p.code && norm(p.code) === norm(txt));
+  const exactProduct = (txt: string) => (products as any[]).find(p => [p.code, ...(p.extraCodes || [])].some((c: any) => c && norm(c) === norm(txt)));
 
   // ---------- المواد الصافية ----------
   const addLoose = (p: any) => {

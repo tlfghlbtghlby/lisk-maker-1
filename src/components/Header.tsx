@@ -25,7 +25,6 @@ import { SessionBadgeButton } from './SessionBadgeButton';
 import { ShiftHeaderButton } from './ShiftHeaderButton';
 import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { APP_ICON_URL } from '../utils/assetUrl';
-import ModernClock from './ModernClock';
 import { useModernMode } from '../utils/modernMode';
 
 interface HeaderProps {
@@ -123,8 +122,6 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth }) => {
               </div>
             )}
           </div>
-
-          {modern && <ModernClock />}
 
           {/* Left Side: أزرار التحكم كاملة الكلمات بدون أي قص أو نقاط */}
           <div className="flex flex-wrap items-center gap-2">
