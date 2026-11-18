@@ -329,7 +329,7 @@ const MainContent: React.FC = () => {
       
       {/* 1. الشريط الأسود العلوي (يختفي تماماً في أي نافذة منفصلة لأي خانة) */}
       {!isStandaloneWindow && (
-        <Header onOpenAuth={() => setIsGuest(false)} />
+        <Header onOpenAuth={() => setIsGuest(false)} compact={modern && activeTab !== 'home'} />
       )}
 
       {/* 2. شريط التبويبات العلوي (يختفي تماماً في أي نافذة منفصلة لأي خانة) */}
@@ -493,6 +493,9 @@ const MainContent: React.FC = () => {
           </div>
         )}
 
+        {activeTab === 'home' && modern && !isStandaloneWindow && (
+          <div className="no-print hidden sm:flex justify-end mb-3"><ModernClock /></div>
+        )}
         {activeTab === 'home' && modern && (
           <ModernHome onSelectTab={(tab) => setActiveTab(tab)} />
         )}

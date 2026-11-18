@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 // ساعة وتاريخ عائمان أسفل يسار الشاشة في الوضع العصري (تُحسب في الجهاز، لا تُخزَّن ولا تُرسَل).
-export default function ModernClock() {
+export default function ModernClock({ variant = 'card' }: { variant?: 'card' | 'inline' }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -15,9 +15,9 @@ export default function ModernClock() {
   const date = now.toLocaleDateString('ar-IQ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   return (
     <div data-m="clock" data-testid="modern-clock" dir="rtl" aria-label="الساعة والتاريخ"
-      className="no-print fixed bottom-3 left-3 z-40 hidden sm:flex items-center gap-3 px-4 py-2 rounded-2xl border pointer-events-none select-none">
+      className={`no-print flex items-center gap-3 rounded-2xl border select-none ${variant === 'inline' ? 'px-3 py-1' : 'px-4 py-2'}`}>
       <div className="flex items-baseline gap-1" dir="ltr">
-        <span className="text-3xl font-black tabular-nums leading-none" style={{ color: 'var(--m-accent)' }}>{hour12}:{mm}</span>
+        <span className={`${variant === 'inline' ? 'text-xl' : 'text-3xl'} font-black tabular-nums leading-none`} style={{ color: 'var(--m-accent)' }}>{hour12}:{mm}</span>
         <span className="text-sm font-bold tabular-nums opacity-60">{ss}</span>
       </div>
       <div className="flex flex-col leading-tight">
