@@ -624,6 +624,8 @@ export interface StoreSettings {
   aiScanAliases?: Record<string, string>;
   /** الشكل الكلاسيكي لقائمة البيع في نقطة البيع (جدول بخطوط كالقائمة المطبوعة) */
   posClassicCart?: boolean;
+  /** وضع القائمة: جدول مثل القائمة المطبوعة مع اقتراحات المواد (يُطفئ الكلاسيكي) */
+  posListMode?: boolean;
   /** فصل عدد الكراتين عن عدد القطع عند الإضافة */
   separateCartonPieces?: boolean;
   /** حرف التبديل إلى مربع الكرتون */

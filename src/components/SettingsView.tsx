@@ -89,6 +89,7 @@ import AutoContrastToggle from './AutoContrastToggle';
 import ModernModeToggle from './ModernModeToggle';
 import QuickCreditSetting from './QuickCreditSetting';
 import ViewOptionsSetting from './ViewOptionsSetting';
+import { LocalBackupSection } from './LocalBackup';
 import PermissionSubsetEditor from './PermissionSubsetEditor';
 
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
@@ -287,7 +288,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [permSupId, setPermSupId] = useState<string | null>(null);
   const [waAttachPdf, setWaAttachPdf] = useState<boolean>(settings.waAttachPdf !== false);
   const [enableChangeCalculator, setEnableChangeCalculator] = useState<boolean>(settings.enableChangeCalculator !== false);
-  const [posClassicCart, setPosClassicCart] = useState<boolean>(settings.posClassicCart === true);
+  const [posClassicCart, setPosClassicCart] = useState<boolean>(settings.posClassicCart === true && settings.posListMode !== true);
+  const [posListMode, setPosListMode] = useState<boolean>(settings.posListMode === true);
   const [separateCartonPieces, setSeparateCartonPieces] = useState<boolean>(settings.separateCartonPieces === true);
   const [cartonHotkey, setCartonHotkey] = useState<string>(settings.cartonHotkey || 'c');
   const [enableProductExpiry, setEnableProductExpiry] = useState<boolean>(settings.enableProductExpiry === true);
@@ -482,7 +484,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setWaAutoPaste(settings.waAutoPaste !== false);
       setWaAttachPdf(settings.waAttachPdf !== false);
       setEnableChangeCalculator(settings.enableChangeCalculator !== false);
-      setPosClassicCart(settings.posClassicCart === true);
+      setPosClassicCart(settings.posClassicCart === true && settings.posListMode !== true);
+      setPosListMode(settings.posListMode === true);
       setSeparateCartonPieces(settings.separateCartonPieces === true);
       setCartonHotkey(settings.cartonHotkey || 'c');
       setEnableProductExpiry(settings.enableProductExpiry === true);
@@ -596,6 +599,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       waAttachPdf,
       enableChangeCalculator,
       posClassicCart,
+      posListMode,
       separateCartonPieces,
       cartonHotkey: (cartonHotkey || 'c').trim().slice(0, 1).toLowerCase() || 'c',
       enableProductExpiry,
@@ -2015,13 +2019,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </label>
             <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
               <div>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">الشكل الكلاسيكي لقائمة البيع (جدول)</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">الشكل الكلاسيكي لقائمة البيع (جدول) — الوضع الثاني</span>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400">يعرض المواد المضافة في نقطة البيع كجدول بخطوط مثل القائمة المطبوعة، وتتبع أعمدته إعدادات الطباعة (أعمدة الكراتين وسعر القطعة). مع وضع Enter ينتقل المؤشر عبر أعمدة السطر بالترتيب (كراتين ← قطع ← السعر) ثم يعود للبحث. عند الإيقاف يبقى الشكل الحالي.</span>
               </div>
               <input
                 type="checkbox"
                 checked={posClassicCart}
-                onChange={(e) => setPosClassicCart(e.target.checked)}
+                onChange={(e) => { setPosClassicCart(e.target.checked); if (e.target.checked) setPosListMode(false); }}
+                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+              />
+            </label>
+            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer" data-testid="list-mode-toggle">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">📋 وضع القائمة — الوضع الثالث</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">تتحول واجهة البيع إلى جدول مثل القائمة المطبوعة: تكتب اسم المادة أو باركودها في السطر فتظهر اقتراحات من مخزن الجهاز (لا من السحابة) وبجانب كل اسم سعره حسب النوع المحدد (مفرد/جملة/...)، وتختارها بالفأرة أو بالسهم ↓ ثم Enter فينتقل المؤشر للعمود التالي (العدد ← السعر) ثم يعود لسطر جديد. تشغيله يُطفئ الشكل الكلاسيكي والعكس؛ وإن أطفأتهما معاً تعود الواجهة العادية.</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={posListMode}
+                onChange={(e) => { setPosListMode(e.target.checked); if (e.target.checked) setPosClassicCart(false); }}
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>
@@ -2559,6 +2575,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">افتح ملف نسخة (أو الأرشيف المحلي) وتصفح فواتيره فقط، أو استعدها إلى البرنامج دون المساس بالمواد والزبائن.</div>
                 </div>
               </button>
+
+              <div className="col-span-full"><LocalBackupSection /></div>
 
               {/* 3. استعادة نسخة المواد فقط */}
               <div

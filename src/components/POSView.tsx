@@ -103,6 +103,80 @@ const playScannerBeep = (type: 'success' | 'alert' | 'unfound' = 'success') => {
 };
 
 
+
+/** خلية إدخال اسم المادة في وضع القائمة: اقتراحات من المخزن المحلي مع السعر بجانب كل اسم */
+const ListEntryCell: React.FC<{
+  products: Product[];
+  priceOf: (p: Product) => number;
+  priceLabel: string;
+  formatMoney: (n: number) => string;
+  onPick: (p: Product) => void;
+}> = ({ products, priceOf, priceLabel, formatMoney, onPick }) => {
+  const [q, setQ] = useState('');
+  const [hi, setHi] = useState(0);
+  const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  const ref = useRef<HTMLInputElement>(null);
+  const list = useMemo(() => {
+    const t = q.trim();
+    if (!t) return [] as Product[];
+    const tl = t.toLowerCase();
+    const exact = products.filter((p) => p && p.id && (String(p.code || '').toLowerCase() === tl || (p.extraCodes || []).some((c) => String(c).toLowerCase() === tl)));
+    if (exact.length) return exact.slice(0, 8);
+    return products.filter((p) => p && p.id && (matchAr(p.name, t) || String(p.code || '').toLowerCase().includes(tl))).slice(0, 8);
+  }, [q, products]);
+  const place = () => {
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setRect({ left: r.left, top: r.bottom + 2, width: Math.max(r.width, 320) });
+  };
+  const pick = (p: Product) => {
+    onPick(p);
+    setQ(''); setHi(0); setOpen(false);
+  };
+  return (
+    <>
+      <input
+        ref={ref}
+        data-list-entry="1"
+        value={q}
+        placeholder="اكتب اسم المادة أو الباركود…"
+        onChange={(e) => { setQ(e.target.value); setHi(0); setOpen(true); place(); }}
+        onFocus={() => { place(); if (q) setOpen(true); }}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') return;
+          e.stopPropagation();
+          if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setHi((h) => Math.min(list.length - 1, h + 1)); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(0, h - 1)); }
+          else if (e.key === 'Enter') { e.preventDefault(); if (list[hi]) pick(list[hi]); }
+          else if (e.key === 'Escape') { setQ(''); setOpen(false); }
+        }}
+        className="w-full bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 focus:bg-white px-1.5 py-1 text-[12px] font-bold text-slate-900"
+      />
+      {open && list.length > 0 && rect && (
+        <div className="fixed z-[90] bg-white border border-slate-400 rounded-lg shadow-2xl overflow-hidden" style={{ left: rect.left, top: rect.top, width: rect.width }} dir="rtl" data-testid="list-suggestions">
+          {list.map((p, i) => (
+            <button
+              key={p.id}
+              type="button"
+              tabIndex={-1}
+              onMouseDown={(e) => { e.preventDefault(); pick(p); }}
+              onMouseEnter={() => setHi(i)}
+              className={`w-full flex items-center justify-between gap-3 px-2.5 py-1.5 text-right text-[12px] cursor-pointer border-b border-slate-100 last:border-0 ${i === hi ? 'bg-emerald-100' : 'bg-white'}`}
+            >
+              <span className="font-bold text-slate-900 truncate">{p.name}</span>
+              <span className="shrink-0 flex items-center gap-2 text-[11px]">
+                <span className={`font-mono ${p.stock <= 0 ? 'text-rose-600' : 'text-slate-500'}`}>رصيد {p.stock}</span>
+                <span className="font-mono font-black text-emerald-800 bg-emerald-50 border border-emerald-200 rounded px-1.5">{priceLabel}: {formatMoney(priceOf(p))}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+};
+
 /** خلية إدخال رقمية لجدول القائمة الكلاسيكي */
 const ClassicCell: React.FC<{
   value: number;
@@ -752,7 +826,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const kbMode = settings.posKeyboardMode === true;
   const sepMode = settings.separateCartonPieces === true;
   const cartonKey = (settings.cartonHotkey || 'c').toLowerCase();
-  const classicMode = settings.posClassicCart === true && settings.deviceMode !== 'mobile';
+  // وضع القائمة (ثالث الأوضاع) يُطفئ الكلاسيكي والعكس
+  const listMode = settings.posListMode === true && settings.deviceMode !== 'mobile';
+  const classicMode = settings.posClassicCart === true && !listMode && settings.deviceMode !== 'mobile';
 
   const isWeightedProd = (p: Product) => Boolean(p.isWeighted || p.unit === 'كغم' || p.unit === 'كيلو');
   const entryNum = (v: string) => {
@@ -1558,8 +1634,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     );
   };
 
+  const focusListEntry = () => setTimeout(() => (document.querySelector('[data-list-entry]') as HTMLInputElement | null)?.focus(), 0);
   const classicFinish = () => {
-    if (kbMode) focusSearchBox();
+    if (listMode) focusListEntry();
+    else if (kbMode) focusSearchBox();
     else (document.activeElement as HTMLElement | null)?.blur();
   };
 
@@ -1590,7 +1668,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         e.preventDefault();
         removeFromCart(lineKeyOf(item));
         (document.activeElement as HTMLElement | null)?.blur();
-        if (kbMode) setKbZone('list');
+        if (listMode) focusListEntry();
+        else if (kbMode) setKbZone('list');
       }
       return;
     }
@@ -1700,6 +1779,135 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     return () => window.removeEventListener('android-back', onBack);
   }, [isMobileMode, mobileTab]);
 
+  // جدول القائمة (الشكل الكلاسيكي ووضع القائمة): entry=true يضيف سطر الإدخال مع الاقتراحات وسطوراً فارغة كالقائمة المطبوعة
+  const renderClassicTable = (entry: boolean) => (
+        <div className="overflow-x-auto">
+          <table className="w-full text-right border-collapse text-[11px] bg-white border border-slate-800" dir="rtl">
+            <thead>
+              <tr className="bg-slate-100 border-b border-slate-800 text-slate-900 font-black">
+                <th className="py-1 px-1 border-l border-slate-800 text-center w-6">ت</th>
+                <th className="py-1 px-1.5 border-l border-slate-800">اسم المادة</th>
+                {cartonColsOn ? (
+                  <>
+                    <th className="py-1 px-1 border-l border-slate-800 text-center w-14">كراتين</th>
+                    <th className="py-1 px-1 border-l border-slate-800 text-center w-14">قطع</th>
+                    <th className="py-1 px-1 border-l border-slate-800 text-center w-10">تعبئة</th>
+                  </>
+                ) : (
+                  <th className="py-1 px-1 border-l border-slate-800 text-center w-14">العدد</th>
+                )}
+                <th className="py-1 px-1 border-l border-slate-800 text-center w-16">السعر</th>
+                {piecePriceColOn && <th className="py-1 px-1 border-l border-slate-800 text-center w-14">سعر القطعة</th>}
+                <th className="py-1 px-1 border-l border-slate-800 text-center w-16">المبلغ</th>
+                <th className="w-6"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {cartItems.map((item, index) => {
+                const key = lineKeyOf(item);
+                const cap = Math.max(1, item.piecesPerCarton || 1);
+                const bd = breakdownOf(item);
+                const bad = !(item.quantity > 0);
+                const hasCartonCol = cartonColsOn && !item.isWeighted;
+                const pieceUnitPrice = item.unitType === 'carton' ? item.unitPrice / cap : item.unitPrice;
+                const kd = (col: string) => (e: React.KeyboardEvent<HTMLInputElement>) => onClassicCellKey(e, item, col);
+                return (
+                  <tr key={`${key}_${index}`} className={`font-semibold border-b border-slate-400 ${bad ? 'bg-rose-50' : item.isGift ? 'bg-pink-50/60' : ''}`}>
+                    <td className="py-0.5 px-0.5 border-l border-slate-800 text-center font-mono text-[10px]">{index + 1}</td>
+                    <td className="py-0.5 px-1.5 border-l border-slate-800 break-words">
+                      <span>{item.productName}</span>
+                      {item.isGift && <span className="mr-1 text-[10px] font-black text-pink-700">🎁 هدية</span>}
+                      {item.isWeighted && <span className="mr-1 text-[10px] text-emerald-700">(كغم)</span>}
+                      {!cartonColsOn && !item.isWeighted && item.unitType === 'carton' && <span className="mr-1 text-[10px] text-amber-700">({item.packLabel || 'كرتون'})</span>}
+                    </td>
+                    {cartonColsOn ? (
+                      <>
+                        <td className="p-0 border-l border-slate-800">
+                          {hasCartonCol && cap > 1 ? (
+                            <ClassicCell cellId={`${key}|c`} value={bd.c} onKeyDown={kd('c')} invalid={bad}
+                              onCommit={(n) => applyBreakdown(key, n, breakdownOf(cartItemsRef.current.find((i) => lineKeyOf(i) === key) || item).p)} />
+                          ) : <span className="block text-center text-slate-400">-</span>}
+                        </td>
+                        <td className="p-0 border-l border-slate-800">
+                          {hasCartonCol ? (
+                            <ClassicCell cellId={`${key}|p`} value={bd.p} onKeyDown={kd('p')} invalid={bad}
+                              onCommit={(n) => applyBreakdown(key, breakdownOf(cartItemsRef.current.find((i) => lineKeyOf(i) === key) || item).c, n)} />
+                          ) : (
+                            <ClassicCell cellId={`${key}|q`} value={item.quantity} step="0.001" onKeyDown={kd('q')} invalid={bad}
+                              onCommit={(n) => setLineQty(key, n)} />
+                          )}
+                        </td>
+                        <td className="py-0.5 px-0.5 border-l border-slate-800 text-center font-mono text-[10px]">{cap > 1 && !item.isWeighted ? cap : '-'}</td>
+                      </>
+                    ) : (
+                      <td className="p-0 border-l border-slate-800">
+                        <ClassicCell cellId={`${key}|q`} value={item.quantity} step={item.isWeighted ? '0.001' : '1'} onKeyDown={kd('q')} invalid={bad}
+                          onCommit={(n) => setLineQty(key, n)} />
+                      </td>
+                    )}
+                    <td className="p-0 border-l border-slate-800">
+                      {item.isGift ? (
+                        <span className="block text-center font-mono">0</span>
+                      ) : (
+                        <ClassicCell cellId={`${key}|price`} value={item.unitPrice} step="any" onKeyDown={kd('price')}
+                          onCommit={(n) => setLinePrice(key, n)} />
+                      )}
+                    </td>
+                    {piecePriceColOn && (
+                      <td className="py-0.5 px-1 border-l border-slate-800 text-center font-mono">
+                        {item.isWeighted ? '-' : formatMoney(Math.round(pieceUnitPrice))}
+                      </td>
+                    )}
+                    <td className="py-0.5 px-1 border-l border-slate-800 text-center font-mono font-bold">{formatMoney(item.total)}</td>
+                    <td className="py-0.5 px-0.5 text-center">
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        onClick={() => removeFromCart(key)}
+                        className="p-0.5 text-slate-400 hover:text-rose-600 cursor-pointer"
+                        title="حذف السطر"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {entry && (() => {
+                const total = 2 + (cartonColsOn ? 3 : 1) + 1 + (piecePriceColOn ? 1 : 0) + 1 + 1;
+                const fillers = Math.max(0, 14 - cartItems.length - 1);
+                return (
+                  <>
+                    <tr className="font-semibold border-b border-slate-400 bg-emerald-50/50" data-testid="list-entry-row">
+                      <td className="py-0.5 px-0.5 border-l border-slate-800 text-center font-mono text-[10px]">{cartItems.length + 1}</td>
+                      <td className="p-0 border-l border-slate-800">
+                        <ListEntryCell
+                          products={products}
+                          priceOf={(pr) => getPiecePrice(pr, globalPriceType)}
+                          priceLabel={globalPriceType === 'wholesale' ? 'جملة' : globalPriceType === 'superWholesale' ? 'جملة الجملة' : globalPriceType === 'special' ? 'خاص' : 'مفرد'}
+                          formatMoney={formatMoney}
+                          onPick={(pr) => classicAddAndFocus(pr, true)}
+                        />
+                      </td>
+                      <td colSpan={total - 2} className="border-l border-slate-800 text-[10px] text-slate-400 px-2">اكتب اسم المادة أو الباركود ← ↓ للاختيار ← Enter</td>
+                    </tr>
+                    {Array.from({ length: fillers }).map((_, i) => (
+                      <tr key={`fill_${i}`} className="border-b border-slate-300 h-6 cursor-text" onClick={() => (document.querySelector('[data-list-entry]') as HTMLInputElement | null)?.focus()}>
+                        <td className="border-l border-slate-300 text-center font-mono text-[10px] text-slate-300">{cartItems.length + 2 + i}</td>
+                        {Array.from({ length: total - 1 }).map((__, j) => <td key={j} className="border-l border-slate-300" />)}
+                      </tr>
+                    ))}
+                  </>
+                );
+              })()}
+            </tbody>
+          </table>
+          {kbMode && (
+            <p className="text-[10px] text-slate-400 mt-1 px-1">Enter = العمود التالي · في آخر عمود يعود للبحث · Esc = رجوع للبحث</p>
+          )}
+        </div>
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex justify-end">
@@ -1768,10 +1976,20 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       <div
         ref={splitWrapRef}
         className={isMobileMode ? 'flex flex-col gap-4' : (isLgScreen ? 'grid gap-0' : 'grid grid-cols-12 gap-3')}
-        style={!isMobileMode && isLgScreen ? { gridTemplateColumns: `minmax(0,1fr) 12px ${cartWidth ? cartWidth + 'px' : (viewMode === 'list' ? '41%' : '33%')}` } : undefined}
+        style={!isMobileMode && isLgScreen ? { gridTemplateColumns: `minmax(0,1fr) 12px ${cartWidth ? cartWidth + 'px' : (listMode ? '30%' : viewMode === 'list' ? '41%' : '33%')}` } : undefined}
       >
         {(!isMobileMode || mobileTab === 'products') && (
           <div className={`${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} flex flex-col gap-3 min-w-0`}>
+            {listMode && (
+              <div className="bg-white rounded-xl border border-slate-300 shadow-sm p-2 flex flex-col gap-2" data-testid="list-mode-panel">
+                <div className="flex items-center justify-between gap-2 flex-wrap px-1">
+                  <h3 className="text-sm font-black text-slate-900">📋 وضع القائمة</h3>
+                  <span className="text-[11px] text-slate-500">الأسعار حسب النوع المحدد في اللوحة الجانبية · المواد من المخزن المحلي</span>
+                </div>
+                {renderClassicTable(true)}
+              </div>
+            )}
+            <div className={listMode ? 'hidden' : 'contents'}>
             {lastPriceNotes.length > 0 && (
               <div data-testid="last-price-notes" className="flex flex-col gap-1">
                 {lastPriceNotes.map((n) => (
@@ -2474,6 +2692,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 </button>
               </div>
             )}
+            </div>
           </div>
         )}
 
@@ -2665,105 +2884,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     <p className="text-xs font-semibold text-slate-600">القائمة فارغة</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">انقر على أي مادة لإضافتها</p>
                   </div>
+                ) : listMode ? (
+                  <div className="text-[11px] text-slate-500 text-center py-6" data-testid="list-mode-hint">📋 {cartItems.length} سطر في القائمة — تُحرَّر القائمة من الجدول على اليمين.</div>
                 ) : classicMode ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-right border-collapse text-[11px] bg-white border border-slate-800" dir="rtl">
-                      <thead>
-                        <tr className="bg-slate-100 border-b border-slate-800 text-slate-900 font-black">
-                          <th className="py-1 px-1 border-l border-slate-800 text-center w-6">ت</th>
-                          <th className="py-1 px-1.5 border-l border-slate-800">اسم المادة</th>
-                          {cartonColsOn ? (
-                            <>
-                              <th className="py-1 px-1 border-l border-slate-800 text-center w-14">كراتين</th>
-                              <th className="py-1 px-1 border-l border-slate-800 text-center w-14">قطع</th>
-                              <th className="py-1 px-1 border-l border-slate-800 text-center w-10">تعبئة</th>
-                            </>
-                          ) : (
-                            <th className="py-1 px-1 border-l border-slate-800 text-center w-14">العدد</th>
-                          )}
-                          <th className="py-1 px-1 border-l border-slate-800 text-center w-16">السعر</th>
-                          {piecePriceColOn && <th className="py-1 px-1 border-l border-slate-800 text-center w-14">سعر القطعة</th>}
-                          <th className="py-1 px-1 border-l border-slate-800 text-center w-16">المبلغ</th>
-                          <th className="w-6"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {cartItems.map((item, index) => {
-                          const key = lineKeyOf(item);
-                          const cap = Math.max(1, item.piecesPerCarton || 1);
-                          const bd = breakdownOf(item);
-                          const bad = !(item.quantity > 0);
-                          const hasCartonCol = cartonColsOn && !item.isWeighted;
-                          const pieceUnitPrice = item.unitType === 'carton' ? item.unitPrice / cap : item.unitPrice;
-                          const kd = (col: string) => (e: React.KeyboardEvent<HTMLInputElement>) => onClassicCellKey(e, item, col);
-                          return (
-                            <tr key={`${key}_${index}`} className={`font-semibold border-b border-slate-400 ${bad ? 'bg-rose-50' : item.isGift ? 'bg-pink-50/60' : ''}`}>
-                              <td className="py-0.5 px-0.5 border-l border-slate-800 text-center font-mono text-[10px]">{index + 1}</td>
-                              <td className="py-0.5 px-1.5 border-l border-slate-800 break-words">
-                                <span>{item.productName}</span>
-                                {item.isGift && <span className="mr-1 text-[10px] font-black text-pink-700">🎁 هدية</span>}
-                                {item.isWeighted && <span className="mr-1 text-[10px] text-emerald-700">(كغم)</span>}
-                                {!cartonColsOn && !item.isWeighted && item.unitType === 'carton' && <span className="mr-1 text-[10px] text-amber-700">({item.packLabel || 'كرتون'})</span>}
-                              </td>
-                              {cartonColsOn ? (
-                                <>
-                                  <td className="p-0 border-l border-slate-800">
-                                    {hasCartonCol && cap > 1 ? (
-                                      <ClassicCell cellId={`${key}|c`} value={bd.c} onKeyDown={kd('c')} invalid={bad}
-                                        onCommit={(n) => applyBreakdown(key, n, breakdownOf(cartItemsRef.current.find((i) => lineKeyOf(i) === key) || item).p)} />
-                                    ) : <span className="block text-center text-slate-400">-</span>}
-                                  </td>
-                                  <td className="p-0 border-l border-slate-800">
-                                    {hasCartonCol ? (
-                                      <ClassicCell cellId={`${key}|p`} value={bd.p} onKeyDown={kd('p')} invalid={bad}
-                                        onCommit={(n) => applyBreakdown(key, breakdownOf(cartItemsRef.current.find((i) => lineKeyOf(i) === key) || item).c, n)} />
-                                    ) : (
-                                      <ClassicCell cellId={`${key}|q`} value={item.quantity} step="0.001" onKeyDown={kd('q')} invalid={bad}
-                                        onCommit={(n) => setLineQty(key, n)} />
-                                    )}
-                                  </td>
-                                  <td className="py-0.5 px-0.5 border-l border-slate-800 text-center font-mono text-[10px]">{cap > 1 && !item.isWeighted ? cap : '-'}</td>
-                                </>
-                              ) : (
-                                <td className="p-0 border-l border-slate-800">
-                                  <ClassicCell cellId={`${key}|q`} value={item.quantity} step={item.isWeighted ? '0.001' : '1'} onKeyDown={kd('q')} invalid={bad}
-                                    onCommit={(n) => setLineQty(key, n)} />
-                                </td>
-                              )}
-                              <td className="p-0 border-l border-slate-800">
-                                {item.isGift ? (
-                                  <span className="block text-center font-mono">0</span>
-                                ) : (
-                                  <ClassicCell cellId={`${key}|price`} value={item.unitPrice} step="any" onKeyDown={kd('price')}
-                                    onCommit={(n) => setLinePrice(key, n)} />
-                                )}
-                              </td>
-                              {piecePriceColOn && (
-                                <td className="py-0.5 px-1 border-l border-slate-800 text-center font-mono">
-                                  {item.isWeighted ? '-' : formatMoney(Math.round(pieceUnitPrice))}
-                                </td>
-                              )}
-                              <td className="py-0.5 px-1 border-l border-slate-800 text-center font-mono font-bold">{formatMoney(item.total)}</td>
-                              <td className="py-0.5 px-0.5 text-center">
-                                <button
-                                  type="button"
-                                  tabIndex={-1}
-                                  onClick={() => removeFromCart(key)}
-                                  className="p-0.5 text-slate-400 hover:text-rose-600 cursor-pointer"
-                                  title="حذف السطر"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                    {kbMode && (
-                      <p className="text-[10px] text-slate-400 mt-1 px-1">Enter = العمود التالي · في آخر عمود يعود للبحث · Esc = رجوع للبحث</p>
-                    )}
-                  </div>
+                  renderClassicTable(false)
                 ) : (
                   cartItems.map((item, index) => {
                     const cartonCapacity = item.piecesPerCarton || 1;
