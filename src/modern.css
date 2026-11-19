@@ -197,7 +197,8 @@
   /* ---------- الأزرار: حركة ضغط ورفع خفيف ---------- */
   html.modern button:not(:disabled) { transition: transform 120ms ease, box-shadow 160ms ease, background-color 160ms ease, filter 160ms ease; }
   html.modern button:not(:disabled):hover { filter: brightness(1.03); }
-  html.modern button:not(:disabled):active { transform: scale(0.97); }
+  /* لا نحرّك الزر تحت المؤشر (hover/active): الحركة تُسقط النقر عند حافة الأزرار الصغيرة */
+  html.modern button:not(:disabled):active { filter: brightness(0.94); }
   html.modern .bg-emerald-600:not(nav *),
   html.modern .bg-amber-500:not(nav *):not(.keep-light) { box-shadow: 0 6px 16px -8px currentColor; }
 
@@ -275,8 +276,8 @@
   html.modern button, html.modern a, html.modern [role="button"], html.modern summary, html.modern select {
     transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease, background-color 160ms ease, border-color 160ms ease, filter 160ms ease, opacity 160ms ease;
   }
-  html.modern button:not(:disabled):hover, html.modern [role="button"]:hover { transform: translateY(-1px); filter: brightness(1.04); }
-  html.modern button:not(:disabled):active, html.modern [role="button"]:active { transform: scale(0.95); filter: brightness(0.97); transition-duration: 70ms; }
+  html.modern button:not(:disabled):hover, html.modern [role="button"]:hover { filter: brightness(1.04); }
+  html.modern button:not(:disabled):active, html.modern [role="button"]:active { filter: brightness(0.92); transition-duration: 70ms; }
   html.modern [data-testid^="home-tile-"]:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 22px 40px -14px rgba(234, 88, 12, 0.45); }
   html.modern [data-testid^="home-tile-"]:active { transform: scale(0.94); }
 
