@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import http from 'http';
@@ -256,6 +256,42 @@ const dataUrlToBuffer = (d) => {
   const buf = Buffer.from(m[1], 'base64');
   return buf.length > 0 && buf.length < 8 * 1024 * 1024 ? buf : null;
 };
+
+
+// ===== النسخ الاحتياطي المحلي اليومي في مجلد يختاره المستخدم =====
+const LOCAL_BK_RE = /^mufakir-backup-\d{4}-\d{2}-\d{2}[\w-]*\.json\.gz$/;
+ipcMain.handle('local-backup-pick-folder', async () => {
+  try {
+    const r = await dialog.showOpenDialog(mainWindow, {
+      title: 'اختر مجلد النسخ الاحتياطية',
+      defaultPath: app.getPath('documents'),
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    return r.canceled || !r.filePaths[0] ? null : r.filePaths[0];
+  } catch { return null; }
+});
+ipcMain.handle('local-backup-save', (event, { dir, filename, dataB64, keep } = {}) => {
+  try {
+    if (!dir || typeof dir !== 'string' || !path.isAbsolute(dir)) return { success: false, error: 'bad_dir' };
+    const name = path.basename(String(filename || ''));
+    if (!LOCAL_BK_RE.test(name)) return { success: false, error: 'bad_name' };
+    const buf = Buffer.from(String(dataB64 || ''), 'base64');
+    if (buf.length < 20 || buf.length > 400 * 1024 * 1024) return { success: false, error: 'bad_data' };
+    fs.mkdirSync(dir, { recursive: true });
+    const target = path.join(dir, name);
+    const tmp = target + '.tmp';
+    fs.writeFileSync(tmp, buf);
+    fs.renameSync(tmp, target);
+    // نحذف الأقدم فقط (ضمن ملفاتنا حصراً) ونُبقي آخر N
+    const n = Math.max(3, Math.min(365, Number(keep) || 30));
+    const files = fs.readdirSync(dir).filter((f) => LOCAL_BK_RE.test(f)).sort();
+    let removed = 0;
+    while (files.length > n) { try { fs.unlinkSync(path.join(dir, files.shift())); removed++; } catch { break; } }
+    return { success: true, path: target, size: buf.length, removed };
+  } catch (e) {
+    return { success: false, error: e && e.message };
+  }
+});
 
 ipcMain.handle('product-image-save', (event, { id, full, thumb } = {}) => {
   try {

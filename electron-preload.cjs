@@ -4,6 +4,10 @@ const electronAPI = {
   // نظام التشغيل (لتفعيل ميزات خاصة بويندوز)
   platform: process.platform,
 
+  // نسخ احتياطي محلي يومي
+  pickBackupFolder: () => ipcRenderer.invoke('local-backup-pick-folder'),
+  saveLocalBackup: (payload) => ipcRenderer.invoke('local-backup-save', payload),
+
   // صور المواد المحلية (لا تُرفع للسحابة)
   saveProductImage: (payload) => ipcRenderer.invoke('product-image-save', payload),
   getProductImage: (payload) => ipcRenderer.invoke('product-image-get', payload),
