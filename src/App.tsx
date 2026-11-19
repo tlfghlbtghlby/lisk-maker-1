@@ -6,6 +6,7 @@ import { Navigation, TabType } from './components/Navigation';
 import ModernHome from './components/ModernHome';
 import ModernDock from './components/ModernDock';
 import { TelegramBackupRunner } from './components/TelegramBackup';
+import { LocalBackupRunner } from './components/LocalBackup';
 import { isModernMode, useModernMode } from './utils/modernMode';
 import { POSView } from './components/POSView';
 import { InventoryView } from './components/InventoryView';
@@ -555,6 +556,7 @@ const MainContent: React.FC = () => {
       </main>
 
       {!isStandaloneWindow && <TelegramBackupRunner />}
+      {!isStandaloneWindow && <LocalBackupRunner />}
       {modern && !isStandaloneWindow && <ModernDock activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />}
 
       <ProductModal
