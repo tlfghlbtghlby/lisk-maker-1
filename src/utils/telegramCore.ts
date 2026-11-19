@@ -231,7 +231,7 @@ export function formatDebtReminder(
   ctx: FmtCtx
 ): string {
   const cur = ctx.currency;
-  const day = (iso: string) => new Date(iso).toLocaleDateString('ar-IQ', { dateStyle: 'medium' });
+  const day = (iso: string) => new Date(iso).toLocaleString('ar-IQ', { dateStyle: 'medium', timeStyle: 'short' });
   const lines: string[] = [
     `🔔 <b>إشعار بحسابك</b>${ctx.storeName ? ` — ${esc(ctx.storeName)}` : ''}`,
     `👤 ${esc(customerName)}`,

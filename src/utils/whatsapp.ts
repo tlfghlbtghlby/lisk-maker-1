@@ -12,6 +12,13 @@ export function normalizeWaPhone(raw?: string): string {
   return n;
 }
 
+/** تاريخ + وقت للكشوف */
+const dt = (v: unknown): string => {
+  const d = new Date(v as any);
+  if (isNaN(d.getTime())) return String(v).slice(0, 10);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 const fmt = (n: number) => Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 3 });
 
 export type DebtEventKind = 'invoice' | 'payment' | 'manual' | 'notice';
@@ -50,10 +57,10 @@ export function buildStatementText(c: Customer, invoices: Invoice[], payments: P
   const rows: { d: string; t: string }[] = [];
   invoices.filter(i => i.customerId === c.id).forEach(i =>
     rows.push({ d: i.date, t: `قائمة ${i.invoiceNumber}: ${fmt(i.total)} (مسدد ${fmt(i.paidAmount)})` }));
-  payments.filter(p => p.customerId === c.id).forEach(p =>
+  payments.filter(p => p.customerId === c.id && !p.voided).forEach(p =>
     rows.push({ d: p.date, t: `دفعة: ${fmt(p.amount)}` }));
   rows.sort((a, b) => String(b.d).localeCompare(String(a.d)));
-  const last = rows.slice(0, 10).map(r => `• ${String(r.d).slice(0, 10)} — ${r.t}`).join('\n');
+  const last = rows.slice(0, 10).map(r => `• ${dt(r.d)} — ${r.t}`).join('\n');
   const debt = c.totalDebt > 0 ? `إجمالي الدين: ${fmt(c.totalDebt)} ${currency}` : c.totalDebt < 0 ? `لكم رصيد: ${fmt(-c.totalDebt)} ${currency}` : 'لا يوجد دين مستحق';
   return `كشف حساب — ${storeName}\nالزبون: ${c.name}\n${debt}${last ? '\n\nآخر الحركات:\n' + last : ''}`;
 }
@@ -110,11 +117,11 @@ export async function buildStatementPdf(c: Customer, invoices: Invoice[], paymen
   const rows: { d: string; t: string; debit: number; credit: number }[] = [];
   invoices.filter(i => i.customerId === c.id).forEach(i =>
     rows.push({ d: i.date, t: `قائمة ${i.invoiceNumber}`, debit: Math.max(0, i.total - (i.paidAmount || 0)), credit: 0 }));
-  payments.filter(p => p.customerId === c.id).forEach(p =>
+  payments.filter(p => p.customerId === c.id && !p.voided).forEach(p =>
     rows.push({ d: p.date, t: 'دفعة ' + (p.receiptNumber || ''), debit: 0, credit: p.amount }));
   rows.sort((a, b) => String(b.d).localeCompare(String(a.d)));
   const body = rows.slice(0, 60).map(r =>
-    `<tr><td style="padding:5px 8px;border:1px solid #ccc">${String(r.d).slice(0, 10)}</td><td style="padding:5px 8px;border:1px solid #ccc">${r.t}</td><td style="padding:5px 8px;border:1px solid #ccc;text-align:left">${r.debit ? fmt(r.debit) : ''}</td><td style="padding:5px 8px;border:1px solid #ccc;text-align:left">${r.credit ? fmt(r.credit) : ''}</td></tr>`).join('');
+    `<tr><td style="padding:5px 8px;border:1px solid #ccc">${dt(r.d)}</td><td style="padding:5px 8px;border:1px solid #ccc">${r.t}</td><td style="padding:5px 8px;border:1px solid #ccc;text-align:left">${r.debit ? fmt(r.debit) : ''}</td><td style="padding:5px 8px;border:1px solid #ccc;text-align:left">${r.credit ? fmt(r.credit) : ''}</td></tr>`).join('');
   const el = document.createElement('div');
   el.setAttribute('dir', 'rtl');
   el.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff;color:#000;font-family:Tajawal,Arial,sans-serif;padding:24px;font-size:14px';

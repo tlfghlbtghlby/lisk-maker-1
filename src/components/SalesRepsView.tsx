@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { fmtDateTime } from '../utils/dateFmt';
 import { useApp } from '../context/AppContext';
 import { SalesRep, Invoice } from '../types';
 import { RepTelegramModal, RepSettleModal } from './RepModals';
@@ -853,7 +854,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                       <tr key={inv.id} className="hover:bg-slate-50/80 transition">
                         <td className="py-3 px-3 font-mono font-black text-slate-900">{inv.invoiceNumber}</td>
                         <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
-                          {inv.date ? new Date(inv.date).toLocaleDateString('ar-EG') : '-'}
+                          {fmtDateTime(inv.date)}
                         </td>
                         <td className="py-3 px-3 text-slate-800">{inv.customerName}</td>
                         <td className="py-3 px-3">
@@ -1366,7 +1367,7 @@ export const SalesRepsView: React.FC<SalesRepsViewProps> = ({ onViewInvoice }) =
                     {list.map(inv => (
                       <tr key={inv.id}>
                         <td className="p-2 font-mono">{inv.invoiceNumber}</td>
-                        <td className="p-2 font-mono text-[11px] text-slate-500">{inv.date ? new Date(inv.date).toLocaleDateString('ar-EG') : '-'}</td>
+                        <td className="p-2 font-mono text-[11px] text-slate-500">{fmtDateTime(inv.date)}</td>
                         <td className="p-2">{inv.customerName}</td>
                         <td className="p-2 text-center font-mono">{formatMoney(inv.total)}</td>
                         <td className="p-2 text-center font-mono text-indigo-700">{formatMoney(inv.salesRepCommission || 0)}</td>

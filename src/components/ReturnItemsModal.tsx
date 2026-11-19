@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { fmtDateTime } from '../utils/dateFmt';
 import { useApp } from '../context/AppContext';
 import { netUnitPrice } from '../utils/promotions';
 
@@ -376,7 +377,7 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
                       className={`px-3 py-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 cursor-pointer hover:bg-amber-50 dark:hover:bg-slate-800 ${isSel ? 'bg-amber-50 dark:bg-slate-800' : ''}`}>
                       <div className="min-w-0">
                         <div className="text-xs font-black text-slate-900 dark:text-white font-mono">{inv.invoiceNumber}</div>
-                        <div className="text-[11px] text-slate-600 dark:text-slate-300">{inv.customerName} · {String(inv.date).slice(0, 10)} · {formatMoney(inv.total)}</div>
+                        <div className="text-[11px] text-slate-600 dark:text-slate-300">{inv.customerName} · {fmtDateTime(inv.date)} · {formatMoney(inv.total)}</div>
                         {hit.length > 0 && <div className="text-[10px] text-emerald-700 dark:text-emerald-400 truncate">{hit.map((h: any) => `${h.productName || h.name} × ${h.quantity}`).join('، ')}</div>}
                       </div>
                       <div className="flex gap-1.5 shrink-0">
