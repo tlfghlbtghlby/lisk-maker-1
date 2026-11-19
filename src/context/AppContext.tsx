@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { logAudit } from '../utils/auditLog';
 import { computeRepEarnings, formatRepNewSale } from '../utils/repEarnings';
 import { isSubscriptionExpired, fetchAccountStatus, supabase, getDocument, setDocument, subscribeToDocument, verifyAccountPassword } from '../supabase';
 import { 
@@ -1832,6 +1833,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateProduct = (id: string, rawUpdates: Partial<Product> & { stockNote?: string }) => {
     const { stockNote, ...updates } = rawUpdates as any;
     const beforeProduct = products.find(p => p.id === id);
+    if (beforeProduct) {
+      const priceKeys: Array<[string, string]> = [['retailPrice', 'مفرد'], ['wholesalePrice', 'جملة'], ['costPrice', 'تكلفة'], ['cartonPrice', 'كرتون']];
+      const ch = priceKeys.filter(([k]) => typeof (updates as any)[k] === 'number' && (updates as any)[k] !== (beforeProduct as any)[k]).map(([k, l]) => `${l}: ${(beforeProduct as any)[k] ?? 0} ← ${(updates as any)[k]}`);
+      if (ch.length) logAudit('تغيير أسعار مادة', `${beforeProduct.name} · ${ch.join(' | ')}`, getActorLabel());
+    }
     const finalUpdates: Partial<Product> = { ...updates, updatedAt: new Date().toISOString() };
     if (beforeProduct && !updates.purchaseLog) {
       const diff = typeof updates.stock === 'number'
@@ -2008,6 +2014,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteProduct = (id: string) => {
     moveToTrash('products', products.filter(p => p.id === id), x => x.name || 'مادة');
+    products.filter(p => p.id === id).forEach(dp => logAudit('حذف مادة', `${dp.name} · مخزون ${dp.stock}`, getActorLabel()));
     products.filter(p => p.id === id).forEach(dp => emitTelegram('productDeleted', ctx => ({ store: formatProductEvent('deleted', dp, ctx) })));
     const updated = products.filter(p => p.id !== id);
     setProducts(updated);
@@ -2190,6 +2197,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteCustomer = (id: string) => {
     moveToTrash('customers', customers.filter(c => c.id === id), x => x.name || 'زبون', 'يشمل رصيد الدين وقت الحذف');
+    customers.filter(c => c.id === id).forEach(dc => logAudit('حذف زبون', `${dc.name} · دينه ${dc.totalDebt || 0}`, getActorLabel()));
     customers.filter(c => c.id === id).forEach(dc => emitTelegram('customerDeleted', ctx => ({
       store: formatSimple('🗑️ <b>حذف زبون</b>', [
         `👤 ${tgEsc(dc.name)}${dc.phone ? ` — ${tgEsc(dc.phone)}` : ''}`,
@@ -2486,6 +2494,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const inv = invoices.find(i => i.id === id);
     if (!inv) return;
     moveToTrash('invoices', [inv], x => `${x.invoiceNumber || ''} - ${x.customerName || ''}`);
+    logAudit('حذف فاتورة', `${inv.invoiceNumber} · ${inv.customerName || 'بلا زبون'} · ${inv.total}`, getActorLabel());
     emitTelegram('invoiceDeleted', ctx => ({ store: formatDeletedInvoice(inv, ctx) }));
     inv.items.forEach(i => adjustStock(i.productId, i.deductedPieces ?? i.quantity));
     const updated = invoices.filter(i => i.id !== id);
@@ -2514,6 +2523,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cur: Invoice[] = stateRef.current.invoices as Invoice[];
     const moved = cur.filter(i => idSet.has(String(i.id)));
     if (moved.length === 0) return 0;
+    logAudit('أرشفة فواتير قديمة', `${moved.length} فاتورة أُخرجت من المزامنة`, getActorLabel());
     const nowIso = new Date().toISOString();
     const tombs: Tombstones = { ...stateRef.current.tombstones };
     const secMap = { ...(tombs.invoices || {}) };
@@ -2543,6 +2553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fresh.push({ ...inv, updatedAt: nowIso });
     }
     if (fresh.length === 0) return { added: 0, skipped };
+    logAudit('استعادة فواتير من نسخة', `${fresh.length} فاتورة`, getActorLabel());
     let tombs: Tombstones = stateRef.current.tombstones;
     fresh.forEach(i => { tombs = cleanTombstone('invoices', String(i.id), tombs); });
     persistTrash(stateRef.current.trash, tombs);
@@ -2564,6 +2575,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const inv = invoices.find(i => i.id === id);
     if (!inv || inv.status === 'returned') return false;
+    logAudit('إرجاع فاتورة', `${inv.invoiceNumber} · ${inv.customerName || 'بلا زبون'} · ${inv.total}${reason ? ' · ' + reason : ''}`, getActorLabel());
 
     inv.items.forEach(i => {
       const alreadyReturned = i.returnedQuantity || 0;
@@ -2874,6 +2886,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!old) return { success: false, error: 'القائمة غير موجودة.' };
     if (old.status === 'returned') return { success: false, error: 'هذه القائمة مرجعة بالكامل ولا يمكن تعديلها.' };
     if (!data.items || data.items.length === 0) return { success: false, error: 'لا يمكن حفظ قائمة بلا مواد. استعمل الحذف أو الإرجاع.' };
+    logAudit('تعديل فاتورة', `${old.invoiceNumber} · ${old.customerName || 'بلا زبون'} · كان ${old.total}`, getActorLabel());
 
     const now = new Date().toISOString();
     const giftCostCounted = settings.giftCostCounted !== false;
@@ -3258,6 +3271,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const importDataJSON = (jsonStr: string) => {
     try {
+      logAudit('استعادة نسخة شاملة', 'تم تنفيذ استعادة من ملف', getActorLabel());
       const data = JSON.parse(jsonStr);
       let updatedP = products;
       let updatedC = customers;
@@ -3647,6 +3661,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const now = new Date().toISOString();
     const stats = getShiftStats(activeShift);
+    logAudit('إغلاق شفت', `فتحه ${activeShift.openedBy?.name || '—'}${notes ? ' · ' + notes : ''}`, getActorLabel());
     const currentUid = currentUser?.uid;
 
     const cashierName = currentUser?.displayName || currentUser?.storeName || (

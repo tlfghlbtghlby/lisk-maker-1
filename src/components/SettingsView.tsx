@@ -73,6 +73,7 @@ import { QuickAddItemsSection } from './QuickAddItemsSection';
 import { ExportBackupModal } from './ExportBackupModal';
 import { readBackupFileText } from '../utils/backupFile';
 import { InvoiceArchiveModal } from './InvoiceArchiveModal';
+import { AuditLogCard } from './AuditLogCard';
 import { WipeProductsModal } from './WipeProductsModal';
 import { ModernInvoiceHeader } from './ModernInvoiceHeader';
 import { resizeImageFile } from '../utils/imageResize';
@@ -1309,6 +1310,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <ExpensesSettingsCard />
           <DefaultCartonSetting />
           <QuickCreditSetting />
+          {sessionRole === 'admin' && <AuditLogCard />}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
