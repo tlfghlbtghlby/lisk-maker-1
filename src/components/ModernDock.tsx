@@ -3,22 +3,23 @@ import { GripVertical, Home, ShoppingCart, Boxes, Users, BarChart3, Settings, Mo
 import { useApp } from '../context/AppContext';
 import type { TabType } from './Navigation';
 
-const POS_KEY = 'mufakir_dock_pos';
+// الموضع يُحفظ كمسافة من الحافة اليمنى والسفلى (فيبقى في الركن ويتمدد محتواه للأعلى)
+const POS_KEY = 'mufakir_dock_pos2';
 
 // «شريط التحكم»: شريط عائم قابل للسحب يعطي وصولاً سريعاً من أي شاشة (مضمَّن في البرنامج).
 export default function ModernDock({ activeTab, onSelectTab }: { activeTab: TabType; onSelectTab: (t: TabType) => void }) {
   const { hasPermission, toggleTheme, settings } = useApp() as any;
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
-    try { const r = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); if (r && typeof r.x === 'number') return r; } catch { /* ignore */ }
-    return { x: Math.max(12, (typeof window !== 'undefined' ? window.innerWidth : 1000) - 190), y: Math.max(12, (typeof window !== 'undefined' ? window.innerHeight : 700) - 72) }; // أسفل اليمين افتراضياً (الساعة في أسفل اليسار)
+  const [pos, setPos] = useState<{ r: number; b: number }>(() => {
+    try { const x = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); if (x && typeof x.r === 'number' && typeof x.b === 'number') return x; } catch { /* ignore */ }
+    return { r: 14, b: 14 }; // الركن الأيمن الأسفل افتراضياً (الساعة في أسفل اليسار)
   });
-  const drag = useRef<{ sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const drag = useRef<{ sx: number; sy: number; or: number; ob: number; moved: boolean } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  const clamp = (x: number, y: number) => {
+  const clamp = (r: number, b: number) => {
     const w = ref.current?.offsetWidth || 120, h = ref.current?.offsetHeight || 40;
-    return { x: Math.max(0, Math.min(window.innerWidth - w, x)), y: Math.max(0, Math.min(window.innerHeight - h, y)) };
+    return { r: Math.max(0, Math.min(window.innerWidth - w, r)), b: Math.max(0, Math.min(window.innerHeight - h, b)) };
   };
 
   useEffect(() => {
@@ -27,7 +28,7 @@ export default function ModernDock({ activeTab, onSelectTab }: { activeTab: TabT
       const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
       if (!d.moved && Math.abs(dx) + Math.abs(dy) < 6) return;
       d.moved = true;
-      setPos(clamp(d.ox + dx, d.oy + dy));
+      setPos(clamp(d.or - dx, d.ob - dy));
     };
     const up = () => {
       const d = drag.current; drag.current = null;
@@ -38,7 +39,7 @@ export default function ModernDock({ activeTab, onSelectTab }: { activeTab: TabT
   }, []);
   const posRef = useRef(pos); posRef.current = pos;
 
-  const start = (e: React.PointerEvent) => { drag.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y, moved: false }; };
+  const start = (e: React.PointerEvent) => { drag.current = { sx: e.clientX, sy: e.clientY, or: pos.r, ob: pos.b, moved: false }; };
   const go = (t: TabType) => { setOpen(false); onSelectTab(t); };
 
   const items: { id: TabType; label: string; icon: React.ReactNode; ok: boolean }[] = [
@@ -56,16 +57,12 @@ export default function ModernDock({ activeTab, onSelectTab }: { activeTab: TabT
       ref={ref}
       data-testid="modern-dock"
       className="no-print fixed z-40 select-none"
-      style={{ left: pos.x, top: pos.y, touchAction: 'none' }}
+      style={{ right: pos.r, bottom: pos.b, touchAction: 'none', maxHeight: 'calc(100vh - 16px)' }}
       dir="rtl"
     >
-      <div className="rounded-2xl bg-slate-900/95 text-white border border-orange-400/40 shadow-2xl overflow-hidden">
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5">
-          <span onPointerDown={start} className="cursor-grab active:cursor-grabbing text-slate-400 p-0.5" title="اسحب لتحريك الشريط"><GripVertical className="w-4 h-4" /></span>
-          <button type="button" data-testid="dock-toggle" onClick={() => setOpen((o) => !o)} className="text-xs font-black cursor-pointer">شريط التحكم</button>
-        </div>
+      <div className="rounded-2xl bg-slate-900/95 text-white border border-orange-400/40 shadow-2xl overflow-hidden flex flex-col">
         {open && (
-          <div className="flex flex-wrap gap-1.5 p-2 pt-0 max-w-[260px]">
+          <div className="flex flex-wrap gap-1.5 p-2 pb-0 max-w-[260px] overflow-y-auto" style={{ maxHeight: 'calc(100vh - 80px)' }}>
             {items.filter((i) => i.ok).map((i) => (
               <button
                 key={i.id}
@@ -83,6 +80,10 @@ export default function ModernDock({ activeTab, onSelectTab }: { activeTab: TabT
             </button>
           </div>
         )}
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5">
+          <span onPointerDown={start} className="cursor-grab active:cursor-grabbing text-slate-400 p-0.5" title="اسحب لتحريك الشريط"><GripVertical className="w-4 h-4" /></span>
+          <button type="button" data-testid="dock-toggle" onClick={() => setOpen((o) => !o)} className="text-xs font-black cursor-pointer">شريط التحكم</button>
+        </div>
       </div>
     </div>
   );
