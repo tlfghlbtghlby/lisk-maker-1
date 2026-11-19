@@ -1,7 +1,9 @@
 import React, { useState, useMemo } from 'react';
+import { matchAr } from '../utils/arabicSearch';
 import { useApp } from '../context/AppContext';
 import CustomerTelegramModal from './CustomerTelegramModal';
 import CustomerWhatsAppModal from './CustomerWhatsAppModal';
+import OverdueRemindersModal from './OverdueRemindersModal';
 import { Customer, Invoice, PaymentRecord } from '../types';
 import { 
   Users, 
@@ -67,6 +69,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
   const [waCustomer, setWaCustomer] = useState<Customer | null>(null);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
   // فترة التصفية (تحدد قوائم ودفعات ومواد الزبون في كشف الحساب). فارغة = كل الفترة
+  const [showOverdue, setShowOverdue] = useState(false);
   const [periodFrom, setPeriodFrom] = useState('');
   const [periodTo, setPeriodTo] = useState('');
   const [showPurchasedItems, setShowPurchasedItems] = useState(false);
@@ -137,9 +140,9 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
       const q = searchQuery.toLowerCase().trim();
       const matchSearch =
         !q ||
-        cust.name.toLowerCase().includes(q) ||
+        matchAr(cust.name, q) ||
         cust.phone.includes(q) ||
-        (cust.address && cust.address.toLowerCase().includes(q));
+        (cust.address && matchAr(cust.address, q));
 
       const matchDebt = !filterDebtOnly || cust.totalDebt !== 0;
       return matchSearch && matchDebt;
@@ -276,6 +279,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
 
       {/* فترة عرض الديون والقوائم */}
       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-end gap-3">
+        <button type="button" data-testid="open-overdue" onClick={() => setShowOverdue(true)} className="px-3 py-2 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-600 text-white cursor-pointer">⏰ تذكير المتأخرين</button>
         <div className="text-xs font-bold text-slate-700 self-center">📅 الديون والقوائم حسب الفترة:</div>
         <label className="text-[11px] font-bold text-slate-600">من تاريخ
           <input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} className="block mt-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs" />
@@ -1076,6 +1080,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
       {telegramCustomer && (
         <CustomerTelegramModal customer={telegramCustomer} onClose={() => setTelegramCustomer(null)} />
       )}
+      {showOverdue && <OverdueRemindersModal onClose={() => setShowOverdue(false)} />}
     </div>
   );
 };

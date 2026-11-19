@@ -1,4 +1,5 @@
 import ReturnItemsModal from './ReturnItemsModal';
+import { matchAr } from '../utils/arabicSearch';
 import { isAndroidApp } from '../utils/androidOnly';
 import { isOverlayOpen } from '../utils/modalKeyGuard';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
@@ -440,9 +441,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       const q = searchQuery.toLowerCase().trim();
       const matchSearch =
         !q ||
-        (prod.name || '').toLowerCase().includes(q) ||
+        matchAr(prod.name, q) ||
         allCodes(prod).some((c) => c.toLowerCase().includes(q)) ||
-        (prod.category || '').toLowerCase().includes(q);
+        matchAr(prod.category, q);
       return matchCat && matchSearch;
     });
   }, [products, selectedCategory, searchQuery]);
@@ -1629,6 +1630,21 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     }
     setShowChangeCalc(true);
   };
+  // وضع «كاشير سريع» (اختياري): F2 بحث، F8 حفظ فقط، F9 حفظ وطباعة
+  useEffect(() => {
+    if (settings.fastCashierMode !== true) return;
+    const onFast = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (e.key !== 'F2' && e.key !== 'F8' && e.key !== 'F9') return;
+      if (isOverlayOpen()) return;
+      e.preventDefault();
+      if (e.key === 'F2') { focusSearchBox(); return; }
+      if (cartItemsRef.current.length === 0) return;
+      handleSaveInvoiceRef.current(e.key === 'F9');
+    };
+    window.addEventListener('keydown', onFast);
+    return () => window.removeEventListener('keydown', onFast);
+  }, [settings.fastCashierMode]);
   useEffect(() => {
     const onF5 = (e: KeyboardEvent) => {
       if (e.key !== 'F5' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
@@ -2196,6 +2212,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         (t === 'wholesale' ||
                           (t === 'superWholesale' && settings.showSuperWholesale !== false) ||
                           (t === 'special' && settings.showSpecialPrice !== false)));
+                    const showAll = settings.showAllPricesList === true; // الواجهة القديمة: كل الأسعار وتحت كل سعر زر إضافة
                     let shownType: string = typeEnabled(globalPriceType as string) ? (globalPriceType as string) : 'retail';
                     if (shownType !== 'retail' && !own(shownType)) {
                       // لا يوجد سعر لهذا المستوى: نعرض البديل الذي حدده صاحب المتجر في الإعدادات
@@ -2304,7 +2321,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {shownType === 'wholesale' && settings.enableWholesale && priceTypeOn('wholesale') && (
+                          {(shownType === 'wholesale' || (showAll && own('wholesale'))) && settings.enableWholesale && priceTypeOn('wholesale') && (
                             <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
                               <div className="bg-amber-50/90 border border-amber-200/90 rounded-lg px-2.5 py-1 text-right">
                                 <div className="text-[10px] text-amber-800 font-bold">
@@ -2333,7 +2350,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {shownType === 'superWholesale' && settings.enableWholesale && priceTypeOn('superWholesale') && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
+                          {(shownType === 'superWholesale' || showAll) && settings.enableWholesale && priceTypeOn('superWholesale') && settings.showSuperWholesale !== false && hasOwnPrice(prod, 'superWholesale') && (
                             <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
                               <div className="bg-orange-50/90 border border-orange-200/90 rounded-lg px-2.5 py-1 text-right">
                                 <div className="text-[10px] text-orange-800 font-bold">
@@ -2358,7 +2375,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {shownType === 'special' && settings.enableWholesale && priceTypeOn('special') && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
+                          {(shownType === 'special' || showAll) && settings.enableWholesale && priceTypeOn('special') && settings.showSpecialPrice !== false && hasOwnPrice(prod, 'special') && (
                             <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
                               <div className="bg-violet-50/90 border border-violet-200/90 rounded-lg px-2.5 py-1 text-right">
                                 <div className="text-[10px] text-violet-800 font-bold">
@@ -2383,12 +2400,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             </div>
                           )}
 
-                          {shownType === 'none' && (
+                          {!showAll && shownType === 'none' && (
                             <div className="bg-slate-100 border border-dashed border-slate-300 rounded-lg px-3 py-2 text-[11px] font-bold text-slate-500 min-w-[105px] text-center">
                               السعر غير متاح
                             </div>
                           )}
-                          {shownType === 'retail' && (
+                          {(showAll || shownType === 'retail') && (
                           <div className="flex flex-col gap-1 min-w-[95px] shrink-0">
                             <div className="bg-emerald-50/90 border border-emerald-200/90 rounded-lg px-2.5 py-1 text-right">
                               <div className="text-[10px] text-emerald-800 font-bold">
@@ -4003,7 +4020,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               {customers
                 .filter((c) => {
                   const q = creditSearch.trim().toLowerCase();
-                  return !q || c.name.toLowerCase().includes(q) || (c.phone || '').includes(q);
+                  return !q || matchAr(c.name, q) || (c.phone || '').includes(q);
                 })
                 .map((c) => {
                   const debt = c.totalDebt > 0;

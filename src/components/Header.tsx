@@ -27,6 +27,7 @@ import { ActiveSessionsModal } from './ActiveSessionsModal';
 import { APP_ICON_URL } from '../utils/assetUrl';
 import { useModernMode } from '../utils/modernMode';
 import ModernClock from './ModernClock';
+import SyncStatusChip from './SyncStatusChip';
 
 interface HeaderProps {
   onOpenSettings?: () => void;
@@ -81,6 +82,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
           <div className="flex items-center gap-2 flex-wrap">
             <SessionBadgeButton />
             <ShiftHeaderButton />
+            <SyncStatusChip />
           </div>
           <ModernClock variant="inline" />
         </div>
@@ -145,6 +147,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
           {/* Left Side: أزرار التحكم كاملة الكلمات بدون أي قص أو نقاط */}
           <div className="flex flex-wrap items-center gap-2">
             
+            <SyncStatusChip />
             {/* Instant Sync Button (زر المزامنة الفورية في أعلى الشاشة) */}
             {currentUser && (
               <button
