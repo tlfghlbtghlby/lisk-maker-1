@@ -226,16 +226,17 @@
   html.modern ::-webkit-scrollbar-track { background: transparent; }
 
   /* ---------- دخول ناعم للمحتوى عند تبديل الشاشة ---------- */
+  /* ملاحظة: نستخدم backwards لا both: بقاء transform بعد انتهاء الحركة يجعل النوافذ fixed تتموضع نسبةً للصفحة لا للشاشة */
   html.modern main.no-print > * { animation: m-rise 240ms ease-out; }
-  html.modern main.no-print[data-dir="up"] > * { animation: m-slide-up 480ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-  html.modern main.no-print[data-dir="down"] > * { animation: m-slide-in-home 460ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  html.modern main.no-print[data-dir="up"] > * { animation: m-slide-up 480ms cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+  html.modern main.no-print[data-dir="down"] > * { animation: m-slide-in-home 460ms cubic-bezier(0.22, 1, 0.36, 1) backwards; }
   html.modern main.no-print[data-leaving="1"] > * { animation: m-slide-down 280ms cubic-bezier(0.55, 0, 0.9, 0.4) both !important; }
-  html.modern main.no-print[data-dir="down"] [data-testid="modern-home"] > div > button { animation: m-tile-pop 520ms cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+  html.modern main.no-print[data-dir="down"] [data-testid="modern-home"] > div > button { animation: m-tile-pop 520ms cubic-bezier(0.34, 1.4, 0.64, 1) backwards; }
   html.modern main.no-print[data-dir="down"] [data-testid="modern-home"] > div > button:nth-child(2) { animation-delay: 30ms; }
   html.modern main.no-print[data-dir="down"] [data-testid="modern-home"] > div > button:nth-child(3) { animation-delay: 60ms; }
   html.modern main.no-print[data-dir="down"] [data-testid="modern-home"] > div > button:nth-child(4) { animation-delay: 90ms; }
   html.modern main.no-print[data-dir="down"] [data-testid="modern-home"] > div > button:nth-child(n+5) { animation-delay: 120ms; }
-  html.modern main.no-print:not([data-dir]) [data-testid="modern-home"] > div > button { animation: m-tile-pop 520ms cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+  html.modern main.no-print:not([data-dir]) [data-testid="modern-home"] > div > button { animation: m-tile-pop 520ms cubic-bezier(0.34, 1.4, 0.64, 1) backwards; }
 
   /* الساعة العائمة أسفل اليسار */
   html.modern [data-m="clock"] {
@@ -290,8 +291,8 @@
   @keyframes m-check { 0% { transform: scale(0.6); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
 
   /* النوافذ المنبثقة: خلفية تتلاشى + لوحة تصعد بنابض، وتنزل عند الإغلاق */
-  html.modern .fixed.inset-0:not(.m-exiting):not([class*="pointer-events-none"]) { animation: m-backdrop 240ms ease-out both; }
-  html.modern .fixed.inset-0:not(.m-exiting):not([class*="pointer-events-none"]) > div { animation: m-sheet 420ms cubic-bezier(0.22, 1.2, 0.36, 1) both; }
+  html.modern .fixed.inset-0:not(.m-exiting):not([class*="pointer-events-none"]) { animation: m-backdrop 240ms ease-out backwards; }
+  html.modern .fixed.inset-0:not(.m-exiting):not([class*="pointer-events-none"]) > div { animation: m-sheet 420ms cubic-bezier(0.22, 1.2, 0.36, 1) backwards; }
   html.modern .fixed.inset-0.m-exiting { animation: m-backdrop-out 240ms ease-in forwards; }
   html.modern .fixed.inset-0.m-exiting > div { animation: m-sheet-out 240ms cubic-bezier(0.55, 0, 0.9, 0.4) forwards; }
   @keyframes m-backdrop { from { opacity: 0; } to { opacity: 1; } }
@@ -301,11 +302,11 @@
 
   /* القوائم المنسدلة والتنبيهات والبطاقات الصغيرة */
   html.modern [role="menu"], html.modern [role="listbox"], html.modern [data-testid="scan-choice"] { transform-origin: top center; }
-  html.modern tbody tr { animation: m-row 360ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  html.modern tbody tr { animation: m-row 360ms cubic-bezier(0.22, 1, 0.36, 1) backwards; }
   html.modern tbody tr:nth-child(2) { animation-delay: 25ms; } html.modern tbody tr:nth-child(3) { animation-delay: 50ms; }
   html.modern tbody tr:nth-child(4) { animation-delay: 75ms; } html.modern tbody tr:nth-child(n+5) { animation-delay: 100ms; }
   @keyframes m-row { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
-  html.modern [data-testid="credit-list"] > * { animation: m-tile-pop 380ms cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+  html.modern [data-testid="credit-list"] > * { animation: m-tile-pop 380ms cubic-bezier(0.34, 1.4, 0.64, 1) backwards; }
 
   /* التمرير بنعومة وسحب الأشياء */
   html.modern { scroll-behavior: smooth; }
