@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { fmtDateTime } from '../utils/dateFmt';
 import { useApp } from '../context/AppContext';
 import type { Invoice } from '../types';
 import { readBackupFileText } from '../utils/backupFile';
@@ -149,7 +150,7 @@ export const InvoiceArchiveModal: React.FC<{ onClose: () => void }> = ({ onClose
                         <td className="p-1.5"><input type="checkbox" disabled={exists} checked={picked.has(String(i.id))} onChange={() => toggle(String(i.id))} /></td>
                       )}
                       <td className="p-1.5 font-mono font-bold text-slate-900 dark:text-white">{i.invoiceNumber}</td>
-                      <td className="p-1.5 text-slate-600 dark:text-slate-300">{String(i.date || i.createdAt || '').slice(0, 10)}</td>
+                      <td className="p-1.5 text-slate-600 dark:text-slate-300">{fmtDateTime(i.date || i.createdAt)}</td>
                       <td className="p-1.5 text-slate-800 dark:text-slate-200">{i.customerName || '—'}</td>
                       <td className="p-1.5 font-bold text-emerald-700 dark:text-emerald-400">{formatMoney(i.total)}</td>
                       <td className="p-1.5">{exists ? <span className="text-slate-400">موجودة</span> : <span className="text-amber-600 font-bold">غير موجودة</span>}</td>

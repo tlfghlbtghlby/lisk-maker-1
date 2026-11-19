@@ -490,6 +490,9 @@ export interface CustomerDebtEntry {
 
 export interface PaymentRecord {
   id: string;
+  /** سند ملغى (يُعاد دينه للزبون ويُستثنى من الكشوف والتقارير) */
+  voided?: boolean;
+  voidedAt?: string;
   customerId: string;
   customerName: string;
   amount: number;

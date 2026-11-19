@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { fmtDateTime } from '../utils/dateFmt';
 import { matchAr } from '../utils/arabicSearch';
 import { useApp } from '../context/AppContext';
 import CustomerTelegramModal from './CustomerTelegramModal';
@@ -37,6 +38,8 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
     updateCustomer, 
     recordPayment, 
     addManualDebt,
+    deleteManualDebt,
+    voidPayment,
     deleteCustomer,
     getUnappliedDebts,
     reconcileCustomerDebts,
@@ -624,7 +627,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                                 <td className="py-2 px-3 text-center font-bold">
                                   {it.quantity}{it.returnedQuantity ? <span className="text-rose-600 font-normal"> (مُرجَع {it.returnedQuantity})</span> : null}
                                 </td>
-                                <td className="py-2 px-3 text-slate-500">{new Date(inv.date).toLocaleDateString('ar-EG')}</td>
+                                <td className="py-2 px-3 text-slate-500">{fmtDateTime(inv.date)}</td>
                                 <td className="py-2 px-3 font-mono">{inv.invoiceNumber}</td>
                               </tr>
                             ))}
@@ -666,7 +669,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                             <tr key={inv.id} className="hover:bg-slate-50">
                               <td className="py-2 px-3 font-mono font-bold">{inv.invoiceNumber}</td>
                               <td className="py-2 px-3 text-slate-500">
-                                {new Date(inv.date).toLocaleDateString('ar-EG')}
+                                {fmtDateTime(inv.date)}
                               </td>
                               <td className="py-2 px-3">
                                 {inv.type === 'direct' ? 'مباشر (نقدي)' : 'آجل (دين)'}
@@ -725,6 +728,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                           <th className="py-2 px-3">التاريخ والوقت</th>
                           <th className="py-2 px-3">المبلغ المضاف</th>
                           <th className="py-2 px-3">ملاحظات</th>
+                          <th className="py-2 px-3 w-20"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
@@ -734,6 +738,17 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                             <td className="py-2 px-3 text-slate-500">{new Date(d.date).toLocaleString('ar-EG')}</td>
                             <td className="py-2 px-3 font-black text-rose-700 text-sm">{formatMoney(d.amount)}</td>
                             <td className="py-2 px-3 text-slate-600">{d.notes || '-'}</td>
+                            <td className="py-2 px-3">
+                              <button
+                                type="button"
+                                data-testid="delete-manual-debt"
+                                onClick={() => {
+                                  if (!hasPermission('canDeleteInvoice')) { alert('لا تملك صلاحية الحذف.'); return; }
+                                  if (window.confirm(`حذف هذا الدين اليدوي (${formatMoney(d.amount)})؟\nسيُنقص من رصيد الزبون بمقداره.`)) deleteManualDebt(d.id);
+                                }}
+                                className="px-2 py-1 rounded-md text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 cursor-pointer"
+                              >🗑 حذف</button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -761,12 +776,13 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                           <th className="py-2 px-3">التاريخ والوقت</th>
                           <th className="py-2 px-3">المبلغ المسدد</th>
                           <th className="py-2 px-3">ملاحظات</th>
+                          <th className="py-2 px-3 w-24"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
                         {customerPaymentsInPeriod(selectedCustomer)
                           .map((pay) => (
-                            <tr key={pay.id} className="hover:bg-slate-50">
+                            <tr key={pay.id} className={`hover:bg-slate-50 ${pay.voided ? 'opacity-50 line-through' : ''}`}>
                               <td className="py-2 px-3 font-mono font-bold text-blue-800">
                                 {pay.receiptNumber}
                               </td>
@@ -777,6 +793,21 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                                 {formatMoney(pay.amount)}
                               </td>
                               <td className="py-2 px-3 text-slate-600">{pay.notes || '-'}</td>
+                              <td className="py-2 px-3 no-underline">
+                                {pay.voided ? (
+                                  <span className="text-[11px] font-bold text-slate-500">ملغى</span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    data-testid="void-payment"
+                                    onClick={() => {
+                                      if (!hasPermission('canDeleteInvoice')) { alert('لا تملك صلاحية الإلغاء.'); return; }
+                                      if (window.confirm(`إلغاء سند التسديد (${formatMoney(pay.amount)})؟\nسيعود المبلغ إلى دين الزبون.`)) voidPayment(pay.id);
+                                    }}
+                                    className="px-2 py-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 cursor-pointer"
+                                  >↩ إلغاء</button>
+                                )}
+                              </td>
                             </tr>
                           ))}
                       </tbody>

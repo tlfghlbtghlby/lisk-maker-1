@@ -205,6 +205,10 @@ interface AppContextType {
   recordPayment: (customerId: string, amount: number, notes?: string) => PaymentRecord;
   /** إضافة دين بمبلغ محدد على زبون (يزيد رصيده ويُسجَّل في كشف حسابه) */
   addManualDebt: (customerId: string, amount: number, notes?: string) => CustomerDebtEntry | null;
+  /** حذف دين مضاف بمبلغ محدد (يُنقص رصيد الزبون بمقداره) */
+  deleteManualDebt: (entryId: string) => boolean;
+  /** إلغاء سند تسديد (يُعيد المبلغ إلى دين الزبون ويبقى السند ظاهراً كملغى) */
+  voidPayment: (paymentId: string) => boolean;
   trash: TrashEntry[];
   restoreTrashEntry: (id: string) => boolean;
   purgeTrashEntry: (id: string) => void;
@@ -1458,7 +1462,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const lastInv = custInvoices[0];
     const lastPay = (st.payments || [])
-      .filter((p: any) => p.customerId === customerId)
+      .filter((p: any) => p.customerId === customerId && !p.voided)
       .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
     return formatDebtReminder(
       cust.name,
@@ -3168,6 +3172,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return entry;
   };
 
+  const deleteManualDebt = (entryId: string): boolean => {
+    const entries = ((stateRef.current.settings?.customerDebtEntries as CustomerDebtEntry[]) || []);
+    const e = entries.find(x => x.id === entryId);
+    if (!e) return false;
+    const nowIso = new Date().toISOString();
+    const updatedCustomers = customers.map(c =>
+      c.id === e.customerId ? { ...c, updatedAt: nowIso, totalDebt: (Number(c.totalDebt) || 0) - (Number(e.amount) || 0) } : c
+    );
+    setCustomers(updatedCustomers);
+    try { localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers)); } catch {}
+    saveStoreToCloud({ customers: updatedCustomers });
+    broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomers }, currentSessionId, currentUser?.uid);
+    updateSettings({ customerDebtEntries: entries.filter(x => x.id !== entryId) });
+    logAudit('حذف دين يدوي', `${e.customerName || ''} · ${e.amount} · ${e.receiptNumber}`, getActorLabel());
+    return true;
+  };
+
+  const voidPayment = (paymentId: string): boolean => {
+    const pay = payments.find(x => x.id === paymentId);
+    if (!pay || pay.voided) return false;
+    const nowIso = new Date().toISOString();
+    const updatedPayments = payments.map(x => x.id === paymentId ? { ...x, voided: true, voidedAt: nowIso } : x);
+    setPayments(updatedPayments);
+    try { localStorage.setItem('cached_pos_payments', JSON.stringify(updatedPayments)); } catch {}
+    const updatedCustomers = customers.map(c =>
+      c.id === pay.customerId ? { ...c, updatedAt: nowIso, totalDebt: (Number(c.totalDebt) || 0) + (Number(pay.amount) || 0) } : c
+    );
+    setCustomers(updatedCustomers);
+    try { localStorage.setItem('cached_pos_customers', JSON.stringify(updatedCustomers)); } catch {}
+    saveStoreToCloud({ customers: updatedCustomers, payments: updatedPayments });
+    broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomers }, currentSessionId, currentUser?.uid);
+    logAudit('إلغاء سند تسديد', `${pay.customerName || ''} · ${pay.amount} · ${pay.receiptNumber}`, getActorLabel());
+    return true;
+  };
+
   // يحسب الديون القديمة غير المضافة لرصيد الزبائن (قوائم آجلة قبل هذا التحديث)
   const getUnappliedDebts = (): { customerId: string; customerName: string; amount: number; invoices: number }[] => {
     const map = new Map<string, { customerId: string; customerName: string; amount: number; invoices: number }>();
@@ -3489,6 +3528,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const sEnd = shift.endTime ? new Date(shift.endTime).getTime() : Date.now();
     let debtCollected = 0;
     (payments || []).forEach(pm => {
+      if (pm.voided) return;
       const t = new Date(pm.date).getTime();
       if (t >= sStart && t <= sEnd) debtCollected += Number(pm.amount) || 0;
     });
@@ -3906,6 +3946,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         applyBulkPriceAdjustment,
         recordPayment,
         addManualDebt,
+        deleteManualDebt,
+        voidPayment,
         trash,
         restoreTrashEntry,
         purgeTrashEntry,
