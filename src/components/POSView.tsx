@@ -3313,6 +3313,19 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   )}
                 </div>
 
+                {settings.quickCreditButton === true && (
+                  <select
+                    data-testid="quick-customer-bar"
+                    value={selectedCustomerId}
+                    onChange={(e) => handleSelectCustomer(e.target.value)}
+                    className="w-full text-[11px] bg-white border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-slate-800 focus:outline-none focus:border-emerald-500"
+                  >
+                    <option value="">-- الزبون (اختياري) --</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}{c.totalDebt > 0 ? ` · دين: ${formatMoney(c.totalDebt)}` : ''}</option>
+                    ))}
+                  </select>
+                )}
                 {settings.quickCreditButton !== true && (
 <div className={`p-1.5 rounded-lg border text-[11px] flex flex-col gap-1 transition ${
                   saleType === 'credit'
