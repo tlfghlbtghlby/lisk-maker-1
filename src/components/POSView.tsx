@@ -1159,6 +1159,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     setPendingCreditId(id);
   };
 
+  // وضع زرّي النقد/الآجل: مبدّل نقدي/آجل مخفي، فنعيد القائمة إلى «نقدي» تلقائياً (الآجل يتم فقط عبر زر «دين آجل»)
+  useEffect(() => {
+    if (settings.quickCreditButton === true && saleType === 'credit' && !pendingCreditId && !creditPickOpen) {
+      updateActiveDraft({ saleType: 'direct', paidAmount: 0 });
+    }
+  }, [settings.quickCreditButton, saleType, pendingCreditId, creditPickOpen]);
+
   const cartItemsRef = useRef(cartItems);
   useEffect(() => {
     cartItemsRef.current = cartItems;
