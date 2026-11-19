@@ -2774,7 +2774,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               )}
               <div className="p-2 sm:p-2.5 border-b border-slate-200 bg-slate-50/70 flex flex-col gap-1.5 shrink-0">
                 <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                  <div className="flex items-center bg-slate-200/90 p-0.5 rounded-lg text-xs font-bold">
+                  {settings.quickCreditButton !== true && (
+<div className="flex items-center bg-slate-200/90 p-0.5 rounded-lg text-xs font-bold">
                     <button
                       type="button"
                       onClick={() => setSaleType('direct')}
@@ -2800,6 +2801,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       <span>آجل (دين)</span>
                     </button>
                   </div>
+)}
 
                   <div className="flex items-center gap-1">
                     <button
@@ -3322,7 +3324,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   )}
                 </div>
 
-                <div className={`p-1.5 rounded-lg border text-[11px] flex flex-col gap-1 transition ${
+                {settings.quickCreditButton !== true && (
+<div className={`p-1.5 rounded-lg border text-[11px] flex flex-col gap-1 transition ${
                   saleType === 'credit'
                     ? 'bg-amber-50/80 border-amber-300'
                     : 'bg-white border-slate-200'
@@ -3394,6 +3397,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     </div>
                   )}
                 </div>
+)}
 
                 <input
                   type="text"
