@@ -1,4 +1,5 @@
 import { StockAdjustModal } from './StockAdjustModal';
+import { matchAr } from '../utils/arabicSearch';
 import { isAndroidApp } from '../utils/androidOnly';
 import { AiScanModal } from './AiScanModal';
 import { Sparkles as SparklesIcon } from 'lucide-react';
@@ -94,10 +95,10 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         const q = searchQuery.toLowerCase().trim();
         const matchSearch =
           !q ||
-          prod.name.toLowerCase().includes(q) ||
+          matchAr(prod.name, q) ||
           (prod.code || '').toLowerCase().includes(q) ||
           (prod.extraCodes || []).some((c) => c.toLowerCase().includes(q)) ||
-          (prod.category || '').toLowerCase().includes(q);
+          matchAr(prod.category, q);
 
         let matchStock = true;
         if (stockFilter === 'low') {

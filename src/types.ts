@@ -678,6 +678,10 @@ export interface StoreSettings {
   modernMode?: boolean;
   /** زر «بيع آجل» السريع في واجهة البيع: يختار زبوناً ويحفظ القائمة آجلاً مباشرة */
   quickCreditButton?: boolean;
+  /** إعادة واجهة العرض القديمة في قائمة المواد: كل الأسعار ظاهرة وتحت كل سعر زر إضافة (الافتراضي مغلق) */
+  showAllPricesList?: boolean;
+  /** وضع «كاشير سريع» الاختياري: اختصارات لوحة المفاتيح وتركيز البحث تلقائياً (الافتراضي مغلق) */
+  fastCashierMode?: boolean;
   /** في وضع زرّي «نقد/آجل»: إجراء كل زر — حفظ وطباعة أو حفظ فقط */
   cashSaleAction?: 'print' | 'save';
   creditSaleAction?: 'print' | 'save';

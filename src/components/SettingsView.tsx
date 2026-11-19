@@ -73,6 +73,7 @@ import { QuickAddItemsSection } from './QuickAddItemsSection';
 import { ExportBackupModal } from './ExportBackupModal';
 import { readBackupFileText } from '../utils/backupFile';
 import { InvoiceArchiveModal } from './InvoiceArchiveModal';
+import { AuditLogCard } from './AuditLogCard';
 import { WipeProductsModal } from './WipeProductsModal';
 import { ModernInvoiceHeader } from './ModernInvoiceHeader';
 import { resizeImageFile } from '../utils/imageResize';
@@ -87,6 +88,7 @@ import DefaultCartonSetting from './DefaultCartonSetting';
 import AutoContrastToggle from './AutoContrastToggle';
 import ModernModeToggle from './ModernModeToggle';
 import QuickCreditSetting from './QuickCreditSetting';
+import ViewOptionsSetting from './ViewOptionsSetting';
 import PermissionSubsetEditor from './PermissionSubsetEditor';
 
 const AdminPanel = React.lazy(() => import('./AdminPanel'));
@@ -1309,6 +1311,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <ExpensesSettingsCard />
           <DefaultCartonSetting />
           <QuickCreditSetting />
+          <ViewOptionsSetting />
+          {sessionRole === 'admin' && <AuditLogCard />}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
