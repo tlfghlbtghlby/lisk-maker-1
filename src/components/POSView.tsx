@@ -3,6 +3,7 @@ import { matchAr } from '../utils/arabicSearch';
 import { isAndroidApp } from '../utils/androidOnly';
 import { isOverlayOpen } from '../utils/modalKeyGuard';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { dozenName } from '../utils/packLabel';
 import { useApp } from '../context/AppContext';
 import { registerPosScanHandler } from '../utils/barcodeBus';
@@ -153,8 +154,8 @@ const ListEntryCell: React.FC<{
         }}
         className="w-full bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 focus:bg-white px-1.5 py-1 text-[12px] font-bold text-slate-900"
       />
-      {open && list.length > 0 && rect && (
-        <div className="fixed z-[90] bg-white border border-slate-400 rounded-lg shadow-2xl overflow-hidden" style={{ left: rect.left, top: rect.top, width: rect.width }} dir="rtl" data-testid="list-suggestions">
+      {open && list.length > 0 && rect && createPortal(
+        <div className="fixed z-[200] bg-white border border-slate-400 rounded-lg shadow-2xl overflow-hidden" style={{ left: rect.left, top: rect.top, width: rect.width }} dir="rtl" data-testid="list-suggestions">
           {list.map((p, i) => (
             <button
               key={p.id}
@@ -171,7 +172,8 @@ const ListEntryCell: React.FC<{
               </span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
@@ -1782,7 +1784,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   // جدول القائمة (الشكل الكلاسيكي ووضع القائمة): entry=true يضيف سطر الإدخال مع الاقتراحات وسطوراً فارغة كالقائمة المطبوعة
   const renderClassicTable = (entry: boolean) => (
         <div className="overflow-x-auto">
-          <table className="w-full text-right border-collapse text-[11px] bg-white border border-slate-800" dir="rtl">
+          <table className={`w-full text-right border-collapse bg-white border border-slate-800 ${entry ? "text-[14px]" : "text-[11px]"}`} dir="rtl">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-800 text-slate-900 font-black">
                 <th className="py-1 px-1 border-l border-slate-800 text-center w-6">ت</th>
@@ -1976,19 +1978,10 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       <div
         ref={splitWrapRef}
         className={isMobileMode ? 'flex flex-col gap-4' : (isLgScreen ? 'grid gap-0' : 'grid grid-cols-12 gap-3')}
-        style={!isMobileMode && isLgScreen ? { gridTemplateColumns: `minmax(0,1fr) 12px ${cartWidth ? cartWidth + 'px' : (listMode ? '30%' : viewMode === 'list' ? '41%' : '33%')}` } : undefined}
+        style={!isMobileMode && isLgScreen ? (listMode ? { gridTemplateColumns: 'minmax(0,1fr)' } : { gridTemplateColumns: `minmax(0,1fr) 12px ${cartWidth ? cartWidth + 'px' : (viewMode === 'list' ? '41%' : '33%')}` }) : undefined}
       >
         {(!isMobileMode || mobileTab === 'products') && (
-          <div className={`${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} flex flex-col gap-3 min-w-0`}>
-            {listMode && (
-              <div className="bg-white rounded-xl border border-slate-300 shadow-sm p-2 flex flex-col gap-2" data-testid="list-mode-panel">
-                <div className="flex items-center justify-between gap-2 flex-wrap px-1">
-                  <h3 className="text-sm font-black text-slate-900">📋 وضع القائمة</h3>
-                  <span className="text-[11px] text-slate-500">الأسعار حسب النوع المحدد في اللوحة الجانبية · المواد من المخزن المحلي</span>
-                </div>
-                {renderClassicTable(true)}
-              </div>
-            )}
+          <div className={`${listMode ? 'hidden' : ''} ${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} flex flex-col gap-3 min-w-0`}>
             <div className={listMode ? 'hidden' : 'contents'}>
             {lastPriceNotes.length > 0 && (
               <div data-testid="last-price-notes" className="flex flex-col gap-1">
@@ -2696,7 +2689,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           </div>
         )}
 
-        {!isMobileMode && isLgScreen && (
+        {!isMobileMode && isLgScreen && !listMode && (
           <div
             onPointerDown={startSplitDrag}
             onDoubleClick={() => { setCartWidth(null); try { localStorage.removeItem('pos_cart_width'); } catch {} }}
@@ -2707,7 +2700,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           </div>
         )}
         {(!isMobileMode || mobileTab === 'cart') && (
-          <div className={`${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} lg:sticky lg:top-2 flex flex-col min-w-0`}>
+          <div className={`${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} lg:sticky lg:top-2 flex flex-col min-w-0 ${listMode ? 'mx-auto w-full max-w-[1180px]' : ''}`}>
             {isMobileMode && (
               <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 mb-2">
                 <button
@@ -2724,9 +2717,15 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               </div>
             )}
             
-            <div className={`bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden ${
+            <div data-testid={listMode ? 'list-mode-paper' : undefined} className={`bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden ${listMode ? 'border-2 border-emerald-700/60 shadow-xl' : 'border-slate-200'} ${
               !isMobileMode ? 'lg:h-[calc(100vh-80px)]' : 'h-full'
             }`}>
+              {listMode && (
+                <div className="px-4 py-2 bg-gradient-to-l from-emerald-800 to-emerald-600 text-white flex items-center justify-between gap-2 shrink-0">
+                  <span className="text-sm font-black">📋 قائمة بيع — {settings.storeName || 'المفكر المحاسبي'}</span>
+                  <span className="text-[11px] opacity-90">{new Date().toLocaleDateString('ar-IQ')} · اكتب في السطر الفارغ، ↓ للاختيار، Enter للتالي</span>
+                </div>
+              )}
               <div className="p-2 sm:p-2.5 border-b border-slate-200 bg-slate-50/70 flex flex-col gap-1.5 shrink-0">
                 <div className="flex items-center justify-between gap-1.5 flex-wrap">
                   <div className="flex items-center bg-slate-200/90 p-0.5 rounded-lg text-xs font-bold">
@@ -2878,14 +2877,14 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               )}
 
               <div className="flex-1 overflow-y-auto p-2 space-y-1.5 min-h-[90px] scrollbar-thin">
-                {cartItems.length === 0 ? (
+                {listMode ? (
+                  renderClassicTable(true)
+                ) : cartItems.length === 0 ? (
                   <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-center">
                     <ShoppingCart className="w-8 h-8 mb-1.5 stroke-1 text-slate-300" />
                     <p className="text-xs font-semibold text-slate-600">القائمة فارغة</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">انقر على أي مادة لإضافتها</p>
                   </div>
-                ) : listMode ? (
-                  <div className="text-[11px] text-slate-500 text-center py-6" data-testid="list-mode-hint">📋 {cartItems.length} سطر في القائمة — تُحرَّر القائمة من الجدول على اليمين.</div>
                 ) : classicMode ? (
                   renderClassicTable(false)
                 ) : (
