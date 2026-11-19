@@ -112,7 +112,8 @@ const ListEntryCell: React.FC<{
   priceLabel: string;
   formatMoney: (n: number) => string;
   onPick: (p: Product) => void;
-}> = ({ products, priceOf, priceLabel, formatMoney, onPick }) => {
+  onEmptyEnter?: () => void;
+}> = ({ products, priceOf, priceLabel, formatMoney, onPick, onEmptyEnter }) => {
   const [q, setQ] = useState('');
   const [hi, setHi] = useState(0);
   const [open, setOpen] = useState(false);
@@ -149,7 +150,7 @@ const ListEntryCell: React.FC<{
           e.stopPropagation();
           if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setHi((h) => Math.min(list.length - 1, h + 1)); }
           else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((h) => Math.max(0, h - 1)); }
-          else if (e.key === 'Enter') { e.preventDefault(); if (list[hi]) pick(list[hi]); }
+          else if (e.key === 'Enter') { e.preventDefault(); if (list[hi]) pick(list[hi]); else if (!q.trim()) onEmptyEnter?.(); }
           else if (e.key === 'Escape') { setQ(''); setOpen(false); }
         }}
         className="w-full bg-transparent border-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-500 focus:bg-white px-1.5 py-1 text-[12px] font-bold text-slate-900"
@@ -321,6 +322,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const searchInputRef = useRef<HTMLInputElement>(null);
   // تغيير عرض الجهات بالسحب (سطح المكتب)
   const splitWrapRef = useRef<HTMLDivElement>(null);
+  // حجم جداول القائمة (خط الجدول وعرض الورقة): يُحفظ على الجهاز
+  const [tblScale, setTblScaleRaw] = useState<number>(() => { try { const v = parseFloat(localStorage.getItem('pos_tbl_scale') || ''); return v >= 0.7 && v <= 2 ? v : 1; } catch { return 1; } });
+  const [paperW, setPaperWRaw] = useState<number>(() => { try { const v = parseInt(localStorage.getItem('pos_paper_w') || '', 10); return v >= 700 && v <= 1800 ? v : 1180; } catch { return 1180; } });
+  const setTblScale = (v: number) => { const n = Math.max(0.7, Math.min(2, Math.round(v * 20) / 20)); setTblScaleRaw(n); try { localStorage.setItem('pos_tbl_scale', String(n)); } catch {} };
+  const setPaperW = (v: number) => { const n = Math.max(700, Math.min(1800, Math.round(v / 20) * 20)); setPaperWRaw(n); try { localStorage.setItem('pos_paper_w', String(n)); } catch {} };
   const [cartWidth, setCartWidth] = useState<number | null>(() => {
     try { const v = parseInt(localStorage.getItem('pos_cart_width') || '', 10); return v > 0 ? v : null; } catch { return null; }
   });
@@ -1099,6 +1105,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   }, []);
 
   const handleSaveInvoiceRef = useRef<(andPrint: boolean) => void>(() => {});
+  const quickCashSaleRef = useRef<() => void>(() => {});
   useEffect(() => {
     handleSaveInvoiceRef.current = handleSaveInvoice;
   });
@@ -1121,11 +1128,30 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     }
   }, [pendingCash, saleType]);
 
+  // اختصارات وضع زرّي النقد/الآجل: Enter و Ctrl+Enter لكلٍّ إجراء يختاره المستخدم (الافتراضي: Enter=نقد، Ctrl+Enter=حفظ وطباعة)
+  const runQuickKey = (which: 'enter' | 'ctrl') => {
+    const st = settingsRef.current as any;
+    const action: string = (which === 'enter' ? st.quickEnterAction : st.quickCtrlEnterAction) || (which === 'enter' ? 'cash' : 'print');
+    if (action === 'none' || cartItemsRef.current.length === 0) return false;
+    if (action === 'cash') quickCashSaleRef.current();
+    else if (action === 'credit') { setCreditSearch(''); setCreditPickOpen(true); }
+    else handleSaveInvoiceRef.current(action === 'print');
+    return true;
+  };
+  const runQuickKeyRef = useRef(runQuickKey);
+  runQuickKeyRef.current = runQuickKey;
+  const quickKeyHint = (action: 'cash' | 'credit'): string => {
+    const st = settings as any;
+    const e = st.quickEnterAction || 'cash';
+    const c = st.quickCtrlEnterAction || 'print';
+    return [e === action ? 'Enter' : '', c === action ? 'Ctrl+Enter' : ''].filter(Boolean).join(' · ');
+  };
   const quickCashSale = () => {
     if (saleType === 'direct') { handleSaveInvoiceRef.current((settings as any).cashSaleAction !== 'save'); return; }
     updateActiveDraft({ saleType: 'direct', selectedCustomerId: '', paidAmount: 0 });
     setPendingCash(true);
   };
+  quickCashSaleRef.current = quickCashSale;
 
   const pickCreditCustomer = (id: string) => {
     setCreditPickOpen(false);
@@ -1190,6 +1216,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         e.preventDefault();
         e.stopPropagation();
         buffer = '';
+        if (settingsRef.current.quickCreditButton === true) { runQuickKeyRef.current('ctrl'); return; }
         if (cartItemsRef.current.length > 0) {
           handleSaveInvoiceRef.current(!!settingsRef.current.invertEnterShortcuts);
         }
@@ -1232,6 +1259,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           }
         }
 
+        // وضع زرّي النقد/الآجل: Enter ينفّذ الإجراء المختار (الافتراضي نقد)
+        if (settingsRef.current.quickCreditButton === true) {
+          if (runQuickKeyRef.current('enter')) { e.preventDefault(); e.stopPropagation(); }
+          return;
+        }
         // حفظ وطباعة القائمة الحالية عند الضغط اليدوي على Enter
         if (cartItemsRef.current.length > 0) {
           e.preventDefault();
@@ -1784,7 +1816,20 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   // جدول القائمة (الشكل الكلاسيكي ووضع القائمة): entry=true يضيف سطر الإدخال مع الاقتراحات وسطوراً فارغة كالقائمة المطبوعة
   const renderClassicTable = (entry: boolean) => (
         <div className="overflow-x-auto">
-          <table className={`w-full text-right border-collapse bg-white border border-slate-800 ${entry ? "text-[14px]" : "text-[11px]"}`} dir="rtl">
+          <div className="flex items-center justify-end gap-1 mb-1 text-[11px] text-slate-500" data-testid="table-size-controls">
+            <span>حجم الجدول:</span>
+            <button type="button" tabIndex={-1} onClick={() => setTblScale(tblScale - 0.1)} className="w-6 h-6 rounded border border-slate-300 font-black cursor-pointer hover:bg-slate-100" title="تصغير">−</button>
+            <button type="button" tabIndex={-1} onClick={() => setTblScale(1)} className="px-1.5 h-6 rounded border border-slate-300 font-mono cursor-pointer hover:bg-slate-100" title="الحجم الافتراضي">{Math.round(tblScale * 100)}%</button>
+            <button type="button" tabIndex={-1} onClick={() => setTblScale(tblScale + 0.1)} className="w-6 h-6 rounded border border-slate-300 font-black cursor-pointer hover:bg-slate-100" title="تكبير">+</button>
+            {entry && (
+              <>
+                <span className="mr-2">عرض الورقة:</span>
+                <button type="button" tabIndex={-1} onClick={() => setPaperW(paperW - 100)} className="w-6 h-6 rounded border border-slate-300 font-black cursor-pointer hover:bg-slate-100" title="تضييق">‹</button>
+                <button type="button" tabIndex={-1} onClick={() => setPaperW(paperW + 100)} className="w-6 h-6 rounded border border-slate-300 font-black cursor-pointer hover:bg-slate-100" title="توسيع">›</button>
+              </>
+            )}
+          </div>
+          <table className="w-full text-right border-collapse bg-white border border-slate-800" style={{ fontSize: (entry ? 14 : 11) * tblScale }} dir="rtl">
             <thead>
               <tr className="bg-slate-100 border-b border-slate-800 text-slate-900 font-black">
                 <th className="py-1 px-1 border-l border-slate-800 text-center w-6">ت</th>
@@ -1889,6 +1934,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           priceLabel={globalPriceType === 'wholesale' ? 'جملة' : globalPriceType === 'superWholesale' ? 'جملة الجملة' : globalPriceType === 'special' ? 'خاص' : 'مفرد'}
                           formatMoney={formatMoney}
                           onPick={(pr) => classicAddAndFocus(pr, true)}
+                          onEmptyEnter={() => { if (settings.quickCreditButton === true && !kbMode) runQuickKeyRef.current('enter'); }}
                         />
                       </td>
                       <td colSpan={total - 2} className="border-l border-slate-800 text-[10px] text-slate-400 px-2">اكتب اسم المادة أو الباركود ← ↓ للاختيار ← Enter</td>
@@ -2700,7 +2746,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           </div>
         )}
         {(!isMobileMode || mobileTab === 'cart') && (
-          <div className={`${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} lg:sticky lg:top-2 flex flex-col min-w-0 ${listMode ? 'mx-auto w-full max-w-[1180px]' : ''}`}>
+          <div className={`${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} lg:sticky lg:top-2 flex flex-col min-w-0 ${listMode ? 'mx-auto w-full' : ''}`} style={listMode ? { maxWidth: paperW } : undefined}>
             {isMobileMode && (
               <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 mb-2">
                 <button
@@ -3431,6 +3477,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     >
                       {(settings as any).cashSaleAction === 'save' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <Printer className="w-4 h-4 shrink-0" />}
                       <span>💵 نقد</span>
+                      {quickKeyHint('cash') && <span className="hidden sm:inline-block px-1 text-[9px] bg-black/15 rounded font-mono font-bold">{quickKeyHint('cash')}</span>}
                     </button>
                     <button
                       type="button"
@@ -3441,6 +3488,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       title="اختر زبوناً وتُحفظ القائمة عليه ديناً آجلاً"
                     >
                       <span>🧾 دين آجل</span>
+                      {quickKeyHint('credit') && <span className="hidden sm:inline-block px-1 text-[9px] bg-black/15 rounded font-mono font-bold">{quickKeyHint('credit')}</span>}
                     </button>
                   </div>
                 ) : (
