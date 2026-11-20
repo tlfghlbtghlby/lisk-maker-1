@@ -164,6 +164,39 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
   const periodDebtOf = (cust: Customer) =>
     customerInvoicesInPeriod(cust).filter((i) => i.status !== 'returned').reduce((sum, i) => sum + (Number(i.remainingAmount) || 0), 0);
 
+  /**
+   * الرصيد بعد كل عملية: نرتّب كل حركات الزبون (قوائم آجلة + ديون يدوية + سندات تسديد غير ملغاة) زمنياً،
+   * ثم نحسب للخلف انطلاقاً من الدين الحالي الفعلي، فيتطابق الرصيد بعد آخر عملية مع الدين الحالي دائماً.
+   */
+  const balCache: { id: string; m: Map<string, number> | null } = { id: '', m: null };
+  const balanceAfterMap = (cust: Customer): Map<string, number> => {
+    if (balCache.m && balCache.id === cust.id) return balCache.m;
+    type Ev = { id: string; t: number; delta: number };
+    const evs: Ev[] = [];
+    invoices
+      .filter((i) => (i.customerId === cust.id || i.customerName === cust.name))
+      .forEach((i) => evs.push({ id: 'inv_' + i.id, t: new Date(i.date).getTime() || 0, delta: i.status === 'returned' ? 0 : (Number(i.remainingAmount) || 0) }));
+    debtEntries
+      .filter((d) => d.customerId === cust.id)
+      .forEach((d) => evs.push({ id: 'debt_' + d.id, t: new Date(d.date).getTime() || 0, delta: Number(d.amount) || 0 }));
+    payments
+      .filter((p) => p.customerId === cust.id)
+      .forEach((p) => evs.push({ id: 'pay_' + p.id, t: new Date(p.date).getTime() || 0, delta: p.voided ? 0 : -(Number(p.amount) || 0) }));
+    evs.sort((a, b) => a.t - b.t);
+    const out = new Map<string, number>();
+    let running = Number(cust.totalDebt) || 0;
+    for (let i = evs.length - 1; i >= 0; i--) {
+      out.set(evs[i].id, running);
+      running -= evs[i].delta;
+    }
+    balCache.id = cust.id; balCache.m = out;
+    return out;
+  };
+  const balCell = (v: number | undefined) =>
+    v === undefined ? <span className="text-slate-400">-</span> : (
+      <span className={`font-black ${v > 0 ? 'text-rose-700' : v < 0 ? 'text-emerald-700' : 'text-slate-500'}`}>{formatMoney(v)}</span>
+    );
+
   const submitManualDebt = (e: React.FormEvent) => {
     e.preventDefault();
     if (!debtFor) return;
@@ -534,7 +567,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
       {/* Modal 1: Customer Account Statement (كشف الحساب التفصيلي) */}
       {isStatementOpen && selectedCustomer && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col overflow-hidden">
             
             <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <div>
@@ -655,11 +688,12 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                       <thead className="bg-slate-100 font-bold text-slate-700">
                         <tr>
                           <th className="py-2 px-3">رقم القائمة</th>
-                          <th className="py-2 px-3">التاريخ</th>
+                          <th className="py-2 px-3">التاريخ والوقت</th>
                           <th className="py-2 px-3">نوع البيع</th>
                           <th className="py-2 px-3">الإجمالي</th>
                           <th className="py-2 px-3">المدفوع</th>
                           <th className="py-2 px-3">المتبقي (دين)</th>
+                          <th className="py-2 px-3">الرصيد بعد العملية</th>
                           <th className="py-2 px-3 text-center">عرض</th>
                         </tr>
                       </thead>
@@ -681,6 +715,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                               <td className="py-2 px-3 font-bold text-amber-800">
                                 {formatMoney(inv.remainingAmount)}
                               </td>
+                              <td className="py-2 px-3">{balCell(balanceAfterMap(selectedCustomer).get('inv_' + inv.id))}</td>
                               <td className="py-2 px-3 text-center">
                                 <button
                                   onClick={() => {
@@ -727,6 +762,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                           <th className="py-2 px-3">الرقم</th>
                           <th className="py-2 px-3">التاريخ والوقت</th>
                           <th className="py-2 px-3">المبلغ المضاف</th>
+                          <th className="py-2 px-3">الرصيد بعد العملية</th>
                           <th className="py-2 px-3">ملاحظات</th>
                           <th className="py-2 px-3 w-20"></th>
                         </tr>
@@ -735,8 +771,9 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                         {customerDebtEntriesInPeriod(selectedCustomer).map((d) => (
                           <tr key={d.id} className="hover:bg-slate-50">
                             <td className="py-2 px-3 font-mono font-bold text-rose-800">{d.receiptNumber}</td>
-                            <td className="py-2 px-3 text-slate-500">{new Date(d.date).toLocaleString('ar-EG')}</td>
+                            <td className="py-2 px-3 text-slate-500">{fmtDateTime(d.date)}</td>
                             <td className="py-2 px-3 font-black text-rose-700 text-sm">{formatMoney(d.amount)}</td>
+                            <td className="py-2 px-3">{balCell(balanceAfterMap(selectedCustomer).get('debt_' + d.id))}</td>
                             <td className="py-2 px-3 text-slate-600">{d.notes || '-'}</td>
                             <td className="py-2 px-3">
                               <button
@@ -775,6 +812,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                           <th className="py-2 px-3">رقم السند</th>
                           <th className="py-2 px-3">التاريخ والوقت</th>
                           <th className="py-2 px-3">المبلغ المسدد</th>
+                          <th className="py-2 px-3">الرصيد بعد العملية</th>
                           <th className="py-2 px-3">ملاحظات</th>
                           <th className="py-2 px-3 w-24"></th>
                         </tr>
@@ -787,11 +825,12 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                                 {pay.receiptNumber}
                               </td>
                               <td className="py-2 px-3 text-slate-500">
-                                {new Date(pay.date).toLocaleString('ar-EG')}
+                                {fmtDateTime(pay.date)}
                               </td>
                               <td className="py-2 px-3 font-black text-emerald-700 text-sm">
                                 {formatMoney(pay.amount)}
                               </td>
+                              <td className="py-2 px-3">{pay.voided ? <span className="text-slate-400">-</span> : balCell(balanceAfterMap(selectedCustomer).get('pay_' + pay.id))}</td>
                               <td className="py-2 px-3 text-slate-600">{pay.notes || '-'}</td>
                               <td className="py-2 px-3 no-underline">
                                 {pay.voided ? (
