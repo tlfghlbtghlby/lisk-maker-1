@@ -31,15 +31,19 @@ function installModernFx(): void {
     if (!t || (t as any).disabled) return;
     const r = t.getBoundingClientRect();
     if (r.width < 8 || r.height < 8 || r.width > 900) return;
+    // الموجة تُرسم فوق الصفحة في عنصر مستقل لا يمسّ الزر نفسه إطلاقاً:
+    // إدخال عنصر داخل الزر كان يغيّر تخطيطه عند الضغط فتضيع النقرة إلا على الطرف.
     const size = Math.max(r.width, r.height) * 1.6;
+    const cs = getComputedStyle(t);
+    const host = document.createElement('div');
+    host.setAttribute('aria-hidden', 'true');
+    host.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;overflow:hidden;pointer-events:none;z-index:2147483000;border-radius:${cs.borderRadius}`;
     const dot = document.createElement('span');
     dot.className = 'm-ripple';
     dot.style.cssText = `left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px;width:${size}px;height:${size}px`;
-    const cs = getComputedStyle(t);
-    if (cs.position === 'static') t.classList.add('m-ripple-host');
-    t.classList.add('m-ripple-clip');
-    t.appendChild(dot);
-    setTimeout(() => { dot.remove(); t.classList.remove('m-ripple-clip'); }, 650);
+    host.appendChild(dot);
+    document.body.appendChild(host);
+    setTimeout(() => host.remove(), 650);
   }, { passive: true, capture: true });
 
   // 2) خروج ناعم للنوافذ المنبثقة: ننسخ العنصر المحذوف ونحرّكه للخارج ثم نزيله
