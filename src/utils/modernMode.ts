@@ -74,6 +74,11 @@ function installModernFx(): void {
 
 export function installModernMode(): void {
   if (typeof document === 'undefined') return;
+  // نافذة مستقلة: الوضع يصلها صراحةً في الرابط (modern=1/0) من النافذة الأم
+  try {
+    const q = new URLSearchParams(window.location.search).get('modern') ?? new URLSearchParams((window.location.hash.split('?')[1]) || '').get('modern');
+    if (q === '1' || q === '0') localStorage.setItem(MODERN_LS_KEY, q);
+  } catch { /* ignore */ }
   document.documentElement.classList.toggle('modern', isModernMode());
   installModernFx();
 }
