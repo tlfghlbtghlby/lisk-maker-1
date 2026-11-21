@@ -690,6 +690,12 @@ export interface StoreSettings {
   showAllPricesList?: boolean;
   /** وضع «كاشير سريع» الاختياري: اختصارات لوحة المفاتيح وتركيز البحث تلقائياً (الافتراضي مغلق) */
   fastCashierMode?: boolean;
+  /** طباعة باركود المادة (كليك يمين في المخزن): سؤال عن العدد / ملصق واحد تلقائياً / عدد ثابت */
+  barcodePrintMode?: 'ask' | 'one' | 'fixed';
+  barcodePrintCount?: number;
+  /** مقاس الملصق بالملّيمتر (الافتراضي 50×30) */
+  barcodeLabelW?: number;
+  barcodeLabelH?: number;
   /** في وضع زرّي «نقد/آجل»: إجراء كل زر — حفظ وطباعة أو حفظ فقط */
   cashSaleAction?: 'print' | 'save';
   creditSaleAction?: 'print' | 'save';
