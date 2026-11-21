@@ -107,10 +107,11 @@ export const LocalBackupSection: React.FC = () => {
               {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{`${pad(h)}:00`}</option>)}
             </select>
             <span className="font-bold text-slate-700 dark:text-slate-300">الاحتفاظ بآخر</span>
-            <input type="number" min={3} max={365} value={cfg.keep} onChange={(e) => save({ keep: Math.max(3, Math.min(365, Number(e.target.value) || 30)) })} className="w-16 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#060b13] text-slate-900 dark:text-white text-center" />
+            <input type="number" min={3} max={100000} disabled={cfg.keep === 0} value={cfg.keep === 0 ? '' : cfg.keep} placeholder="∞" data-testid="bk-keep" onChange={(e) => save({ keep: Math.max(3, Math.min(100000, Number(e.target.value) || 30)) })} className="w-20 px-2 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#060b13] text-slate-900 dark:text-white text-center disabled:opacity-50" />
+            <label className="flex items-center gap-1 cursor-pointer text-[11px] font-bold text-slate-700 dark:text-slate-300"><input type="checkbox" data-testid="bk-unlimited" checked={cfg.keep === 0} onChange={(e) => save({ keep: e.target.checked ? 0 : 30 })} /> بلا حد (لا تُحذف أي نسخة)</label>
             <span className="text-slate-600 dark:text-slate-400">نسخة</span>
           </div>
-          <div className="text-[11px] text-slate-500">تُحفظ عند أول تشغيل للبرنامج بعد هذه الساعة (البرنامج يجب أن يكون مفتوحاً). يُحذف الأقدم تلقائياً ضمن ملفات النسخ فقط ({'mufakir-backup-*.json.gz'}).</div>
+          <div className="text-[11px] text-slate-500">تُحفظ عند أول تشغيل للبرنامج بعد هذه الساعة (البرنامج يجب أن يكون مفتوحاً). {cfg.keep === 0 ? 'لن يُحذف أي شيء، فراقب مساحة القرص.' : 'يُحذف الأقدم تلقائياً'} ضمن ملفات النسخ فقط ({'mufakir-backup-*.json.gz'}).</div>
           {cfg.lastDate && <div className="text-[11px] text-slate-500">آخر نسخة يومية ناجحة: {cfg.lastDate}</div>}
         </div>
       )}
