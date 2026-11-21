@@ -8,6 +8,7 @@ import ModernDock from './components/ModernDock';
 import { TelegramBackupRunner } from './components/TelegramBackup';
 import { LocalBackupRunner } from './components/LocalBackup';
 import { isModernMode, useModernMode } from './utils/modernMode';
+import CatalogContributor from './components/CatalogContributor';
 import { POSView } from './components/POSView';
 import { InventoryView } from './components/InventoryView';
 import { InvoicesView } from './components/InvoicesView';
@@ -557,6 +558,7 @@ const MainContent: React.FC = () => {
 
       {!isStandaloneWindow && <TelegramBackupRunner />}
       {!isStandaloneWindow && <LocalBackupRunner />}
+      <CatalogContributor />
       {modern && !isStandaloneWindow && <ModernDock activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />}
 
       <ProductModal
