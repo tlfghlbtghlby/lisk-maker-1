@@ -1,4 +1,5 @@
 import { StockAdjustModal } from './StockAdjustModal';
+import { ProductBarcodeMenu, BarcodeSheetModal, BarcodeSheetButton } from './BarcodePrint';
 import { matchAr } from '../utils/arabicSearch';
 import { isAndroidApp } from '../utils/androidOnly';
 import { AiScanModal } from './AiScanModal';
@@ -69,6 +70,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [adjustProduct, setAdjustProduct] = useState<Product | null>(null);
   const [aiScanOpen, setAiScanOpen] = useState(false);
+  const [bcMenu, setBcMenu] = useState<{ x: number; y: number; product: Product } | null>(null);
+  const [bcSheetOpen, setBcSheetOpen] = useState(false);
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'stock' | 'profit' | 'price' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -319,6 +322,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
+            <BarcodeSheetButton onClick={() => setBcSheetOpen(true)} />
             <button
               type="button"
               onClick={() => setIsDuplicatesModalOpen(true)}
@@ -506,6 +510,7 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
                     <tr
                       key={`${prod.id}_${pIdx}`}
                       className="hover:bg-slate-50/70 transition group"
+                      onContextMenu={(e) => { e.preventDefault(); setBcMenu({ x: e.clientX, y: e.clientY, product: prod }); }}
                     >
                       <td className="py-3 px-4 font-mono text-xs text-slate-500">
                         #{prod.code}
@@ -839,6 +844,8 @@ export const InventoryView: React.FC<InventoryViewProps> = ({
         />
       )}
       {aiScanOpen && <AiScanModal onClose={() => setAiScanOpen(false)} />}
+      {bcMenu && <ProductBarcodeMenu x={bcMenu.x} y={bcMenu.y} product={bcMenu.product} onClose={() => setBcMenu(null)} />}
+      {bcSheetOpen && <BarcodeSheetModal onClose={() => setBcSheetOpen(false)} />}
       {adjustProduct && <StockAdjustModal product={adjustProduct} onClose={() => setAdjustProduct(null)} />}
     </div>
   );

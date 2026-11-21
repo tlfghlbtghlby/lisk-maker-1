@@ -89,6 +89,10 @@ import AutoContrastToggle from './AutoContrastToggle';
 import ModernModeToggle from './ModernModeToggle';
 import QuickCreditSetting from './QuickCreditSetting';
 import ViewOptionsSetting from './ViewOptionsSetting';
+import BarcodeSetting from './BarcodeSetting';
+import UiScaleSetting from './UiScaleSetting';
+import UpdatesPanel from './UpdatesPanel';
+import { useUpdateInfo } from '../utils/appUpdates';
 import { LocalBackupSection } from './LocalBackup';
 import PermissionSubsetEditor from './PermissionSubsetEditor';
 
@@ -337,7 +341,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [isApplyingBulkPrices, setIsApplyingBulkPrices] = useState(false);
   const [bulkPriceSuccess, setBulkPriceSuccess] = useState<string | null>(null);
 
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'customer-qr' | 'telegram' | 'all'>(initialTab);
+  const { unseen: updUnseen } = useUpdateInfo();
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'store' | 'quick-add' | 'pricing' | 'security' | 'sessions' | 'customer-qr' | 'telegram' | 'updates' | 'all'>(initialTab);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -1081,7 +1086,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         </button>
         )}
 
+        <button
+          type="button"
+          data-testid="tab-updates"
+          onClick={() => setActiveSettingsTab('updates')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+            activeSettingsTab === 'updates'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30'
+          }`}
+        >
+          <span>🔄</span>
+          <span>التحديثات</span>
+          {updUnseen && <span className="w-2 h-2 rounded-full bg-rose-500" data-testid="updates-dot" />}
+        </button>
+
       </div>
+
+      {(activeSettingsTab === 'updates' || activeSettingsTab === 'all') && <UpdatesPanel />}
 
       {featureOn('enableTelegram') && (activeSettingsTab === 'telegram' || activeSettingsTab === 'all') && <TelegramSettingsCard />}
 
@@ -1316,6 +1338,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <DefaultCartonSetting />
           <QuickCreditSetting />
           <ViewOptionsSetting />
+          <UiScaleSetting />
+          <BarcodeSetting />
           {sessionRole === 'admin' && <AuditLogCard />}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
