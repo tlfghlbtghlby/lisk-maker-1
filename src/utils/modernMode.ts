@@ -29,8 +29,12 @@ function installModernFx(): void {
     if (!modernOn()) return;
     const t = (e.target as Element | null)?.closest?.('button, a, [role="button"], label, summary, select, .cursor-pointer') as HTMLElement | null;
     if (!t || (t as any).disabled) return;
+    // لا موجة على اللمس ولا على الأزرار الصغيرة ولا داخل أشرطة التمرير الأفقية (تبويبات/فئات):
+    // الموجة المتحركة فوق التبويب كانت تبدو كأنه «يتصغّر» عند الضغط.
+    if ((e as PointerEvent).pointerType && (e as PointerEvent).pointerType !== 'mouse') return;
+    if (t.closest('.overflow-x-auto, [class*="overflow-x-"]')) return;
     const r = t.getBoundingClientRect();
-    if (r.width < 8 || r.height < 8 || r.width > 900) return;
+    if (r.width < 8 || r.height < 40 || r.width > 900) return;
     // الموجة تُرسم فوق الصفحة في عنصر مستقل لا يمسّ الزر نفسه إطلاقاً:
     // إدخال عنصر داخل الزر كان يغيّر تخطيطه عند الضغط فتضيع النقرة إلا على الطرف.
     const size = Math.max(r.width, r.height) * 1.6;
