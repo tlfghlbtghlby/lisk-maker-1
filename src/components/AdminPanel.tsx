@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ShopCloudAdmin from './ShopCloudAdmin';
-import { setShopCloudCfg } from '../utils/shopCloud';
+import { setShopCloudCfg, makeShopClient } from '../utils/shopCloud';
 import { 
   createClientAccount, 
   loadAllClientAccounts, 
@@ -60,6 +60,9 @@ export const AdminPanel: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [initialPlan, setInitialPlan] = useState<'trial3' | 'permanent' | 'monthly' | 'yearly'>('trial3');
+  // سحابة المحل المستقلة (اختيارية عند إنشاء الحساب)
+  const [newCloudUrl, setNewCloudUrl] = useState('');
+  const [newCloudKey, setNewCloudKey] = useState('');
 
   // Edit modal state
   const [editingClient, setEditingClient] = useState<UserProfile | null>(null);
@@ -177,7 +180,22 @@ export const AdminPanel: React.FC = () => {
         phone: phone.trim()
       };
 
+      // سحابة المحل المستقلة: نتحقق منها قبل إنشاء الحساب حتى لا يُنشأ حساب ناقص
+      let cloudCfg: { url: string; anonKey: string; enabled: boolean } | null = null;
+      if (newCloudUrl.trim() || newCloudKey.trim()) {
+        const cl = makeShopClient(newCloudUrl, newCloudKey);
+        if (!cl) throw new Error('رابط سحابة المحل يجب أن يكون بصيغة https://xxxx.supabase.co والمفتاح (anon) غير صحيح.');
+        const chk = await cl.from('documents').select('id').limit(1);
+        if (chk.error) throw new Error(`تعذّر الاتصال بسحابة المحل أو جدول documents غير موجود. نفّذ سكربت الإعداد في مشروع المحل أولاً. (${chk.error.message})`);
+        cloudCfg = { url: newCloudUrl.trim().replace(/\/+$/, ''), anonKey: newCloudKey.trim(), enabled: true };
+      }
+
       const newClient = await createClientAccount(input);
+
+      if (cloudCfg) {
+        await updateClientAccount({ uid: newClient.uid, cloud: cloudCfg } as any);
+        setShopCloudCfg(newClient.uid, cloudCfg);
+      }
 
       if (initialPlan !== 'trial3') {
         await updateClientSubscription(newClient.uid, {
@@ -191,7 +209,7 @@ export const AdminPanel: React.FC = () => {
         type: 'success',
         message: `تم إنشاء وتفعيل حساب الزبون (${newClient.displayName}) بنجاح! الصلاحية: ${
           isPerm ? '⭐ حساب دائمي مدى الحياة' : initialPlan === 'yearly' ? 'باقة سنوية (365 يوم)' : initialPlan === 'monthly' ? 'باقة شهرية (30 يوم)' : 'فترة تجريبية 3 أيام'
-        } · اسم الدخول: ${cleanUsername} · الرمز: ${password}`
+        }${cloudCfg ? ' · ☁️ رُبطت سحابة المحل المستقلة' : ''} · اسم الدخول: ${cleanUsername} · الرمز: ${password}`
       });
 
       setUsername('');
@@ -200,6 +218,8 @@ export const AdminPanel: React.FC = () => {
       setPhone('');
       setPassword('');
       setInitialPlan('trial3');
+      setNewCloudUrl('');
+      setNewCloudKey('');
 
       fetchClients();
     } catch (err: any) {
@@ -632,6 +652,15 @@ export const AdminPanel: React.FC = () => {
                 <option value="monthly">باقة شهرية (30 يوم)</option>
                 <option value="yearly">باقة سنوية (365 يوم)</option>
               </select>
+            </div>
+
+            <div className="sm:col-span-2 md:col-span-3 p-3 rounded-lg border border-sky-700/50 bg-sky-950/20 space-y-2" data-testid="create-cloud-fields">
+              <div className="text-xs font-bold text-sky-300">☁️ سحابة مستقلة للمحل (اختياري): رابط مشروع Supabase الخاص بالمحل ومفتاحه</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <input dir="ltr" value={newCloudUrl} onChange={(e) => setNewCloudUrl(e.target.value)} placeholder="https://xxxxxxxx.supabase.co" data-testid="create-cloud-url" className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500" />
+                <input dir="ltr" value={newCloudKey} onChange={(e) => setNewCloudKey(e.target.value)} placeholder="anon / publishable key" data-testid="create-cloud-key" className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500" />
+              </div>
+              <p className="text-[11px] text-slate-400">إن تركته فارغاً يبقى المحل على سحابتك. عند تعبئته يُختبر الاتصال قبل إنشاء الحساب، ثم تُربط سحابته ويُفعَّل تلقائياً (محل جديد: لا بيانات سابقة لنقلها). لا تضع مفتاح service_role أبداً.</p>
             </div>
 
             <div className="flex items-end sm:col-span-2 md:col-span-3">
