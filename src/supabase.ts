@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { ADMIN_EMAIL } from './types';
+import { shopClientFor } from './utils/shopCloud';
 import { hashPassword, verifyPassword, isPasswordHash } from './utils/passwordHash';
 
 // يمكن تغيير الإعدادات عبر ملف .env (VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY) دون تعديل الكود.
@@ -14,7 +15,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // دالة لجلب وثيقة محددة من السحابة (تُرجع null عند الخطأ أو عدم الوجود)
 export async function getDocument(collectionName: string, docId: string) {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (shopClientFor(collectionName, docId) || supabase)
       .from('documents')
       .select('data')
       .eq('collection', collectionName)
@@ -33,7 +34,7 @@ export async function getDocument(collectionName: string, docId: string) {
 }
 
 // نسخة صارمة: ترمي خطأ عند فشل الاتصال، لتمييز "غير موجود" عن "تعذر الاتصال" (مهم لتسجيل الدخول)
-async function getDocumentStrict(collectionName: string, docId: string): Promise<any | null> {
+export async function getDocumentStrict(collectionName: string, docId: string): Promise<any | null> {
   const { data, error } = await supabase
     .from('documents')
     .select('data')
@@ -44,10 +45,17 @@ async function getDocumentStrict(collectionName: string, docId: string): Promise
   return data ? data.data : null;
 }
 
+// قراءة وثيقة من السحابة الرئيسية دائماً (حتى لو كان للمحل سحابة مستقلة): للنقل والمقارنة فقط
+export async function getMainDocument(collectionName: string, docId: string) {
+  const { data, error } = await supabase.from('documents').select('data').eq('collection', collectionName).eq('id', docId).maybeSingle();
+  if (error) throw error;
+  return data ? data.data : null;
+}
+
 // دالة لحفظ أو تحديث وثيقة في السحابة
 export async function setDocument(collectionName: string, docId: string, docData: any) {
   try {
-    const { error } = await supabase
+    const { error } = await (shopClientFor(collectionName, docId) || supabase)
       .from('documents')
       .upsert({
         collection: collectionName,
@@ -68,7 +76,8 @@ export async function setDocument(collectionName: string, docId: string, docData
 
 // دالة الاستماع اللحظي للتعديلات
 export function subscribeToDocument(collectionName: string, docId: string, callback: (data: any) => void) {
-  const channel = supabase
+  const client = shopClientFor(collectionName, docId) || supabase;
+  const channel = client
     .channel(`realtime:${collectionName}:${docId}`)
     .on(
       'postgres_changes',
@@ -87,7 +96,7 @@ export function subscribeToDocument(collectionName: string, docId: string, callb
     .subscribe();
 
   return {
-    unsubscribe: () => supabase.removeChannel(channel)
+    unsubscribe: () => client.removeChannel(channel)
   };
 }
 
@@ -241,6 +250,8 @@ export interface UpdateClientInput {
   enableModernDesign?: boolean;
   enableWholesalePrice?: boolean;
   enableSpecialPrice?: boolean;
+  /** سحابة المحل المستقلة (url/anonKey/enabled). يضبطها المدير فقط */
+  cloud?: { url: string; anonKey: string; enabled: boolean } | null;
 }
 
 async function loadAllRawAccounts(): Promise<any[]> {

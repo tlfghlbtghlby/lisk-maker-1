@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { logAudit } from '../utils/auditLog';
 import { computeRepEarnings, formatRepNewSale } from '../utils/repEarnings';
-import { isSubscriptionExpired, fetchAccountStatus, supabase, getDocument, setDocument, subscribeToDocument, verifyAccountPassword } from '../supabase';
+import { refreshShopCloudCfg } from '../utils/shopCloud';
+import { isSubscriptionExpired, fetchAccountStatus, supabase, getDocument, getDocumentStrict, setDocument, subscribeToDocument, verifyAccountPassword } from '../supabase';
 import { 
   Product, 
   Customer, 
@@ -1351,9 +1352,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    loadInitialData();
+    // سحابة المحل المستقلة (إن فُعّلت من لوحة الإدارة): نعرف الوجهة أولاً ثم نقرأ ونشترك
+    let cancelled = false;
+    let storeSub: { unsubscribe: () => void } | null = null;
+    const startCloud = async () => {
+      await refreshShopCloudCfg(currentUid, () => getDocumentStrict('users', currentUid), 2500);
+      if (cancelled) return;
+      loadInitialData();
 
-    const storeSub = subscribeToDocument('stores', storeDocId, (newData) => {
+    storeSub = subscribeToDocument('stores', storeDocId, (newData) => {
       if (!newData) return;
 
       if (newData.lastSavedByClient && newData.lastSavedByClient === currentSessionId) {
@@ -1379,9 +1386,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsCloudConnected(true);
       setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
     });
+    };
+    startCloud();
 
     return () => {
-      storeSub.unsubscribe();
+      cancelled = true;
+      (storeSub as any)?.unsubscribe();
     };
   }, [currentUser, currentSessionId]);
 

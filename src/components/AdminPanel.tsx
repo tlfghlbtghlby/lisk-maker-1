@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import ShopCloudAdmin from './ShopCloudAdmin';
+import { setShopCloudCfg } from '../utils/shopCloud';
 import { 
   createClientAccount, 
   loadAllClientAccounts, 
@@ -95,6 +97,8 @@ export const AdminPanel: React.FC = () => {
     try {
       const list = await loadAllClientAccounts();
       setClients(list as UserProfile[]);
+      // تعريف وجهة كل محل على جهاز المدير (تعديلات المدير على وثيقة المحل تذهب لسحابته)
+      (list as any[]).forEach((c) => { if (c?.uid && c.cloud) setShopCloudCfg(c.uid, c.cloud); });
     } catch (e: any) {
       console.error("Error loading clients:", e);
     } finally {
@@ -1255,6 +1259,8 @@ export const AdminPanel: React.FC = () => {
                   </label>
                 </div>
               </div>
+
+              <ShopCloudAdmin key={editingClient.uid} client={editingClient} onSaved={fetchClients} />
 
               {/* Actions */}
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
