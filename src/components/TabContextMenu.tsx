@@ -1,3 +1,4 @@
+import { isModernMode } from '../utils/modernMode';
 import React, { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Monitor, ArrowRight, CheckCircle2, Sparkles, X, Layers, Copy } from 'lucide-react';
 import { TabType } from './Navigation';
@@ -55,7 +56,8 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
       if (electron && typeof electron.openSectionWindow === 'function') {
         await electron.openSectionWindow({
           route: tabId,
-          title: tabLabel
+          title: tabLabel,
+          modern: isModernMode()
         });
         setFeedback('✅ تم فتح القسم في نافذة مستقلة بنجاح!');
         setTimeout(onClose, 1000);
@@ -68,6 +70,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({
       currentUrl.searchParams.set('open-route', tabId);
       currentUrl.searchParams.set('route', tabId);
       currentUrl.searchParams.set('standalone', 'true');
+      currentUrl.searchParams.set('modern', isModernMode() ? '1' : '0');
 
       const win = window.open(
         currentUrl.toString(),

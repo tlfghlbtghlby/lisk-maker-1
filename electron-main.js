@@ -78,7 +78,7 @@ function parseOpenRoute(argvList = process.argv) {
 }
 
 // 1. إنشاء نافذة منفصلة مستقلة (تعمل عند الكليك أيمن أو فتح اختصار مخصص)
-function createSectionWindow(route = 'pos', title = '') {
+function createSectionWindow(route = 'pos', title = '', modern) {
   const cleanRoute = (route || 'pos').replace(/^[#?]/, '').trim();
 
   const titlesMap = {
@@ -122,14 +122,16 @@ function createSectionWindow(route = 'pos', title = '') {
 
   const indexPath = path.join(__dirname, 'dist/index.html');
   const targetHash = `${cleanRoute}?standalone=true`;
+  // الوضع العصري يُمرَّر صراحةً من النافذة الأم حتى لا تفتح النافذة المستقلة بالكلاسيك
+  const mq = modern === true ? { modern: '1' } : modern === false ? { modern: '0' } : {};
 
   if (app.isPackaged) {
-    win.loadFile(indexPath, { hash: targetHash, query: { standalone: 'true', 'open-route': cleanRoute } });
+    win.loadFile(indexPath, { hash: targetHash, query: { standalone: 'true', 'open-route': cleanRoute, ...mq } });
   } else {
     if (fs.existsSync(indexPath)) {
-      win.loadFile(indexPath, { hash: targetHash, query: { standalone: 'true', 'open-route': cleanRoute } });
+      win.loadFile(indexPath, { hash: targetHash, query: { standalone: 'true', 'open-route': cleanRoute, ...mq } });
     } else {
-      win.loadURL(`http://localhost:5173/#${targetHash}`);
+      win.loadURL(`http://localhost:5173/${mq.modern ? '?modern=' + mq.modern : ''}#${targetHash}`);
     }
   }
 
@@ -434,8 +436,8 @@ ipcMain.handle('create-desktop-shortcut', async (event, payload) => {
   return createWindowsShortcut({ route, name });
 });
 
-ipcMain.handle('open-section-window', (event, { route, title }) => {
-  createSectionWindow(route || 'pos', title || '');
+ipcMain.handle('open-section-window', (event, { route, title, modern }) => {
+  createSectionWindow(route || 'pos', title || '', typeof modern === 'boolean' ? modern : undefined);
   return { success: true };
 });
 
