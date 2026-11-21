@@ -283,10 +283,12 @@ ipcMain.handle('local-backup-save', (event, { dir, filename, dataB64, keep } = {
     fs.writeFileSync(tmp, buf);
     fs.renameSync(tmp, target);
     // نحذف الأقدم فقط (ضمن ملفاتنا حصراً) ونُبقي آخر N
-    const n = Math.max(3, Math.min(365, Number(keep) || 30));
+    // keep=0 يعني بلا حد: لا يُحذف شيء أبداً
+    const unlimited = Number(keep) === 0;
+    const n = Math.max(3, Math.min(100000, Number(keep) || 30));
     const files = fs.readdirSync(dir).filter((f) => LOCAL_BK_RE.test(f)).sort();
     let removed = 0;
-    while (files.length > n) { try { fs.unlinkSync(path.join(dir, files.shift())); removed++; } catch { break; } }
+    while (!unlimited && files.length > n) { try { fs.unlinkSync(path.join(dir, files.shift())); removed++; } catch { break; } }
     return { success: true, path: target, size: buf.length, removed };
   } catch (e) {
     return { success: false, error: e && e.message };
