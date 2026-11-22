@@ -180,9 +180,11 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const applyCatalog = (hit: CatalogHit) => {
     const ppc = hit.pieces_per_carton && hit.pieces_per_carton > 1 ? hit.pieces_per_carton : defaultCarton;
     suppressNameSearch.current = true;
-    skipLookupFor.current = hit.barcode;
+    // الباركود التجاري الصحيح فقط يُنسخ؛ مواد المتاجر بلا باركود أو برمز داخلي لا تغيّر باركود المادة
+    const stdBarcode = /^\d{6,15}$/.test(String(hit.barcode || '').trim());
+    if (stdBarcode) skipLookupFor.current = hit.barcode;
     setPriceCurrency('IQD');
-    setCode(hit.barcode);
+    if (stdBarcode) setCode(hit.barcode);
     setName(hit.name);
     if (hit.category && hit.category !== 'عام') setCategory(hit.category);
     if (hit.unit) setUnit(hit.unit);
@@ -892,13 +894,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                         return Array.from(groups.entries()).map(([k, hits]) => {
                           const h = hits[0];
                           if (hits.length === 1) {
-                            const exists = products.some((p: any) => allCodes(p).includes(h.barcode));
+                            const exists = (/^\d{6,15}$/.test(String(h.barcode || '')) && products.some((p: any) => allCodes(p).includes(h.barcode)));
                             return (
                               <button type="button" key={k} disabled={exists}
                                 onMouseDown={(e) => { e.preventDefault(); applyCatalog(h); }}
                                 className="w-full text-right px-3 py-2 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800 hover:bg-emerald-50 dark:hover:bg-slate-800 disabled:opacity-50 cursor-pointer">
                                 <span className="text-sm font-bold text-slate-900 dark:text-white truncate">{h.name}</span>
-                                <span className="text-[10px] font-mono text-slate-500 shrink-0">{exists ? 'مضافة عندك' : h.barcode}</span>
+                                <span className="text-[10px] font-mono text-slate-500 shrink-0">{exists ? 'مضافة عندك' : (/^\d{6,15}$/.test(String(h.barcode || '')) ? h.barcode : 'بدون باركود')}</span>
                               </button>
                             );
                           }
@@ -914,10 +916,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                                 <button type="button" data-testid="catalog-add-all"
                                   onMouseDown={(e) => {
                                     e.preventDefault();
-                                    const free = hits.filter((x) => !products.some((p: any) => allCodes(p).includes(x.barcode)));
+                                    const free = hits.filter((x) => !(/^\d{6,15}$/.test(String(x.barcode || '')) && products.some((p: any) => allCodes(p).includes(x.barcode))));
                                     if (!free.length) return;
                                     applyCatalog(free[0]);
-                                    setExtraCodes(free.slice(1).map((x) => x.barcode));
+                                    setExtraCodes(free.slice(1).map((x) => x.barcode).filter((c) => /^\d{6,15}$/.test(String(c || ''))));
                                     setCatPick(null);
                                   }}
                                   className="w-full text-right pr-6 pl-3 py-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 cursor-pointer">
@@ -925,7 +927,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                                 </button>
                               )}
                               {catPick === k && hits.map((x) => {
-                                const exists = products.some((p: any) => allCodes(p).includes(x.barcode));
+                                const exists = (/^\d{6,15}$/.test(String(x.barcode || '')) && products.some((p: any) => allCodes(p).includes(x.barcode)));
                                 return (
                                   <button type="button" key={x.barcode} disabled={exists}
                                     onMouseDown={(e) => { e.preventDefault(); applyCatalog(x); setCatPick(null); }}
