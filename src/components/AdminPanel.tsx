@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ShopCloudAdmin from './ShopCloudAdmin';
 import ShopCloudPush from './ShopCloudPush';
 import { shopAdminCall, getAdminKey } from '../utils/shopCloudPush';
-import { setShopCloudCfg, makeShopClient } from '../utils/shopCloud';
+import { setShopCloudCfg, makeShopClient, probeShopCloud } from '../utils/shopCloud';
 import { 
   createClientAccount, 
   loadAllClientAccounts, 
@@ -209,6 +209,8 @@ export const AdminPanel: React.FC = () => {
             await shopAdminCall({ action: 'save_token', uid: newClient.uid, accessToken: cloudToken });
             const r = await shopAdminCall({ action: 'apply', uid: newClient.uid });
             if (r.failed || !r.ok) throw new Error(r.results?.[0]?.error || r.message || 'فشل تجهيز السحابة');
+            const pr = await probeShopCloud(cloudCfg.url, cloudCfg.anonKey);
+            if (!pr.ok) throw new Error(`بعد التجهيز ما زال المشروع غير متاح (${pr.reason})`);
             const on = { ...cloudCfg, enabled: true };
             await updateClientAccount({ uid: newClient.uid, cloud: on } as any);
             setShopCloudCfg(newClient.uid, on);

@@ -69,3 +69,16 @@ export async function refreshShopCloudCfg(uid: string, fetchUserDoc: () => Promi
     return setShopCloudCfg(uid, doc.cloud);
   } catch { return false; }
 }
+
+/** هل مشروع المحل جاهز فعلاً (جدول documents موجود وقابل للقراءة بالمفتاح العام)؟ يُستعمل قبل التفعيل. */
+export async function probeShopCloud(url: string, key: string): Promise<{ ok: boolean; reason?: string }> {
+  const cl = makeShopClient(url, key);
+  if (!cl) return { ok: false, reason: 'الرابط أو المفتاح غير صحيح' };
+  try {
+    const r = await cl.from('documents').select('id').limit(1);
+    if (r.error) return { ok: false, reason: r.error.message };
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, reason: e?.message || 'تعذر الاتصال' };
+  }
+}

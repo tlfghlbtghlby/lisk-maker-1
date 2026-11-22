@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { updateClientAccount, getMainDocument } from '../supabase';
-import { makeShopClient, setShopCloudCfg } from '../utils/shopCloud';
+import { makeShopClient, setShopCloudCfg, probeShopCloud } from '../utils/shopCloud';
 import { shopAdminCall, getAdminKey } from '../utils/shopCloudPush';
 
 const counts = (d: any) => ({
@@ -55,6 +55,10 @@ export default function ShopCloudAdmin({ client, onSaved }: { client: any; onSav
       if (!url.trim() && !key.trim() && !nextEnabled) { await persist(null); setEnabled(false); setMsg({ ok: true, text: 'أُزيلت السحابة المستقلة، وعاد المحل للسحابة الرئيسية.' }); }
       else {
         if (!makeShopClient(url, key)) throw new Error('بيانات الرابط/المفتاح غير صحيحة.');
+        if (nextEnabled) {
+          const pr = await probeShopCloud(url, key);
+          if (!pr.ok) throw new Error(`لن أفعّل: المشروع غير مجهّز بعد (${pr.reason}). احفظ رمز الوصول ثم اضغط «رفع تعديلات السحابات» أولاً، وبعدها فعّل.`);
+        }
         await persist({ url: url.trim().replace(/\/+$/, ''), anonKey: key.trim(), enabled: nextEnabled });
         setEnabled(nextEnabled);
         setMsg({ ok: true, text: nextEnabled ? 'فُعّلت السحابة المستقلة لهذا المحل ✅ (تعمل على أجهزته عند فتح البرنامج أو إعادة تشغيله).' : 'حُفظت البيانات (غير مفعّلة).' });
