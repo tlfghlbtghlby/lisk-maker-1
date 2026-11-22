@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ShopCloudAdmin from './ShopCloudAdmin';
 import ShopCloudPush from './ShopCloudPush';
+import { shopAdminCall, getAdminKey } from '../utils/shopCloudPush';
 import { setShopCloudCfg, makeShopClient } from '../utils/shopCloud';
 import { 
   createClientAccount, 
@@ -64,6 +65,7 @@ export const AdminPanel: React.FC = () => {
   // سحابة المحل المستقلة (اختيارية عند إنشاء الحساب)
   const [newCloudUrl, setNewCloudUrl] = useState('');
   const [newCloudKey, setNewCloudKey] = useState('');
+  const [newCloudToken, setNewCloudToken] = useState('');
 
   // Edit modal state
   const [editingClient, setEditingClient] = useState<UserProfile | null>(null);
@@ -184,13 +186,17 @@ export const AdminPanel: React.FC = () => {
       // سحابة المحل المستقلة: نتحقق منها قبل إنشاء الحساب حتى لا يُنشأ حساب ناقص
       let cloudCfg: { url: string; anonKey: string; enabled: boolean } | null = null;
       let tablesReady = false;
+      let cloudPrepError = '';
+      const cloudToken = newCloudToken.trim();
+      if (cloudToken && getAdminKey().length < 16) throw new Error('لتجهيز السحابة بالرمز أدخل مفتاح الإدارة أولاً في صندوق «تعديلات سحابات المحلات» أعلى الجدول.');
+      if (cloudToken && !(newCloudUrl.trim() && newCloudKey.trim())) throw new Error('أدخل رابط سحابة المحل ومفتاحها مع الرمز.');
       if (newCloudUrl.trim() || newCloudKey.trim()) {
         const cl = makeShopClient(newCloudUrl, newCloudKey);
         if (!cl) throw new Error('رابط سحابة المحل يجب أن يكون بصيغة https://xxxx.supabase.co والمفتاح (anon) غير صحيح.');
         const chk = await cl.from('documents').select('id').limit(1);
         tablesReady = !chk.error;
         if (chk.error && !/(PGRST205|42P01|does not exist|Could not find the table)/i.test(`${(chk.error as any).code} ${chk.error.message}`)) throw new Error(`تعذّر الاتصال بسحابة المحل، تحقق من الرابط والمفتاح. (${chk.error.message})`); // جدول documents الناقص يُنشأ لاحقاً بزر «رفع تعديلات السحابات»
-        cloudCfg = { url: newCloudUrl.trim().replace(/\/+$/, ''), anonKey: newCloudKey.trim(), enabled: tablesReady }; // لا تُفعَّل قبل تجهيز الجداول
+        cloudCfg = { url: newCloudUrl.trim().replace(/\/+$/, ''), anonKey: newCloudKey.trim(), enabled: tablesReady && !cloudToken }; // لا تُفعَّل قبل تجهيز الجداول (مع الرمز تُفعَّل بعد نجاح التجهيز)
       }
 
       const newClient = await createClientAccount(input);
@@ -198,6 +204,19 @@ export const AdminPanel: React.FC = () => {
       if (cloudCfg) {
         await updateClientAccount({ uid: newClient.uid, cloud: cloudCfg } as any);
         setShopCloudCfg(newClient.uid, cloudCfg);
+        if (cloudToken) {
+          try {
+            await shopAdminCall({ action: 'save_token', uid: newClient.uid, accessToken: cloudToken });
+            const r = await shopAdminCall({ action: 'apply', uid: newClient.uid });
+            if (r.failed || !r.ok) throw new Error(r.results?.[0]?.error || r.message || 'فشل تجهيز السحابة');
+            const on = { ...cloudCfg, enabled: true };
+            await updateClientAccount({ uid: newClient.uid, cloud: on } as any);
+            setShopCloudCfg(newClient.uid, on);
+            cloudCfg = on;
+          } catch (err: any) {
+            cloudPrepError = err?.message || 'تعذر تجهيز السحابة';
+          }
+        }
       }
 
       if (initialPlan !== 'trial3') {
@@ -212,7 +231,7 @@ export const AdminPanel: React.FC = () => {
         type: 'success',
         message: `تم إنشاء وتفعيل حساب الزبون (${newClient.displayName}) بنجاح! الصلاحية: ${
           isPerm ? '⭐ حساب دائمي مدى الحياة' : initialPlan === 'yearly' ? 'باقة سنوية (365 يوم)' : initialPlan === 'monthly' ? 'باقة شهرية (30 يوم)' : 'فترة تجريبية 3 أيام'
-        }${cloudCfg ? (cloudCfg.enabled ? ' · ☁️ رُبطت سحابة المحل المستقلة' : ' · ☁️ حُفظت سحابة المحل غير مفعّلة: جهّزها بزر «رفع تعديلات السحابات» ثم فعّلها من تعديل الحساب') : ''} · اسم الدخول: ${cleanUsername} · الرمز: ${password}`
+        }${cloudPrepError ? ` · ⚠️ أُنشئ الحساب لكن تجهيز السحابة فشل (${cloudPrepError}) — بقي على سحابتك، وأكمل من تعديل الحساب` : cloudCfg ? (cloudCfg.enabled ? ' · ☁️ رُبطت سحابة المحل المستقلة' : ' · ☁️ حُفظت سحابة المحل غير مفعّلة: جهّزها بزر «رفع تعديلات السحابات» ثم فعّلها من تعديل الحساب') : ''} · اسم الدخول: ${cleanUsername} · الرمز: ${password}`
       });
 
       setUsername('');
@@ -223,6 +242,7 @@ export const AdminPanel: React.FC = () => {
       setInitialPlan('trial3');
       setNewCloudUrl('');
       setNewCloudKey('');
+      setNewCloudToken('');
 
       fetchClients();
     } catch (err: any) {
@@ -663,6 +683,7 @@ export const AdminPanel: React.FC = () => {
                 <input dir="ltr" value={newCloudUrl} onChange={(e) => setNewCloudUrl(e.target.value)} placeholder="https://xxxxxxxx.supabase.co" data-testid="create-cloud-url" className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500" />
                 <input dir="ltr" value={newCloudKey} onChange={(e) => setNewCloudKey(e.target.value)} placeholder="anon / publishable key" data-testid="create-cloud-key" className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500" />
               </div>
+              <input type="password" dir="ltr" value={newCloudToken} onChange={(e) => setNewCloudToken(e.target.value)} placeholder="رمز وصول Supabase (sbp_...) — اختياري: يجهّز الجداول ويفعّل السحابة تلقائياً" data-testid="create-cloud-token" className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500" />
               <p className="text-[11px] text-slate-400">إن تركته فارغاً يبقى المحل على سحابتك. عند تعبئته يُختبر الاتصال قبل إنشاء الحساب، ثم تُربط سحابته ويُفعَّل تلقائياً (محل جديد: لا بيانات سابقة لنقلها). لا تضع مفتاح service_role أبداً.</p>
             </div>
 
