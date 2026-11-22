@@ -187,7 +187,7 @@ export const AdminPanel: React.FC = () => {
         const cl = makeShopClient(newCloudUrl, newCloudKey);
         if (!cl) throw new Error('رابط سحابة المحل يجب أن يكون بصيغة https://xxxx.supabase.co والمفتاح (anon) غير صحيح.');
         const chk = await cl.from('documents').select('id').limit(1);
-        if (chk.error) throw new Error(`تعذّر الاتصال بسحابة المحل أو جدول documents غير موجود. نفّذ سكربت الإعداد في مشروع المحل أولاً. (${chk.error.message})`);
+        if (chk.error && !/(PGRST205|42P01|does not exist|Could not find the table)/i.test(`${(chk.error as any).code} ${chk.error.message}`)) throw new Error(`تعذّر الاتصال بسحابة المحل، تحقق من الرابط والمفتاح. (${chk.error.message})`); // جدول documents الناقص يُنشأ لاحقاً بزر «رفع تعديلات السحابات»
         cloudCfg = { url: newCloudUrl.trim().replace(/\/+$/, ''), anonKey: newCloudKey.trim(), enabled: true };
       }
 

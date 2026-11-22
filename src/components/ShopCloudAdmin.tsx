@@ -39,9 +39,12 @@ export default function ShopCloudAdmin({ client, onSaved }: { client: any; onSav
       const cl = makeShopClient(url, key);
       if (!cl) throw new Error('الرابط يجب أن يكون بصيغة https://xxxx.supabase.co والمفتاح (anon) غير صحيح.');
       const { error } = await cl.from('documents').select('id').limit(1);
-      if (error) throw new Error(`لم أجد جدول documents أو لا صلاحية عليه. نفّذ سكربت الإعداد في هذا المشروع أولاً. (${error.message})`);
+      if (error) {
+        if (/(PGRST205|42P01|does not exist|Could not find the table)/i.test(`${(error as any).code} ${error.message}`)) { setMsg({ ok: true, text: 'الاتصال سليم ✅ لكن المشروع لم يُجهَّز بعد: احفظ رمز الوصول ثم اضغط «رفع تعديلات السحابات» وسيُنشئ الجداول تلقائياً.' }); setBusy(''); return; }
+        throw new Error(`الاتصال فشل، تحقق من الرابط والمفتاح. (${error.message})`);
+      }
       const si = await cl.from('schema_info').select('version').eq('id', 1).maybeSingle();
-      setMsg({ ok: true, text: `الاتصال ناجح ✅${si.data ? ` — إصدار هيكل القاعدة ${si.data.version}` : ' (جدول schema_info غير موجود: نفّذ السكربت كاملاً)'}` });
+      setMsg({ ok: true, text: `الاتصال ناجح ✅${si.data ? ` — إصدار هيكل القاعدة ${si.data.version}` : ' (غير مُجهَّز بالكامل: اضغط «رفع تعديلات السحابات»)'}` });
     } catch (e: any) { setMsg({ ok: false, text: e?.message || 'فشل الاتصال' }); }
     setBusy('');
   };
@@ -109,7 +112,7 @@ export default function ShopCloudAdmin({ client, onSaved }: { client: any; onSav
       </div>
       <div className="text-[11px] font-bold">{enabled ? <span className="text-emerald-700">الحالة: مفعّلة</span> : <span className="text-slate-500">الحالة: غير مفعّلة{verified ? ' — النقل متحقَّق منه' : ''}</span>}</div>
       <div className="pt-1 border-t border-sky-200 dark:border-sky-800 space-y-1.5">
-        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300">رمز وصول Supabase لهذا المحل (Account → Access Tokens) — لرفع التعديلات تلقائياً بدل السكربت. يُحفظ في سحابتك فقط ولا يُعرض بعد الحفظ.</div>
+        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300">رمز وصول Supabase لهذا المحل (Account → Access Tokens) — لإنشاء الجداول ورفع كل التعديلات تلقائياً (بلا سكربت). يُحفظ في سحابتك فقط ولا يُعرض بعد الحفظ.</div>
         <input type="password" dir="ltr" className={inp} placeholder="sbp_..." value={token} onChange={(e) => setToken(e.target.value)} data-testid="cloud-token" />
         <div className="flex gap-2">
           <button type="button" disabled={!!busy || token.trim().length < 20} onClick={() => saveToken(false)} data-testid="cloud-token-save" className="px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-600 text-white cursor-pointer disabled:opacity-50">{busy === 'tok' ? '...' : 'حفظ الرمز'}</button>
