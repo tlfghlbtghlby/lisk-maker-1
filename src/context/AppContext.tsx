@@ -1348,7 +1348,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // الكاش المحلي ملك لحساب واحد: إن تغيّر الحساب (دخول حساب آخر دون إعادة تحميل) نصفّر كل شيء قبل التحميل
     try {
       const prevOwner = localStorage.getItem('cached_pos_owner_uid');
-      if (prevOwner && prevOwner !== currentUid) resetAccountScopedState();
+      // مالك غير معروف (كاش قديم قبل وسم المالك) يُعامَل كغريب: السحابة تعيد بيانات الحساب الصحيحة
+      const hasCache = !!(localStorage.getItem('cached_pos_settings') || localStorage.getItem('cached_pos_products'));
+      if ((prevOwner && prevOwner !== currentUid) || (!prevOwner && hasCache)) resetAccountScopedState();
       localStorage.setItem('cached_pos_owner_uid', currentUid);
     } catch {}
 
@@ -1610,12 +1612,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setShifts(r.shifts);
     setTrash(r.trash);
     setTombstones(r.tombstones);
-    setSettings(prev => ({
+    const ownerNow = currentUser?.uid;
+    setSettings(prevRaw => {
+      // إعدادات تخصّ حساباً آخر (العروض/الموردون/...) لا تُدمج في هذا الحساب أبداً
+      const prev: any = (prevRaw as any)?._ownerUid && ownerNow && (prevRaw as any)._ownerUid !== ownerNow ? defaultEmptySettings : prevRaw;
+      return {
       ...prev,
       ...(takeSettings || {}),
+      ...(ownerNow ? { _ownerUid: ownerNow } : {}),
       salesReps: r.reps,
       invoiceSecret: (takeSettings?.invoiceSecret as string) || prev.invoiceSecret,
-    }));
+      };
+    });
     stateRef.current = {
       ...stateRef.current,
       products: r.products, customers: r.customers, invoices: r.invoices, payments: r.payments,
