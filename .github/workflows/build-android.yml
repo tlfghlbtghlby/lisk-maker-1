@@ -6,7 +6,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ android-app ]
+    branches: [ android-app, android-test-cloud ]
   workflow_dispatch:
 
 concurrency:
