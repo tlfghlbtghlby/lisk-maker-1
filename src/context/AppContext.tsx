@@ -1275,9 +1275,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPayments([]);
     setShifts([]);
     setActiveShift(null);
+    // لا تُبقِ إعدادات/مندوبي/عروض الحساب السابق في الذاكرة (كانت تنتقل إلى الحساب التالي في نفس الصفحة)
+    setSettings(defaultEmptySettings);
+    setStoreFeatures(DEFAULT_STORE_FEATURES);
+    setTrash([]);
+    setTombstones({} as any);
     try {
       localStorage.removeItem('active_client_session');
       localStorage.removeItem('last_active_user_uid');
+      localStorage.removeItem('cached_pos_payments');
+      localStorage.removeItem('cached_pos_trash');
+      localStorage.removeItem('cached_pos_tombstones');
       localStorage.removeItem('cached_pos_products');
       localStorage.removeItem('cached_pos_customers');
       localStorage.removeItem('cached_pos_invoices');
@@ -1685,6 +1693,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
       } catch (err) {
         console.warn('Background save notice:', err);
+        setIsCloudConnected(false); // فشل الحفظ في السحابة: أظهر ذلك بدل أن تبدو المبيعات محفوظة
       }
     };
 
