@@ -9,7 +9,8 @@ function loadSent(uid: string): Set<string> {
 function saveSent(uid: string, s: Set<string>) {
   try { localStorage.setItem(`${SENT_KEY}_${uid}`, JSON.stringify(Array.from(s).slice(-60000))); } catch { /* ignore */ }
 }
-const keyOf = (p: any) => `${String(p.code ?? '').trim()}|${String(p.name).trim()}`;
+// المفتاح يشمل السعرين: أي تغيير سعر يُعاد رفعه ليدخل في نطاق (أعلى/أقل) الكتالوج
+const keyOf = (p: any) => `${String(p.code ?? '').trim()}|${String(p.name).trim()}|${Number(p.retailPrice) || 0}|${Number(p.costPrice) || 0}`;
 
 export interface ContributeResult { sent: number; pending: number; failed: boolean; }
 

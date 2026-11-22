@@ -28,7 +28,7 @@ import {
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { lookupProductDetails, LookupPreference } from '../utils/productLookup';
 import { allCodes, productsByCode } from '../utils/productCodes';
-import { catalogLookup, catalogSearch, CatalogHit, CatalogOffer } from '../utils/productCatalog';
+import { catalogLookup, catalogSearch, catalogPrices, CatalogHit, CatalogOffer } from '../utils/productCatalog';
 import { ProductImageModal } from './ProductImageModal';
 import { saveProductImage, removeProductImage, useProductImage, imagesSupported } from '../utils/productImages';
 import { ProductImageField } from './ProductImageField';
@@ -196,6 +196,45 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     setSuggestedOffers(hit.offers || []);
     setPickedOffers([]);
     setNameHits([]);
+  };
+
+  // زر «تحديث السعر»: يجلب سعر هذه المادة من الكتالوج المشترك (أعلى أو أقل سعر حسب الإعدادات) ويضعه في الحقول — لا يُحفظ إلا بزر الحفظ
+  const [priceBusy, setPriceBusy] = useState(false);
+  const [priceMsg, setPriceMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const updatePriceFromCatalog = async () => {
+    setPriceBusy(true); setPriceMsg(null);
+    try {
+      if (priceCurrency === 'USD') { setPriceMsg({ ok: false, text: 'هذه المادة مسعّرة بالدولار؛ أسعار الكتالوج بالدينار. بدّل العملة للدينار أولاً.' }); return; }
+      const mode: 'max' | 'min' = (settings as any)?.catalogPriceMode === 'min' ? 'min' : 'max';
+      const c = code.trim();
+      let retail: number | null = null, cost: number | null = null, stores = 0;
+      if (/^\d{6,15}$/.test(c)) {
+        const p = await catalogPrices(c);
+        if (p) {
+          retail = mode === 'min' ? (p.retail_min ?? p.retail_max) : p.retail_max;
+          cost = mode === 'min' ? (p.cost_min ?? p.cost_max) : p.cost_max;
+          stores = p.stores;
+        }
+      }
+      if (retail == null && cost == null && name.trim().length >= 2) {
+        const norm = (t: string) => t.trim().replace(/\s+/g, ' ').toLowerCase();
+        const hits = await catalogSearch(name.trim(), 8);
+        const exact = hits.find((h) => norm(h.name) === norm(name) && (h.retail_price || h.cost_price));
+        if (exact) { retail = exact.retail_price || null; cost = exact.cost_price || null; stores = exact.stores_count || 0; }
+      }
+      if ((retail == null || retail <= 0) && (cost == null || cost <= 0)) { setPriceMsg({ ok: false, text: 'لا يوجد لهذه المادة سعر في الكتالوج المشترك.' }); return; }
+      const ppc = typeof piecesPerCarton === 'number' && piecesPerCarton > 0 ? piecesPerCarton : 1;
+      const r2 = (n: number) => String(parseFloat(n.toFixed(2)));
+      const oldRetail = parseFloat(pieceRetailInput) || 0;
+      const parts: string[] = [];
+      if (retail && retail > 0) { setPieceRetailInput(String(retail)); setCartonRetailInput(r2(retail * ppc)); parts.push(`البيع: ${oldRetail} ← ${retail}`); }
+      if (canViewCost && cost && cost > 0) { setPieceCostInput(String(cost)); setCartonCostInput(r2(cost * ppc)); parts.push(`التكلفة ← ${cost}`); }
+      setPriceMsg({ ok: true, text: `من الكتالوج (${mode === 'min' ? 'أقل' : 'أعلى'} سعر${stores ? ` · ${stores} متجر` : ''}) — ${parts.join(' · ')}. اضغط «حفظ» لتثبيته.` });
+    } catch {
+      setPriceMsg({ ok: false, text: 'تعذر الاتصال بالكتالوج.' });
+    } finally {
+      setPriceBusy(false);
+    }
   };
 
   // بحث جزئي بالاسم أثناء الكتابة (مادة جديدة فقط)
@@ -1218,6 +1257,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   {numRetail > 0 && <span> سعر المفرد بالدينار: {formatMoney(Math.round(numRetail * usdRate))}</span>}
                 </div>
               )}
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button type="button" data-testid="update-price-btn" disabled={priceBusy} onClick={updatePriceFromCatalog} className="px-3 py-1.5 rounded-lg text-[11px] font-black bg-sky-600 hover:bg-sky-500 text-white cursor-pointer disabled:opacity-60">
+                  {priceBusy ? '...' : '🔄 تحديث السعر من الكتالوج'}
+                </button>
+                {priceMsg && <span data-testid="update-price-msg" className={`text-[11px] font-bold ${priceMsg.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>{priceMsg.text}</span>}
+              </div>
 
               <div className={`grid grid-cols-1 sm:grid-cols-2 ${canViewCost ? 'xl:grid-cols-5' : 'xl:grid-cols-4'} gap-2.5`}>
                 {/* 1. بطاقة سعر التكلفة / الشراء */}

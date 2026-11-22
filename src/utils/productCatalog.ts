@@ -50,3 +50,18 @@ export async function catalogSearch(q: string, limit = 8): Promise<CatalogHit[]>
     return [];
   }
 }
+
+export interface CatalogPrices { retail_max: number | null; retail_min: number | null; cost_max: number | null; cost_min: number | null; stores: number; }
+
+/** نطاق أسعار باركود في الكتالوج المشترك (أعلى/أقل سعر بين المحلات). null إن لم توجد أسعار أو الدالة غير مفعّلة بعد */
+export async function catalogPrices(barcode: string): Promise<CatalogPrices | null> {
+  try {
+    const { data, error } = await (supabase as any).rpc('catalog_prices', { p_barcode: barcode.trim() });
+    if (error || !Array.isArray(data) || !data[0]) return null;
+    const r = data[0];
+    const out = { retail_max: num(r.retail_max), retail_min: num(r.retail_min), cost_max: num(r.cost_max), cost_min: num(r.cost_min), stores: Number(r.stores) || 0 };
+    return out.retail_max == null && out.cost_max == null ? null : out;
+  } catch {
+    return null;
+  }
+}

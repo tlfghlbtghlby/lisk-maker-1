@@ -90,6 +90,7 @@ import ModernModeToggle from './ModernModeToggle';
 import QuickCreditSetting from './QuickCreditSetting';
 import ViewOptionsSetting from './ViewOptionsSetting';
 import BarcodeSetting from './BarcodeSetting';
+import CatalogPriceSetting from './CatalogPriceSetting';
 import UiScaleSetting from './UiScaleSetting';
 import UpdatesPanel from './UpdatesPanel';
 import { useUpdateInfo } from '../utils/appUpdates';
@@ -1340,6 +1341,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
           <ViewOptionsSetting />
           <UiScaleSetting />
           <BarcodeSetting />
+          <CatalogPriceSetting />
           {sessionRole === 'admin' && <AuditLogCard />}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
