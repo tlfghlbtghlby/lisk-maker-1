@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { updateClientAccount, getMainDocument } from '../supabase';
 import { makeShopClient, setShopCloudCfg } from '../utils/shopCloud';
+import { shopAdminCall, getAdminKey } from '../utils/shopCloudPush';
 
 const counts = (d: any) => ({
   invoices: Array.isArray(d?.invoices) ? d.invoices.length : 0,
@@ -22,6 +23,7 @@ export default function ShopCloudAdmin({ client, onSaved }: { client: any; onSav
   const [busy, setBusy] = useState<string>('');
   const [msg, setMsg] = useState<Msg>(null);
   const [verified, setVerified] = useState(false);
+  const [token, setToken] = useState('');
   const uid: string = client.uid;
   const docId = `store_${uid}`;
 
@@ -79,6 +81,19 @@ export default function ShopCloudAdmin({ client, onSaved }: { client: any; onSav
     setBusy('');
   };
 
+  const saveToken = async (remove = false) => {
+    setBusy('tok'); setMsg(null);
+    try {
+      if (getAdminKey().length < 16) throw new Error('أدخل مفتاح الإدارة أولاً في صندوق «تعديلات سحابات المحلات» أعلى الجدول.');
+      if (remove) { await shopAdminCall({ action: 'delete_token', uid }); setMsg({ ok: true, text: 'حُذف رمز الوصول.' }); }
+      else {
+        await shopAdminCall({ action: 'save_token', uid, accessToken: token.trim() });
+        setToken(''); setMsg({ ok: true, text: 'حُفظ رمز الوصول بعد التحقق منه ✅ — سيدخل هذا المحل في «رفع تعديلات السحابات».' });
+      }
+    } catch (e: any) { setMsg({ ok: false, text: e?.message || 'تعذر الحفظ' }); }
+    setBusy('');
+  };
+
   const inp = 'w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-mono';
   return (
     <div data-testid="shop-cloud-admin" className="p-3 rounded-xl border border-sky-300 dark:border-sky-700 bg-sky-50/60 dark:bg-sky-950/20 space-y-2.5">
@@ -93,6 +108,14 @@ export default function ShopCloudAdmin({ client, onSaved }: { client: any; onSav
         <button type="button" disabled={!!busy} onClick={() => save(false)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 cursor-pointer disabled:opacity-50">{enabled ? 'إيقاف (العودة للرئيسية)' : 'حفظ دون تفعيل'}</button>
       </div>
       <div className="text-[11px] font-bold">{enabled ? <span className="text-emerald-700">الحالة: مفعّلة</span> : <span className="text-slate-500">الحالة: غير مفعّلة{verified ? ' — النقل متحقَّق منه' : ''}</span>}</div>
+      <div className="pt-1 border-t border-sky-200 dark:border-sky-800 space-y-1.5">
+        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300">رمز وصول Supabase لهذا المحل (Account → Access Tokens) — لرفع التعديلات تلقائياً بدل السكربت. يُحفظ في سحابتك فقط ولا يُعرض بعد الحفظ.</div>
+        <input type="password" dir="ltr" className={inp} placeholder="sbp_..." value={token} onChange={(e) => setToken(e.target.value)} data-testid="cloud-token" />
+        <div className="flex gap-2">
+          <button type="button" disabled={!!busy || token.trim().length < 20} onClick={() => saveToken(false)} data-testid="cloud-token-save" className="px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-600 text-white cursor-pointer disabled:opacity-50">{busy === 'tok' ? '...' : 'حفظ الرمز'}</button>
+          <button type="button" disabled={!!busy} onClick={() => saveToken(true)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 cursor-pointer disabled:opacity-50">حذف الرمز</button>
+        </div>
+      </div>
       {msg && <div className={`text-[11px] font-bold rounded-lg px-3 py-2 border break-words ${msg.ok ? 'text-emerald-800 bg-emerald-50 border-emerald-300' : 'text-rose-800 bg-rose-50 border-rose-300'}`}>{msg.text}</div>}
     </div>
   );
