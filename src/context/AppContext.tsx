@@ -1266,6 +1266,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.uid]);
 
+  // يصفّر كل ما يخص حساباً معيناً (في الذاكرة وفي الكاش المحلي) حتى لا يتسرّب إلى حساب آخر
+  // (موردون/مندوبون/عروض/مسودات/شفتات...) أو يُدمج معه عند المزامنة
+  const resetAccountScopedState = () => {
+    setProducts([]);
+    setCustomers([]);
+    setInvoices([]);
+    setPayments([]);
+    setShifts([]);
+    setActiveShift(null);
+    setSettings(defaultEmptySettings);
+    setStoreFeatures(DEFAULT_STORE_FEATURES);
+    setTrash([]);
+    setTombstones({} as any);
+    setDraftOrders([createDefaultDraftOrder(1)]);
+    setActiveDraftId('');
+    lastSyncMsRef.current = Date.now();
+    try {
+      ['cached_pos_products', 'cached_pos_customers', 'cached_pos_invoices', 'cached_pos_settings', 'cached_pos_shifts',
+        'cached_pos_features', 'cached_pos_payments', 'cached_pos_trash', 'cached_pos_tombstones', 'cached_pos_active_shift',
+        'cached_pos_draft_orders', 'cached_pos_active_draft_id', 'last_sync_ms'].forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem('last_sync_ms', String(lastSyncMsRef.current));
+    } catch (e) {}
+  };
+
   const logout = async () => {
     const prevUid = currentUser?.uid;
     setCurrentUser(null);
@@ -1280,7 +1304,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStoreFeatures(DEFAULT_STORE_FEATURES);
     setTrash([]);
     setTombstones({} as any);
+    setDraftOrders([createDefaultDraftOrder(1)]);
+    setActiveDraftId('');
     try {
+      localStorage.removeItem('cached_pos_draft_orders');
+      localStorage.removeItem('cached_pos_active_draft_id');
+      localStorage.removeItem('last_sync_ms');
       localStorage.removeItem('active_client_session');
       localStorage.removeItem('last_active_user_uid');
       localStorage.removeItem('cached_pos_payments');
@@ -1315,6 +1344,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const currentUid = currentUser.uid;
     const storeDocId = `store_${currentUid}`;
+
+    // الكاش المحلي ملك لحساب واحد: إن تغيّر الحساب (دخول حساب آخر دون إعادة تحميل) نصفّر كل شيء قبل التحميل
+    try {
+      const prevOwner = localStorage.getItem('cached_pos_owner_uid');
+      if (prevOwner && prevOwner !== currentUid) resetAccountScopedState();
+      localStorage.setItem('cached_pos_owner_uid', currentUid);
+    } catch {}
 
     // تهيئة شفتات هذا المتجر تحديداً من التخزين المحلي المعزول فور تبديل الحساب
     try {
