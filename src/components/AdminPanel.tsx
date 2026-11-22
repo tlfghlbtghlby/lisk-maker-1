@@ -183,12 +183,14 @@ export const AdminPanel: React.FC = () => {
 
       // سحابة المحل المستقلة: نتحقق منها قبل إنشاء الحساب حتى لا يُنشأ حساب ناقص
       let cloudCfg: { url: string; anonKey: string; enabled: boolean } | null = null;
+      let tablesReady = false;
       if (newCloudUrl.trim() || newCloudKey.trim()) {
         const cl = makeShopClient(newCloudUrl, newCloudKey);
         if (!cl) throw new Error('رابط سحابة المحل يجب أن يكون بصيغة https://xxxx.supabase.co والمفتاح (anon) غير صحيح.');
         const chk = await cl.from('documents').select('id').limit(1);
+        tablesReady = !chk.error;
         if (chk.error && !/(PGRST205|42P01|does not exist|Could not find the table)/i.test(`${(chk.error as any).code} ${chk.error.message}`)) throw new Error(`تعذّر الاتصال بسحابة المحل، تحقق من الرابط والمفتاح. (${chk.error.message})`); // جدول documents الناقص يُنشأ لاحقاً بزر «رفع تعديلات السحابات»
-        cloudCfg = { url: newCloudUrl.trim().replace(/\/+$/, ''), anonKey: newCloudKey.trim(), enabled: true };
+        cloudCfg = { url: newCloudUrl.trim().replace(/\/+$/, ''), anonKey: newCloudKey.trim(), enabled: tablesReady }; // لا تُفعَّل قبل تجهيز الجداول
       }
 
       const newClient = await createClientAccount(input);
@@ -210,7 +212,7 @@ export const AdminPanel: React.FC = () => {
         type: 'success',
         message: `تم إنشاء وتفعيل حساب الزبون (${newClient.displayName}) بنجاح! الصلاحية: ${
           isPerm ? '⭐ حساب دائمي مدى الحياة' : initialPlan === 'yearly' ? 'باقة سنوية (365 يوم)' : initialPlan === 'monthly' ? 'باقة شهرية (30 يوم)' : 'فترة تجريبية 3 أيام'
-        }${cloudCfg ? ' · ☁️ رُبطت سحابة المحل المستقلة' : ''} · اسم الدخول: ${cleanUsername} · الرمز: ${password}`
+        }${cloudCfg ? (cloudCfg.enabled ? ' · ☁️ رُبطت سحابة المحل المستقلة' : ' · ☁️ حُفظت سحابة المحل غير مفعّلة: جهّزها بزر «رفع تعديلات السحابات» ثم فعّلها من تعديل الحساب') : ''} · اسم الدخول: ${cleanUsername} · الرمز: ${password}`
       });
 
       setUsername('');
