@@ -30,3 +30,9 @@ insert into public.schema_info (id, version) values (1, 1) on conflict (id) do n
 alter table public.schema_info enable row level security;
 drop policy if exists "schema_info_read" on public.schema_info;
 create policy "schema_info_read" on public.schema_info for select to anon, authenticated using (true);
+
+-- صلاحيات واجهة البيانات (المشاريع الجديدة في Supabase لا تمنحها تلقائياً) = التعديل رقم 2
+grant usage on schema public to anon, authenticated, service_role;
+grant select, insert, update, delete on public.documents to anon, authenticated, service_role;
+grant select on public.schema_info to anon, authenticated;
+grant all on public.schema_info to service_role;
