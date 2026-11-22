@@ -188,6 +188,7 @@ export const AdminPanel: React.FC = () => {
       let tablesReady = false;
       let cloudPrepError = '';
       const cloudToken = newCloudToken.trim();
+      if (!newCloudUrl.trim() || !newCloudKey.trim()) throw new Error('كل حساب جديد يلزمه سحابة Supabase خاصة بمحله: أدخل رابط السحابة والمفتاح (والرمز لتجهيزها تلقائياً). بدونها لا يعمل الحساب.');
       if (cloudToken && getAdminKey().length < 16) throw new Error('لتجهيز السحابة بالرمز أدخل مفتاح الإدارة أولاً في صندوق «تعديلات سحابات المحلات» أعلى الجدول.');
       if (cloudToken && !(newCloudUrl.trim() && newCloudKey.trim())) throw new Error('أدخل رابط سحابة المحل ومفتاحها مع الرمز.');
       if (newCloudUrl.trim() || newCloudKey.trim()) {
@@ -680,13 +681,13 @@ export const AdminPanel: React.FC = () => {
             </div>
 
             <div className="sm:col-span-2 md:col-span-3 p-3 rounded-lg border border-sky-700/50 bg-sky-950/20 space-y-2" data-testid="create-cloud-fields">
-              <div className="text-xs font-bold text-sky-300">☁️ سحابة مستقلة للمحل (اختياري): رابط مشروع Supabase الخاص بالمحل ومفتاحه</div>
+              <div className="text-xs font-bold text-sky-300">☁️ سحابة مستقلة للمحل (إلزامي للحساب الجديد): رابط مشروع Supabase الخاص بالمحل ومفتاحه</div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 <input dir="ltr" value={newCloudUrl} onChange={(e) => setNewCloudUrl(e.target.value)} placeholder="https://xxxxxxxx.supabase.co" data-testid="create-cloud-url" className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500" />
                 <input dir="ltr" value={newCloudKey} onChange={(e) => setNewCloudKey(e.target.value)} placeholder="anon / publishable key" data-testid="create-cloud-key" className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500" />
               </div>
               <input type="password" dir="ltr" value={newCloudToken} onChange={(e) => setNewCloudToken(e.target.value)} placeholder="رمز وصول Supabase (sbp_...) — اختياري: يجهّز الجداول ويفعّل السحابة تلقائياً" data-testid="create-cloud-token" className="w-full px-3 py-2 text-xs font-mono bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500" />
-              <p className="text-[11px] text-slate-400">إن تركته فارغاً يبقى المحل على سحابتك. عند تعبئته يُختبر الاتصال قبل إنشاء الحساب، ثم تُربط سحابته ويُفعَّل تلقائياً (محل جديد: لا بيانات سابقة لنقلها). لا تضع مفتاح service_role أبداً.</p>
+              <p className="text-[11px] text-slate-400">إلزامي لكل حساب جديد: بدون سحابة لا يعمل الحساب ولا يُحفظ شيء في سحابتك الرئيسية. يُختبر الاتصال قبل الإنشاء، ثم تُربط وتُفعَّل (مع الرمز تُجهَّز الجداول تلقائياً). لا تضع مفتاح service_role أبداً.</p>
             </div>
 
             <div className="flex items-end sm:col-span-2 md:col-span-3">

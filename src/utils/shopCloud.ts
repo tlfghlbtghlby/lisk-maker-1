@@ -24,6 +24,26 @@ const clean = (c: any): ShopCloudCfg | null => {
   return { url, anonKey, enabled: c.enabled === true };
 };
 
+// حسابات تُلزِم سحابة خاصة (كل حساب جديد): لا يُسمح لها بالتعامل مع وثيقة المحل في السحابة الرئيسية إطلاقاً
+const RKEY = 'mufakir_shop_cloud_required_v1';
+function loadReq(): Record<string, boolean> { try { const r = JSON.parse(localStorage.getItem(RKEY) || '{}'); return r && typeof r === 'object' ? r : {}; } catch { return {}; } }
+let required: Record<string, boolean> = loadReq();
+export function setShopCloudRequired(uid: string, v: boolean) {
+  if (!uid || !!required[uid] === !!v) return;
+  const copy = { ...required };
+  if (v) copy[uid] = true; else delete copy[uid];
+  required = copy;
+  try { localStorage.setItem(RKEY, JSON.stringify(required)); } catch { /* ignore */ }
+}
+/** هل وثيقة هذا المحل ممنوعة لأنها تلزم سحابة خاصة غير مفعّلة؟ (يمنع الرجوع للرئيسية بالخطأ) */
+export function shopCloudBlocked(collection: string, docId: string): boolean {
+  if (collection !== 'stores' || !docId.startsWith('store_')) return false;
+  const uid = docId.slice(6);
+  if (!required[uid]) return false;
+  const c = cfgs[uid];
+  return !c || !c.enabled;
+}
+
 export function getShopCloudCfg(uid: string): ShopCloudCfg | null { return cfgs[uid] || null; }
 
 /** يحفظ إعداد محل في الذاكرة المحلية. يرجع true إذا تغيّر شيء فعلاً */
@@ -66,6 +86,7 @@ export async function refreshShopCloudCfg(uid: string, fetchUserDoc: () => Promi
     const doc: any = await Promise.race([fetchUserDoc(), new Promise((r) => setTimeout(() => r(undefined), timeoutMs))]);
     // مهلة أو خطأ شبكة أو حساب غير موجود: نبقى على آخر إعداد معروف ولا نغيّر الوجهة أبداً بالخطأ
     if (!doc || typeof doc !== 'object') return false;
+    setShopCloudRequired(uid, doc.requiresCloud === true);
     return setShopCloudCfg(uid, doc.cloud);
   } catch { return false; }
 }
