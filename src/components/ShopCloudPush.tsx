@@ -26,7 +26,7 @@ export default function ShopCloudPush() {
     <div data-testid="shop-cloud-push" className="mb-3 p-3 rounded-xl border border-sky-700 bg-sky-950/30 space-y-2">
       <div className="text-xs font-black text-sky-300">☁️ تعديلات سحابات المحلات</div>
       <div className="flex flex-wrap gap-2 items-center">
-        <input type="password" dir="ltr" value={key} onChange={(e) => setKey(e.target.value)} placeholder="مفتاح الإدارة (SHOP_ADMIN_KEY)" data-testid="push-key" className="flex-1 min-w-[180px] px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 rounded-lg text-white font-mono" />
+        <input type="password" dir="ltr" value={key} onChange={(e) => { setKey(e.target.value); setAdminKey(e.target.value.trim()); }} placeholder="مفتاح الإدارة (SHOP_ADMIN_KEY)" data-testid="push-key" className="flex-1 min-w-[180px] px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 rounded-lg text-white font-mono" />
         <button type="button" disabled={busy || key.trim().length < 16} onClick={() => run('status')} data-testid="push-status" className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 text-white cursor-pointer disabled:opacity-50">فحص</button>
         <button type="button" disabled={busy || key.trim().length < 16} onClick={() => run('apply')} data-testid="push-apply" className="px-3 py-1.5 rounded-lg text-xs font-black bg-sky-600 text-white cursor-pointer disabled:opacity-50">{busy ? '...' : 'رفع تعديلات السحابات'}</button>
       </div>
