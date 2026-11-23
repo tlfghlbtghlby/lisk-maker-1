@@ -31,3 +31,19 @@ jobs:
         with:
           name: ListMaker-Windows-Setup
           path: dist-electron/*.exe
+
+      # نشر المثبّت تلقائياً في مستودع التنزيلات العام برابط ثابت (يحتاج السر RELEASES_TOKEN؛ إن لم يوجد تُتخطى الخطوة)
+      - name: Publish to public releases repo
+        if: env.RELEASES_TOKEN != ''
+        shell: bash
+        env:
+          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          set -e
+          REPO="tlfghlbtghlby/almufakir-releases"
+          EXE=$(ls dist-electron/*.exe | head -1)
+          cp "$EXE" AlMufakir-Setup.exe
+          gh release view windows-latest -R "$REPO" >/dev/null 2>&1 || gh release create windows-latest -R "$REPO" --title "Windows (latest)" --notes "مثبّت ويندوز"
+          gh release upload windows-latest AlMufakir-Setup.exe --clobber -R "$REPO"
+          gh release edit windows-latest -R "$REPO" --notes "مثبّت ويندوز — بناء رقم ${{ github.run_number }} — $(date -u +%F)"
