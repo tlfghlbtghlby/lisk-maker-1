@@ -1,0 +1,57 @@
+name: Publish Release
+
+# ينشر ملفاً سبق بناؤه واختباره إلى مستودع التنزيلات العام (POST) بدون إعادة بناء.
+# الاستعمال: Actions ← Publish Release ← Run workflow ← اختر المنصة وضع رقم تشغيل البناء الذي اختبرته
+# (رقم التشغيل هو الرقم الأخير في رابط صفحة البناء: .../actions/runs/<الرقم>).
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'المنصة'
+        required: true
+        type: choice
+        options: [android, windows]
+      run_id:
+        description: 'رقم تشغيل البناء المُختبَر (Run ID)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      RELEASES_REPO: tlfghlbtghlby/POST
+    steps:
+      - name: Check token
+        env:
+          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if [ -z "$RELEASES_TOKEN" ]; then echo "السر RELEASES_TOKEN غير مضاف في إعدادات المستودع"; exit 1; fi
+
+      - name: Download tested build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ inputs.platform }}" = "android" ]; then NAME="AlMufakir-Android-Debug-APK"; else NAME="ListMaker-Windows-Setup"; fi
+          gh run download "${{ inputs.run_id }}" -R "${{ github.repository }}" -n "$NAME" -D dl
+          ls -la dl
+
+      - name: Publish to releases repo
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          set -e
+          if [ "${{ inputs.platform }}" = "android" ]; then
+            TAG=android-latest; TITLE="Android (latest)"; OUT=AlMufakir.apk; SRC=$(ls dl/*.apk | head -1)
+          else
+            TAG=windows-latest; TITLE="Windows (latest)"; OUT=AlMufakir-Setup.exe; SRC=$(ls dl/*.exe | head -1)
+          fi
+          cp "$SRC" "$OUT"
+          gh release view "$TAG" -R "$RELEASES_REPO" >/dev/null 2>&1 || gh release create "$TAG" -R "$RELEASES_REPO" --title "$TITLE" --notes "$TITLE"
+          gh release upload "$TAG" "$OUT" --clobber -R "$RELEASES_REPO"
+          gh release edit "$TAG" -R "$RELEASES_REPO" --notes "$TITLE — من البناء ${{ inputs.run_id }} — $(date -u +%F)"
+          echo "https://github.com/$RELEASES_REPO/releases/download/$TAG/$OUT"
