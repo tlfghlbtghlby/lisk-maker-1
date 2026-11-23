@@ -15,8 +15,10 @@ const seqOf = (n: string) => {
 };
 
 export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
-  const { products, invoices, customers, formatMoney, returnLooseItems, returnPartialInvoice, requestApproval, hasPermission, openInvoiceEditor } = useApp() as any;
-  const [mode, setMode] = useState<Mode>('invoice');
+  const { products, invoices, customers, formatMoney, returnLooseItems, returnPartialInvoice, requestApproval, hasPermission, openInvoiceEditor, settings } = useApp() as any;
+  // الوضع الافتراضي عند فتح النافذة يحدده الإعداد (رجوع من قائمة / رجوع مواد صافي)
+  const [mode, setMode] = useState<Mode>(settings?.returnDefaultMode === 'loose' ? 'loose' : 'invoice');
+  const lastAddRef = useRef(0); // Enter القادم مباشرة بعد قراءة الباركود لا يؤكّد
   const [query, setQuery] = useState('');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +53,7 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
   // ---------- المواد الصافية ----------
   const addLoose = (p: any) => {
     setMsg(null);
+    lastAddRef.current = Date.now();
     setLines(prev => {
       const i = prev.findIndex(l => l.productId === p.id);
       if (i >= 0) return prev.map((l, k) => (k === i ? { ...l, quantity: l.quantity + 1 } : l));
@@ -157,7 +160,14 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
   // ---------- مدخل البحث / الماسح ----------
   const onEnter = () => {
     const txt = query.trim();
-    if (!txt) return;
+    if (!txt) {
+      // Enter على حقل فارغ = إنهاء العمل وتأكيد الاسترجاع (يُتجاهل إن جاء مباشرة بعد قراءة باركود)
+      if (Date.now() - lastAddRef.current < 600) return;
+      if (confirming) { doSave(); return; }
+      if (mode === 'loose') { if (lines.length && lines.every(l => (Number(l.quantity) || 0) > 0)) confirmLoose(); return; }
+      if (selected && invRefund > 0) startSave();
+      return;
+    }
     const p = exactProduct(txt);
     if (mode === 'loose') {
       if (p) { addLoose(p); setQuery(''); return; }
@@ -168,6 +178,7 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
     // وضع القائمة: إن كانت قائمة مختارة والمادة منها → زد كمية الإرجاع، وإلا يبقى النص في البحث ويظهر القوائم
     if (selected && p) {
       const idx = selected.items.findIndex((it: any, k: number) => it.productId === p.id && returnable(it) && (retQty[k] || 0) < itemRemaining(it));
+      lastAddRef.current = Date.now();
       if (idx >= 0) { setQty(idx, (retQty[idx] || 0) + 1, itemRemaining(selected.items[idx])); setQuery(''); setMsg(null); return; }
       const inInvoice = selected.items.some((it: any) => it.productId === p.id);
       const text = inInvoice ? `«${p.name}» أُرجعت كاملة من هذه القائمة.` : `⚠️ «${p.name}» غير موجودة في القائمة ${selected.invoiceNumber}.`;
@@ -267,6 +278,7 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
                           <td className="p-2 font-bold text-slate-900 dark:text-white">{l.name}</td>
                           <td className="p-2 text-center">
                             <input type="number" min={0} step="any" value={l.quantity}
+                              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); lastAddRef.current = 0; onEnter(); } }}
                               onChange={(e) => setLines(prev => prev.map((x, k) => k === i ? { ...x, quantity: Number(e.target.value) } : x))}
                               className="w-20 px-2 py-1 text-center border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-mono" />
                           </td>
@@ -335,6 +347,7 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
                                 <div className="inline-flex items-center gap-1">
                                   <button type="button" onClick={() => setQty(idx, (retQty[idx] || 0) - 1, max)} className="w-7 h-7 rounded bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-black cursor-pointer">−</button>
                                   <input type="number" min={0} max={max} step="any" value={retQty[idx] || 0}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); lastAddRef.current = 0; onEnter(); } }}
                                     onChange={(e) => setQty(idx, Number(e.target.value), max)}
                                     className="w-16 px-1 py-1 text-center border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white font-mono" />
                                   <button type="button" onClick={() => setQty(idx, (retQty[idx] || 0) + 1, max)} className="w-7 h-7 rounded bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white font-black cursor-pointer">+</button>

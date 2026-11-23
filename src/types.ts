@@ -695,6 +695,8 @@ export interface StoreSettings {
   catalogContribute?: boolean;
   /** أي سعر من الكتالوج المشترك يُعرض/يُطبَّق: الأعلى (الافتراضي) أو الأقل بين المحلات */
   catalogPriceMode?: 'max' | 'min';
+  /** الوضع الذي تفتح به نافذة الإرجاع */
+  returnDefaultMode?: 'invoice' | 'loose';
   /** وسم مالك الإعدادات: يمنع دمج إعدادات حساب في حساب آخر */
   _ownerUid?: string;
   barcodePrintMode?: 'ask' | 'one' | 'fixed';
