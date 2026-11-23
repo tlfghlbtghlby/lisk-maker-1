@@ -108,7 +108,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           set -e
-          REPO="tlfghlbtghlby/almufakir-releases"
+          REPO="tlfghlbtghlby/POST"
           APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
           cp "$APK" AlMufakir.apk
           gh release view android-latest -R "$REPO" >/dev/null 2>&1 || gh release create android-latest -R "$REPO" --title "Android (latest)" --notes "نسخة أندرويد"
