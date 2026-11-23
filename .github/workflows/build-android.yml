@@ -100,6 +100,21 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # نشر الـ APK تلقائياً في مستودع التنزيلات العام برابط ثابت (يحتاج السر RELEASES_TOKEN؛ إن لم يوجد تُتخطى الخطوة)
+      - name: Publish APK to public releases repo
+        if: env.RELEASES_TOKEN != ''
+        env:
+          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          set -e
+          REPO="tlfghlbtghlby/almufakir-releases"
+          APK=$(ls android/app/build/outputs/apk/debug/*.apk | head -1)
+          cp "$APK" AlMufakir.apk
+          gh release view android-latest -R "$REPO" >/dev/null 2>&1 || gh release create android-latest -R "$REPO" --title "Android (latest)" --notes "نسخة أندرويد"
+          gh release upload android-latest AlMufakir.apk --clobber -R "$REPO"
+          gh release edit android-latest -R "$REPO" --notes "نسخة أندرويد 2.0.${{ github.run_number }} — $(date -u +%F)"
+
       - name: Build and Sign Release APK
         if: env.HAS_KEYSTORE == 'true'
         env:
