@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { supabase } from '../supabase';
 import { CURRENT_APP_VERSION, isVersionOutdated } from '../context/AppContext';
+import { isAndroidApp } from './androidOnly';
 
 export interface UpdateEntry { version: string; date?: string; title?: string; notes?: string[]; }
 export interface UpdateInfo { latestVersion: string; releasedAt?: string; url?: string; message?: string; changelog: UpdateEntry[]; }
@@ -10,6 +11,17 @@ let info: UpdateInfo | null = null;
 let seen = (() => { try { return localStorage.getItem(SEEN) || ''; } catch { return ''; } })();
 const ls = new Set<() => void>();
 const emit = () => ls.forEach((l) => l());
+
+const okUrl = (u: any): string | undefined => (typeof u === 'string' && /^https?:\/\//i.test(u.trim()) ? u.trim() : undefined);
+/** رابط التحديث حسب المنصة: أندرويد / ويندوز (Electron)، وإلا الرابط العام (update_url) */
+function pickUpdateUrl(d: any): string | undefined {
+  let platformUrl: string | undefined;
+  try {
+    if (isAndroidApp()) platformUrl = okUrl(d.update_url_android);
+    else if ((window as any).electronAPI || (window as any).electron) platformUrl = okUrl(d.update_url_windows);
+  } catch { /* */ }
+  return platformUrl || okUrl(d.update_url);
+}
 
 /** يجلب معلومات التحديث من السحابة (قراءة فقط). أي فشل = صمت، والبرنامج يعمل كالمعتاد */
 export async function fetchUpdateInfo(): Promise<UpdateInfo | null> {
@@ -22,7 +34,7 @@ export async function fetchUpdateInfo(): Promise<UpdateInfo | null> {
     info = {
       latestVersion: String(d.latest_version || cl[0]?.version || CURRENT_APP_VERSION),
       releasedAt: d.latest_released_at || cl[0]?.date || undefined,
-      url: typeof d.update_url === 'string' && /^https?:\/\//i.test(d.update_url.trim()) ? d.update_url.trim() : undefined,
+      url: pickUpdateUrl(d),
       message: d.update_message || undefined,
       changelog: cl,
     };
