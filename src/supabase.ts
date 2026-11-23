@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { ADMIN_EMAIL } from './types';
+import { shopClientFor, shopCloudBlocked, setShopCloudRequired, setShopCloudCfg } from './utils/shopCloud';
 import { hashPassword, verifyPassword, isPasswordHash } from './utils/passwordHash';
 
 // يمكن تغيير الإعدادات عبر ملف .env (VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY) دون تعديل الكود.
@@ -13,8 +14,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // دالة لجلب وثيقة محددة من السحابة (تُرجع null عند الخطأ أو عدم الوجود)
 export async function getDocument(collectionName: string, docId: string) {
+  if (shopCloudBlocked(collectionName, docId)) return null; // حساب يلزمه سحابة خاصة ولم تُفعَّل: لا نقرأ من الرئيسية
   try {
-    const { data, error } = await supabase
+    const { data, error } = await (shopClientFor(collectionName, docId) || supabase)
       .from('documents')
       .select('data')
       .eq('collection', collectionName)
@@ -33,7 +35,7 @@ export async function getDocument(collectionName: string, docId: string) {
 }
 
 // نسخة صارمة: ترمي خطأ عند فشل الاتصال، لتمييز "غير موجود" عن "تعذر الاتصال" (مهم لتسجيل الدخول)
-async function getDocumentStrict(collectionName: string, docId: string): Promise<any | null> {
+export async function getDocumentStrict(collectionName: string, docId: string): Promise<any | null> {
   const { data, error } = await supabase
     .from('documents')
     .select('data')
@@ -44,10 +46,18 @@ async function getDocumentStrict(collectionName: string, docId: string): Promise
   return data ? data.data : null;
 }
 
+// قراءة وثيقة من السحابة الرئيسية دائماً (حتى لو كان للمحل سحابة مستقلة): للنقل والمقارنة فقط
+export async function getMainDocument(collectionName: string, docId: string) {
+  const { data, error } = await supabase.from('documents').select('data').eq('collection', collectionName).eq('id', docId).maybeSingle();
+  if (error) throw error;
+  return data ? data.data : null;
+}
+
 // دالة لحفظ أو تحديث وثيقة في السحابة
 export async function setDocument(collectionName: string, docId: string, docData: any) {
+  if (shopCloudBlocked(collectionName, docId)) throw new Error('shop_cloud_required'); // لا كتابة على الرئيسية لحساب يلزمه سحابة خاصة
   try {
-    const { error } = await supabase
+    const { error } = await (shopClientFor(collectionName, docId) || supabase)
       .from('documents')
       .upsert({
         collection: collectionName,
@@ -68,7 +78,9 @@ export async function setDocument(collectionName: string, docId: string, docData
 
 // دالة الاستماع اللحظي للتعديلات
 export function subscribeToDocument(collectionName: string, docId: string, callback: (data: any) => void) {
-  const channel = supabase
+  if (shopCloudBlocked(collectionName, docId)) return { unsubscribe: () => {} };
+  const client = shopClientFor(collectionName, docId) || supabase;
+  const channel = client
     .channel(`realtime:${collectionName}:${docId}`)
     .on(
       'postgres_changes',
@@ -87,7 +99,7 @@ export function subscribeToDocument(collectionName: string, docId: string, callb
     .subscribe();
 
   return {
-    unsubscribe: () => supabase.removeChannel(channel)
+    unsubscribe: () => client.removeChannel(channel)
   };
 }
 
@@ -241,6 +253,8 @@ export interface UpdateClientInput {
   enableModernDesign?: boolean;
   enableWholesalePrice?: boolean;
   enableSpecialPrice?: boolean;
+  /** سحابة المحل المستقلة (url/anonKey/enabled). يضبطها المدير فقط */
+  cloud?: { url: string; anonKey: string; enabled: boolean } | null;
 }
 
 async function loadAllRawAccounts(): Promise<any[]> {
@@ -294,6 +308,8 @@ export async function createClientAccount(input: CreateClientInput) {
     isPermanent: false,
     trialExpiresAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(),
     createdAt: now.toISOString(),
+    // كل حساب جديد يلزمه سحابة Supabase خاصة بمحله؛ بدونها لا يعمل ولا يُكتب على السحابة الرئيسية
+    requiresCloud: true,
   };
 
   await setDocument('users', uid, newClientData);
@@ -559,6 +575,16 @@ export async function loginWithEmailOrUsername(identifier: string, password: str
     if (expiresMs > 0 && expiresMs < Date.now()) {
       throw new Error('⏳ عذراً، انتهت صلاحية هذا الحساب. يرجى مراجعة الإدارة لتجديد الاشتراك.');
     }
+  }
+
+  // حساب جديد يلزمه سحابة خاصة: لا دخول بدونها (حتى لا تُحفظ فواتيره في السحابة الرئيسية)
+  setShopCloudRequired(userData.uid || ('user_' + cleanId), userData.requiresCloud === true);
+  if (userData.requiresCloud === true) {
+    const cc: any = userData.cloud;
+    if (!(cc && cc.enabled === true && cc.url && cc.anonKey)) {
+      throw new Error('☁️ هذا الحساب لم تُربط له سحابة خاصة بعد، فلا يمكنه العمل. يرجى مراجعة الإدارة.');
+    }
+    setShopCloudCfg(userData.uid || ('user_' + cleanId), cc);
   }
 
   // ترقية كلمة المرور القديمة (نص) إلى تجزئة عند أول دخول ناجح

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { logAudit } from '../utils/auditLog';
 import { computeRepEarnings, formatRepNewSale } from '../utils/repEarnings';
-import { isSubscriptionExpired, fetchAccountStatus, supabase, getDocument, setDocument, subscribeToDocument, verifyAccountPassword } from '../supabase';
+import { refreshShopCloudCfg } from '../utils/shopCloud';
+import { isSubscriptionExpired, fetchAccountStatus, supabase, getDocument, getDocumentStrict, setDocument, subscribeToDocument, verifyAccountPassword } from '../supabase';
 import { 
   Product, 
   Customer, 
@@ -1266,6 +1267,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser?.uid]);
 
+  // يصفّر كل ما يخص حساباً معيناً (في الذاكرة وفي الكاش المحلي) حتى لا يتسرّب إلى حساب آخر
+  // (موردون/مندوبون/عروض/مسودات/شفتات...) أو يُدمج معه عند المزامنة
+  const resetAccountScopedState = () => {
+    setProducts([]);
+    setCustomers([]);
+    setInvoices([]);
+    setPayments([]);
+    setShifts([]);
+    setActiveShift(null);
+    setSettings(defaultEmptySettings);
+    setStoreFeatures(DEFAULT_STORE_FEATURES);
+    setTrash([]);
+    setTombstones({} as any);
+    setDraftOrders([createDefaultDraftOrder(1)]);
+    setActiveDraftId('');
+    lastSyncMsRef.current = Date.now();
+    try {
+      ['cached_pos_products', 'cached_pos_customers', 'cached_pos_invoices', 'cached_pos_settings', 'cached_pos_shifts',
+        'cached_pos_features', 'cached_pos_payments', 'cached_pos_trash', 'cached_pos_tombstones', 'cached_pos_active_shift',
+        'cached_pos_draft_orders', 'cached_pos_active_draft_id', 'last_sync_ms'].forEach((k) => localStorage.removeItem(k));
+      localStorage.setItem('last_sync_ms', String(lastSyncMsRef.current));
+    } catch (e) {}
+  };
+
   const logout = async () => {
     const prevUid = currentUser?.uid;
     setCurrentUser(null);
@@ -1275,9 +1300,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPayments([]);
     setShifts([]);
     setActiveShift(null);
+    // لا تُبقِ إعدادات/مندوبي/عروض الحساب السابق في الذاكرة (كانت تنتقل إلى الحساب التالي في نفس الصفحة)
+    setSettings(defaultEmptySettings);
+    setStoreFeatures(DEFAULT_STORE_FEATURES);
+    setTrash([]);
+    setTombstones({} as any);
+    setDraftOrders([createDefaultDraftOrder(1)]);
+    setActiveDraftId('');
     try {
+      localStorage.removeItem('cached_pos_draft_orders');
+      localStorage.removeItem('cached_pos_active_draft_id');
+      localStorage.removeItem('last_sync_ms');
       localStorage.removeItem('active_client_session');
       localStorage.removeItem('last_active_user_uid');
+      localStorage.removeItem('cached_pos_payments');
+      localStorage.removeItem('cached_pos_trash');
+      localStorage.removeItem('cached_pos_tombstones');
       localStorage.removeItem('cached_pos_products');
       localStorage.removeItem('cached_pos_customers');
       localStorage.removeItem('cached_pos_invoices');
@@ -1307,6 +1345,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const currentUid = currentUser.uid;
     const storeDocId = `store_${currentUid}`;
+
+    // الكاش المحلي ملك لحساب واحد: إن تغيّر الحساب (دخول حساب آخر دون إعادة تحميل) نصفّر كل شيء قبل التحميل
+    try {
+      const prevOwner = localStorage.getItem('cached_pos_owner_uid');
+      // مالك غير معروف (كاش قديم قبل وسم المالك) يُعامَل كغريب: السحابة تعيد بيانات الحساب الصحيحة
+      const hasCache = !!(localStorage.getItem('cached_pos_settings') || localStorage.getItem('cached_pos_products'));
+      if ((prevOwner && prevOwner !== currentUid) || (!prevOwner && hasCache)) resetAccountScopedState();
+      localStorage.setItem('cached_pos_owner_uid', currentUid);
+    } catch {}
 
     // تهيئة شفتات هذا المتجر تحديداً من التخزين المحلي المعزول فور تبديل الحساب
     try {
@@ -1352,9 +1399,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    loadInitialData();
+    // سحابة المحل المستقلة (إن فُعّلت من لوحة الإدارة): نعرف الوجهة أولاً ثم نقرأ ونشترك
+    let cancelled = false;
+    let storeSub: { unsubscribe: () => void } | null = null;
+    const startCloud = async () => {
+      await refreshShopCloudCfg(currentUid, () => getDocumentStrict('users', currentUid), 2500);
+      if (cancelled) return;
+      loadInitialData();
 
-    const storeSub = subscribeToDocument('stores', storeDocId, (newData) => {
+    storeSub = subscribeToDocument('stores', storeDocId, (newData) => {
       if (!newData) return;
 
       if (newData.lastSavedByClient && newData.lastSavedByClient === currentSessionId) {
@@ -1380,9 +1433,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setIsCloudConnected(true);
       setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
     });
+    };
+    startCloud();
 
     return () => {
-      storeSub.unsubscribe();
+      cancelled = true;
+      (storeSub as any)?.unsubscribe();
     };
   }, [currentUser, currentSessionId]);
 
@@ -1557,12 +1613,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setShifts(r.shifts);
     setTrash(r.trash);
     setTombstones(r.tombstones);
-    setSettings(prev => ({
+    const ownerNow = currentUser?.uid;
+    setSettings(prevRaw => {
+      // إعدادات تخصّ حساباً آخر (العروض/الموردون/...) لا تُدمج في هذا الحساب أبداً
+      const prev: any = (prevRaw as any)?._ownerUid && ownerNow && (prevRaw as any)._ownerUid !== ownerNow ? defaultEmptySettings : prevRaw;
+      return {
       ...prev,
       ...(takeSettings || {}),
+      ...(ownerNow ? { _ownerUid: ownerNow } : {}),
       salesReps: r.reps,
       invoiceSecret: (takeSettings?.invoiceSecret as string) || prev.invoiceSecret,
-    }));
+      };
+    });
     stateRef.current = {
       ...stateRef.current,
       products: r.products, customers: r.customers, invoices: r.invoices, payments: r.payments,
@@ -1676,6 +1738,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
       } catch (err) {
         console.warn('Background save notice:', err);
+        setIsCloudConnected(false); // فشل الحفظ في السحابة: أظهر ذلك بدل أن تبدو المبيعات محفوظة
       }
     };
 

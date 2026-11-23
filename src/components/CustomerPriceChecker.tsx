@@ -201,15 +201,33 @@ export const CustomerPriceChecker: React.FC<{ storeId?: string | null }> = ({ st
 
       let foundData: any = null;
 
+      // محل له سحابة مستقلة: موادّه هناك لا في الرئيسية (نقرأ إعدادها من وثيقة حسابه العامة)
+      let srcUrl: string = SUPABASE_URL;
+      let srcKey: string = SUPABASE_ANON_KEY;
+      try {
+        const bare = cleanStore.replace(/^user_/, '');
+        const ur = await fetch(`${SUPABASE_URL}/rest/v1/documents?id=eq.${encodeURIComponent('user_' + bare)}&collection=eq.users&select=data`, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+        });
+        if (ur.ok) {
+          const rows = await ur.json();
+          const cc = rows?.[0]?.data?.cloud;
+          if (cc && cc.enabled === true && /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(String(cc.url || '').replace(/\/+$/, '')) && String(cc.anonKey || '').length >= 20) {
+            srcUrl = String(cc.url).replace(/\/+$/, '');
+            srcKey = String(cc.anonKey);
+          }
+        }
+      } catch {}
+
       for (const docId of candidateDocIds) {
         if (isCancelled) break;
         try {
           const response = await fetch(
-            `${SUPABASE_URL}/rest/v1/documents?id=eq.${encodeURIComponent(docId)}&select=id,data`,
+            `${srcUrl}/rest/v1/documents?id=eq.${encodeURIComponent(docId)}&select=id,data`,
             {
               headers: {
-                apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+                apikey: srcKey,
+                Authorization: `Bearer ${srcKey}`,
               },
             }
           );

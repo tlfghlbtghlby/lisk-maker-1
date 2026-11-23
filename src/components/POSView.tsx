@@ -546,11 +546,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   // آخر سعر بيع لكل مادة/وحدة لنفس الزبون (يظهر كملاحظة فوق شريط البحث إن اختلف عن السعر الحالي)
   const lastPriceNotes = useMemo(() => {
-    if (settings.showLastCustomerPrice !== true || !selectedCustomerId) return [] as { key: string; name: string; last: number; current: number }[];
+    if (settings.showLastCustomerPrice !== true || !selectedCustomerId) return [] as { key: string; name: string; last: number; current: number; invNo?: string; invDate?: string }[];
     const keyOf = (it: any) => `${it.productId}|${it.unitType || 'piece'}|${it.piecesPerCarton || 1}`;
     const wanted = new Set((cartItems || []).filter((c: any) => !c.isGift).map(keyOf));
     if (wanted.size === 0) return [];
     const last = new Map<string, number>();
+    const lastInv = new Map<string, { no?: string; date?: string }>();
     const mine = (invoices || [])
       .filter((inv: any) => inv.customerId === selectedCustomerId && inv.status !== 'returned')
       .sort((a: any, b: any) => String(b.date).localeCompare(String(a.date)));
@@ -558,16 +559,19 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       for (const it of inv.items || []) {
         if (it.isGift) continue;
         const k = keyOf(it);
-        if (wanted.has(k) && !last.has(k)) last.set(k, Number(it.unitPrice) || 0);
+        if (wanted.has(k) && !last.has(k)) {
+          last.set(k, Number(it.unitPrice) || 0);
+          lastInv.set(k, { no: inv.invoiceNumber, date: inv.date });
+        }
       }
       if (last.size === wanted.size) break;
     }
-    const out: { key: string; name: string; last: number; current: number }[] = [];
+    const out: { key: string; name: string; last: number; current: number; invNo?: string; invDate?: string }[] = [];
     for (const c of [...(cartItems || [])].reverse() as any[]) {
       const k = keyOf(c);
       const l = last.get(k);
       if (l !== undefined && Math.abs(l - (Number(c.unitPrice) || 0)) > 0.0005 && !out.some((o) => o.key === k)) {
-        out.push({ key: k, name: c.name || c.productName, last: l, current: Number(c.unitPrice) || 0 });
+        out.push({ key: k, name: c.name || c.productName, last: l, current: Number(c.unitPrice) || 0, invNo: lastInv.get(k)?.no, invDate: lastInv.get(k)?.date });
       }
     }
     return out.slice(0, 4);
@@ -632,6 +636,42 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   });
 
   const [giftMenu, setGiftMenu] = useState<{ x: number; y: number; product: Product } | null>(null);
+  // ترتيب عناصر الشريط العلوي (كليك يمين ← تغيير ← سحب). يُحفظ على هذا الجهاز فقط.
+  const TB_DEFAULT = ['search', 'views', 'scan', 'new', 'return'];
+  const [tbOrder, setTbOrder] = useState<string[]>(() => {
+    try {
+      const a = JSON.parse(localStorage.getItem('pos_topbar_order') || 'null');
+      if (Array.isArray(a)) return [...a.filter((x: string) => TB_DEFAULT.includes(x)), ...TB_DEFAULT.filter((x) => !a.includes(x))];
+    } catch {}
+    return TB_DEFAULT;
+  });
+  const [tbEdit, setTbEdit] = useState(false);
+  const [tbMenu, setTbMenu] = useState<{ x: number; y: number } | null>(null);
+  const tbDragRef = useRef<string | null>(null);
+  const saveTbOrder = (a: string[]) => { setTbOrder(a); try { localStorage.setItem('pos_topbar_order', JSON.stringify(a)); } catch {} };
+  const tbProps = (id: string) => ({
+    style: { order: tbOrder.indexOf(id), ...(tbEdit ? { outline: '2px dashed #f59e0b', outlineOffset: 2, cursor: 'grab' } : {}) } as React.CSSProperties,
+    draggable: tbEdit,
+    'data-tb': id,
+    onDragStart: (e: React.DragEvent) => { if (!tbEdit) return; tbDragRef.current = id; try { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; } catch {} },
+    onDragOver: (e: React.DragEvent) => { if (tbEdit) e.preventDefault(); },
+    onDrop: (e: React.DragEvent) => {
+      if (!tbEdit) return;
+      e.preventDefault();
+      const from = tbDragRef.current; tbDragRef.current = null;
+      if (!from || from === id) return;
+      const a = tbOrder.filter((x) => x !== from);
+      a.splice(a.indexOf(id) + (tbOrder.indexOf(from) < tbOrder.indexOf(id) ? 1 : 0), 0, from);
+      saveTbOrder(a);
+    },
+  });
+  // كليك يمين على سطر في قائمة البيع: نفس خيارات القائمة اليمنى (تعديل المادة / تعديل السعر / هدية)
+  const openCartItemMenu = (e: React.MouseEvent, item: any) => {
+    const prod = products.find((p) => p.id === item.productId);
+    if (!prod) return;
+    e.preventDefault();
+    setGiftMenu({ x: e.clientX, y: e.clientY, product: prod });
+  };
 
   const addGiftToCart = (product: Product) => {
     const isWeighted = Boolean(product.isWeighted || product.unit === 'كغم' || product.unit === 'كيلو');
@@ -1866,7 +1906,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 const pieceUnitPrice = item.unitType === 'carton' ? item.unitPrice / cap : item.unitPrice;
                 const kd = (col: string) => (e: React.KeyboardEvent<HTMLInputElement>) => onClassicCellKey(e, item, col);
                 return (
-                  <tr key={`${key}_${index}`} className={`font-semibold border-b border-slate-400 ${bad ? 'bg-rose-50' : item.isGift ? 'bg-pink-50/60' : ''}`}>
+                  <tr key={`${key}_${index}`} data-testid="cart-row" onContextMenu={(e) => openCartItemMenu(e, item)} className={`font-semibold border-b border-slate-400 ${bad ? 'bg-rose-50' : item.isGift ? 'bg-pink-50/60' : ''}`}>
                     <td className="py-0.5 px-0.5 border-l border-slate-800 text-center font-mono text-[10px]">{index + 1}</td>
                     <td className="py-0.5 px-1.5 border-l border-slate-800 break-words">
                       <span>{item.productName}</span>
@@ -2043,13 +2083,33 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     <span>ملاحظة: آخر سعر بيع لـ«{selectedCustomer?.name}» لمادة «{n.name}» كان</span>
                     <span className="font-mono text-sm">{formatMoney(n.last)}</span>
                     <span className="font-normal">(السعر الحالي {formatMoney(n.current)})</span>
+                    {(n.invNo || n.invDate) && (
+                      <span data-testid="last-price-inv" className="font-normal text-red-600">
+                        — قائمة {n.invNo ? <span className="font-mono">#{n.invNo}</span> : ''}{n.invDate ? <> بتاريخ <span className="font-mono">{(() => { const d = new Date(n.invDate); return isNaN(d.getTime()) ? String(n.invDate).slice(0, 10) : d.toLocaleDateString('en-GB'); })()}</span></> : ''}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
             )}
             <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200 shadow-xs flex flex-col gap-2.5">
-              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                <div className="relative flex-1 min-w-[200px]">
+              {tbEdit && (
+                <div data-testid="tb-edit-bar" className="flex items-center gap-2 flex-wrap rounded-lg bg-amber-50 border border-amber-300 px-3 py-1.5 text-xs font-bold text-amber-900">
+                  <span>↔ اسحب العناصر وأفلتها بالترتيب الذي تريده</span>
+                  <button type="button" onClick={() => saveTbOrder(TB_DEFAULT)} className="px-2 py-0.5 rounded bg-white border border-amber-300 cursor-pointer">الترتيب الافتراضي</button>
+                  <button type="button" data-testid="tb-done" onClick={() => setTbEdit(false)} className="px-3 py-0.5 rounded bg-emerald-600 text-white cursor-pointer">تم</button>
+                </div>
+              )}
+              <div
+                data-testid="pos-topbar"
+                className="flex items-center gap-2 flex-wrap sm:flex-nowrap"
+                onContextMenu={(e) => {
+                  if ((e.target as HTMLElement).closest('input, textarea')) return;
+                  e.preventDefault();
+                  setTbMenu({ x: e.clientX, y: e.clientY });
+                }}
+              >
+                <div {...tbProps('search')} className="relative flex-1 min-w-[200px]">
                   <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
@@ -2099,7 +2159,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   )}
                 </div>
 
-                <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
+                <div {...tbProps('views')} className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
                   <button
                     type="button"
                     onClick={() => handleViewModeChange('grid')}
@@ -2145,6 +2205,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 {isAndroidApp() && (
                 <button
                   type="button"
+                  {...tbProps('scan')}
                   onClick={() => setIsScannerOpen(true)}
                   className="px-2.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
                   title="مسح باركود المادة بالكاميرا لإضافتها للسلة فوراً"
@@ -2156,6 +2217,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
                 <button
                   type="button"
+                  {...tbProps('new')}
                   onClick={() => onOpenNewProduct()}
                   className="px-2.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 shadow-xs cursor-pointer"
                   title="إضافة مادة جديدة للمخزن مباشرة دون مغادرة الشاشة"
@@ -2167,6 +2229,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 <button
                   type="button"
                   data-testid="open-return"
+                  {...tbProps('return')}
                   onClick={() => setIsReturnOpen(true)}
                   className="px-3 py-2 bg-gradient-to-l from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shrink-0 shadow-md cursor-pointer"
                   title="استرجاع مواد: صافي أو من قائمة بيع"
@@ -2954,6 +3017,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     return (
                       <div
                         key={`${lineKeyOf(item)}_${index}`}
+                        data-testid="cart-row"
+                        onContextMenu={(e) => openCartItemMenu(e, item)}
                         className={`border rounded-lg px-2 py-1 flex flex-col gap-0.5 transition text-right ${
                           isStockZero 
                             ? 'bg-rose-50/50 border-rose-300' 
@@ -4101,6 +4166,18 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 إلغاء التراجع
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {tbMenu && (
+        <div className="fixed inset-0 z-[90]" data-key-passthrough onClick={() => setTbMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTbMenu(null); }}>
+          <div className="absolute bg-white border border-slate-300 rounded-xl shadow-2xl py-1 min-w-[170px] text-right" dir="rtl"
+            style={{ top: Math.min(tbMenu.y, window.innerHeight - 90), left: Math.min(tbMenu.x, window.innerWidth - 190) }} onClick={(e) => e.stopPropagation()}>
+            <button type="button" data-testid="tb-change" onClick={() => { setTbMenu(null); setTbEdit(true); }}
+              className="w-full text-right px-3 py-2 text-xs font-bold text-slate-800 hover:bg-amber-50 hover:text-amber-800 flex items-center gap-2 cursor-pointer">
+              <span>↔</span><span>تغيير ترتيب الشريط</span>
+            </button>
           </div>
         </div>
       )}
