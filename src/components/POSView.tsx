@@ -1681,8 +1681,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       paidAmount: actualPaidAmount,
       extraPaid,
       paymentDueDate: saleType === 'credit' ? dueDate : undefined,
-      notes: notes.trim(),
-      specialNote: specialNoteOn ? specialNote.trim() : '',
+      notes: settings.showInvoiceNoteFields !== false ? notes.trim() : '',
+      specialNote: specialNoteOn && settings.showInvoiceNoteFields !== false ? specialNote.trim() : '',
       salesRepId: effectiveRepId || undefined,
       salesRepName: repObj?.name || undefined,
       showRepOnInvoice: showRepOnInvoice,
@@ -3589,6 +3589,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 </div>
 )}
 
+                {settings.showInvoiceNoteFields !== false && (
+                <>
                 <input
                   type="text"
                   placeholder="ملاحظات تظهر بالوصل (اختياري)..."
@@ -3609,6 +3611,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     onChange={(e) => updateActiveDraft({ specialNote: e.target.value })}
                     className="text-[11px] px-2 py-1 border border-amber-300 rounded-lg bg-amber-50 focus:outline-none"
                   />
+                )}
+                </>
                 )}
 
                 {settings.enableSalesReps && (

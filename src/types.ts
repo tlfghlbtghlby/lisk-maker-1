@@ -616,6 +616,8 @@ export interface StoreSettings {
   enableChangeCalculator?: boolean;
   /** مساعد الخصم/الهدية: اقتراحات (٪ أو مبلغ، قطعة أو كرتون) تحت خلية الخصم وعمود الهدية في الوضع الكلاسيكي والقائمة */
   posDiscountGiftHelper?: boolean;
+  /** إظهار خانات الملاحظة (وصل + خاصة) في شاشة البيع؛ الافتراضي مفعّل */
+  showInvoiceNoteFields?: boolean;
   /** أقسام/تصنيفات المواد التي أضافها المستخدم يدوياً */
   productCategories?: string[];
   /** الموردون (الشركات) وسجل الاستلام والتسديد */

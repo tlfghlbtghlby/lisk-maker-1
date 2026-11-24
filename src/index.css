@@ -866,3 +866,29 @@ html.dark [class~="text-orange-950"]:not([class*="dark:text-"]):not(.keep-light)
 html.dark [class~="text-purple-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#d8b4fe !important;}
 html.dark [class~="text-rose-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#fda4af !important;}
 html.dark [class~="text-violet-950"]:not([class*="dark:text-"]):not(.keep-light):not(.keep-light *) { color:#c4b5fd !important;}
+
+/* عند تكبير/تصغير الواجهة (zoom) لا تتبع وحدات vh الزوم، فنقسمها على المعامل لتبقى النوافذ ضمن الشاشة وتمرّر وحدها */
+html[data-uiz] .h-\[92vh\]{height:calc(92vh / var(--uiz))}
+html[data-uiz] .max-h-\[40vh\]{max-height:calc(40vh / var(--uiz))}
+html[data-uiz] .max-h-\[55vh\]{max-height:calc(55vh / var(--uiz))}
+html[data-uiz] .max-h-\[60vh\]{max-height:calc(60vh / var(--uiz))}
+html[data-uiz] .max-h-\[75vh\]{max-height:calc(75vh / var(--uiz))}
+html[data-uiz] .max-h-\[80vh\]{max-height:calc(80vh / var(--uiz))}
+html[data-uiz] .max-h-\[85vh\]{max-height:calc(85vh / var(--uiz))}
+html[data-uiz] .max-h-\[88vh\]{max-height:calc(88vh / var(--uiz))}
+html[data-uiz] .max-h-\[90vh\]{max-height:calc(90vh / var(--uiz))}
+html[data-uiz] .max-h-\[92vh\]{max-height:calc(92vh / var(--uiz))}
+html[data-uiz] .max-h-\[94vh\]{max-height:calc(94vh / var(--uiz))}
+html[data-uiz] .max-h-\[95vh\]{max-height:calc(95vh / var(--uiz))}
+html[data-uiz] .max-h-\[96vh\]{max-height:calc(96vh / var(--uiz))}
+html[data-uiz] .min-h-screen{min-height:calc(100vh / var(--uiz))}
+html[data-uiz] .h-screen{height:calc(100vh / var(--uiz))}
+html[data-uiz] .lg\:h-\[calc\(100vh-80px\)\]{height:calc((100vh / var(--uiz)) - 80px)}
+
+/* النوافذ المنبثقة: التمرير داخلها فقط ولا يتحرك ما خلفها */
+body.modal-open{overflow:hidden !important}
+
+/* كل نافذة تغطي الشاشة: تمرير داخلي مستقل، والمحتوى الأطول من الشاشة لا يُقصّ من الأعلى */
+.fixed.inset-0[class*="bg-black"],.fixed.inset-0[class*="bg-slate-900/"],.fixed.inset-0[class*="bg-slate-950/"],.fixed.inset-0[class*="backdrop-blur"]{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.fixed.inset-0.items-center[class*="bg-black"],.fixed.inset-0.items-center[class*="bg-slate-900/"],.fixed.inset-0.items-center[class*="backdrop-blur"]{align-items:safe center}
+@media print{body.modal-open{overflow:visible !important}}

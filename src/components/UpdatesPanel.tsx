@@ -55,7 +55,7 @@ export default function UpdatesPanel() {
           <div className="text-xs font-black text-slate-800 dark:text-slate-200">سجل التحديثات</div>
           {info.changelog.map((e) => (
             <div key={e.version} className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-2 text-xs"><b dir="ltr">{e.version}</b>{e.title && <span className="font-bold text-slate-700 dark:text-slate-200">{e.title}</span>}<span className="mr-auto text-[11px] text-slate-400">{fmt(e.date)}</span></div>
+              <div className="flex items-center gap-2 text-xs"><b dir="ltr">{e.version}</b>{e.title && <span className="font-bold text-slate-700 dark:text-slate-200">{/^الإصدار الحالي$/.test(e.title.trim()) ? (e.version === CURRENT_APP_VERSION ? 'الإصدار الحالي' : 'الإصدار السابق') : e.title}</span>}<span className="mr-auto text-[11px] text-slate-400">{fmt(e.date)}</span></div>
               {e.notes && e.notes.length > 0 && <ul className="list-disc pr-5 mt-1 text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">{e.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>}
             </div>
           ))}

@@ -109,7 +109,7 @@ export async function buildInvoicePdf(inv: any, c: Customer, storeName: string, 
       <div>الدين القديم: ${fmt(prevDebt)} ${cur}</div>
       <div style="font-size:16px">إجمالي الدين: <b>${fmt(newDebt)} ${cur}</b></div>
     </div>
-    <div style="margin-top:18px;text-align:center;font-size:11px;color:#6b7280">✦ صدرت هذه القائمة من برنامج المفكر المحاسبي ✦</div>`;
+    <div style="margin-top:18px;text-align:center;font-size:11px;color:#6b7280">✦ برنامج المفكر المحاسبي ✦</div>`;
   return { base64: await elementToPdf(el), fileName: `invoice-${inv.invoiceNumber}.pdf` };
 }
 
@@ -127,7 +127,7 @@ export async function buildStatementPdf(c: Customer, invoices: Invoice[], paymen
   el.style.cssText = 'position:fixed;left:-10000px;top:0;width:760px;background:#fff;color:#000;font-family:Tajawal,Arial,sans-serif;padding:24px;font-size:14px';
   el.innerHTML = `<h2 style="margin:0 0 4px">${storeName}</h2><h3 style="margin:0 0 12px">كشف حساب الزبون: ${c.name}</h3>
     <div style="margin-bottom:12px;font-weight:bold">الدين الحالي: ${fmt(c.totalDebt)} ${currency}</div>
-    <table style="width:100%;border-collapse:collapse"><thead><tr style="background:#eee"><th style="padding:5px 8px;border:1px solid #ccc">التاريخ</th><th style="padding:5px 8px;border:1px solid #ccc">البيان</th><th style="padding:5px 8px;border:1px solid #ccc">دين</th><th style="padding:5px 8px;border:1px solid #ccc">مسدد</th></tr></thead><tbody>${body}</tbody></table><div style="margin-top:18px;text-align:center;font-size:11px;color:#6b7280">✦ صدرت هذه القائمة من برنامج المفكر المحاسبي ✦</div>`;
+    <table style="width:100%;border-collapse:collapse"><thead><tr style="background:#eee"><th style="padding:5px 8px;border:1px solid #ccc">التاريخ</th><th style="padding:5px 8px;border:1px solid #ccc">البيان</th><th style="padding:5px 8px;border:1px solid #ccc">دين</th><th style="padding:5px 8px;border:1px solid #ccc">مسدد</th></tr></thead><tbody>${body}</tbody></table><div style="margin-top:18px;text-align:center;font-size:11px;color:#6b7280">✦ برنامج المفكر المحاسبي ✦</div>`;
   return { base64: await elementToPdf(el), fileName: `statement-${c.name.replace(/[\\/:*?"<>|\s]/g, '_')}.pdf` };
 }
 
