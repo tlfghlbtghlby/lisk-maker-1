@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ShopCloudAdmin from './ShopCloudAdmin';
 import ShopCloudPush from './ShopCloudPush';
+import AppReleaseBox from './AppReleaseBox';
 import { shopAdminCall, getAdminKey } from '../utils/shopCloudPush';
 import { setShopCloudCfg, makeShopClient, probeShopCloud } from '../utils/shopCloud';
 import { 
@@ -734,6 +735,7 @@ export const AdminPanel: React.FC = () => {
         </div>
 
         <ShopCloudPush />
+        <AppReleaseBox />
 
         <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-800/40">
           <table className="w-full text-right text-xs">
