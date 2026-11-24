@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { fmtDateTime } from '../utils/dateFmt';
 import { matchAr } from '../utils/arabicSearch';
 import { useApp } from '../context/AppContext';
+import ReturnItemsModal from './ReturnItemsModal';
 import CustomerTelegramModal from './CustomerTelegramModal';
 import CustomerWhatsAppModal from './CustomerWhatsAppModal';
 import OverdueRemindersModal from './OverdueRemindersModal';
@@ -71,6 +72,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
   const [telegramCustomer, setTelegramCustomer] = useState<Customer | null>(null);
   const [waCustomer, setWaCustomer] = useState<Customer | null>(null);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
+  const [returnInvoiceId, setReturnInvoiceId] = useState<string | null>(null);
   // فترة التصفية (تحدد قوائم ودفعات ومواد الزبون في كشف الحساب). فارغة = كل الفترة
   const [showOverdue, setShowOverdue] = useState(false);
   const [periodFrom, setPeriodFrom] = useState('');
@@ -739,6 +741,15 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                                     تعديل
                                   </button>
                                 )}
+                                {inv.status !== 'returned' && (
+                                  <button
+                                    data-testid="cust-return-btn"
+                                    onClick={() => { setIsStatementOpen(false); setReturnInvoiceId(inv.id); }}
+                                    className="text-rose-700 hover:underline font-bold mr-3"
+                                  >
+                                    استرجاع
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -1151,6 +1162,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
         <CustomerTelegramModal customer={telegramCustomer} onClose={() => setTelegramCustomer(null)} />
       )}
       {showOverdue && <OverdueRemindersModal onClose={() => setShowOverdue(false)} />}
+      {returnInvoiceId && <ReturnItemsModal initialInvoiceId={returnInvoiceId} onClose={() => setReturnInvoiceId(null)} />}
     </div>
   );
 };

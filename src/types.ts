@@ -583,6 +583,8 @@ export interface StoreSettings {
   address: string;
   currency: string;
   invoiceFooterNote: string;
+  /** ترتيب وإظهار صفوف مجاميع الوصل المطبوع */
+  invoiceTotalsLayout?: { order: string[]; hidden: string[] };
   printFormat: PrintFormatType;
   invoiceTemplate?: InvoiceTemplateType;
   modernHeader?: ModernInvoiceHeaderConfig;
@@ -612,6 +614,8 @@ export interface StoreSettings {
   waAttachPdf?: boolean;
   /** حاسبة الباقي (F5): اختيار فئات النقود المستلمة لمعرفة الباقي للزبون. مفعّلة افتراضياً */
   enableChangeCalculator?: boolean;
+  /** مساعد الخصم/الهدية: اقتراحات (٪ أو مبلغ، قطعة أو كرتون) تحت خلية الخصم وعمود الهدية في الوضع الكلاسيكي والقائمة */
+  posDiscountGiftHelper?: boolean;
   /** أقسام/تصنيفات المواد التي أضافها المستخدم يدوياً */
   productCategories?: string[];
   /** الموردون (الشركات) وسجل الاستلام والتسديد */

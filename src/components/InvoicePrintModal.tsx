@@ -1,3 +1,4 @@
+import { resolveTotalsLayout } from '../utils/invoiceTotalsLayout';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Invoice } from '../types';
@@ -181,6 +182,26 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
   const paid = invoice.paidAmount;
   const totalRemainingDebt = Math.max(0, grandTotal - paid);
   const currencyLabel = settings.currency || 'د.ع';
+  // صفوف المجاميع حسب ترتيب وإظهار الإعدادات
+  const giftsCount = (invoice.items || []).reduce((a: number, i: any) => a + (i.isGift ? Number(i.quantity) || 0 : Number(i.giftQty) || 0), 0);
+  const giftsValue = (invoice.items || []).reduce((a: number, i: any) => a + (i.isGift ? (Number(i.unitPrice) || 0) * (Number(i.quantity) || 0) : (Number(i.giftQty) || 0) * (Number(i.unitPrice) || 0)), 0);
+  const totalsLayout = resolveTotalsLayout((settings as any).invoiceTotalsLayout);
+  const totalsRows: { id: string; label: string; value: string; tone?: 'rose' | 'green'; strong?: boolean }[] = totalsLayout.order
+    .filter((id) => !totalsLayout.hidden.includes(id))
+    .map((id) => {
+      switch (id) {
+        case 'discount': return (invoice.discount || 0) > 0 ? { id, label: 'خصم القائمة', value: `- ${Number(invoice.discount).toLocaleString()} ${currencyLabel}`, tone: 'rose' as const } : null;
+        case 'giftsValue': return giftsValue > 0 ? { id, label: 'قيمة الهدايا', value: `${giftsValue.toLocaleString()} ${currencyLabel}` } : null;
+        case 'giftsCount': return giftsCount > 0 ? { id, label: 'عدد الهدايا', value: giftsCount.toLocaleString() } : null;
+        case 'listTotal': return { id, label: 'مجموع القائمة', value: `${invoiceTotal.toLocaleString()} ${currencyLabel}` };
+        case 'prevDebt': return { id, label: 'الدين القديم', value: `${previousDebt.toLocaleString()} ${currencyLabel}` };
+        case 'grandTotal': return { id, label: 'المجموع الكلي', value: `${grandTotal.toLocaleString()} ${currencyLabel}`, strong: true };
+        case 'paid': return { id, label: 'الواصل', value: `${paid.toLocaleString()} ${currencyLabel}`, tone: 'green' as const };
+        case 'remaining': return { id, label: 'الباقي', value: `${totalRemainingDebt.toLocaleString()} ${currencyLabel}`, tone: 'rose' as const, strong: true };
+        default: return null;
+      }
+    })
+    .filter(Boolean) as any[];
 
   const generateInvoicePDF = async (): Promise<{ base64: string; blob: Blob; fileName: string } | null> => {
     const pageElements = document.querySelectorAll('.printable-invoice-page');
@@ -848,32 +869,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     <div className="w-56 border border-black rounded overflow-hidden shrink-0">
                       <table className="w-full text-right border-collapse text-[10.5px] font-bold">
                         <tbody>
-                          {(invoice.discount || 0) > 0 && (
-                            <tr className="border-b border-black">
-                              <td className="py-0.5 px-2 border-l border-black bg-slate-100">خصم القائمة</td>
-                              <td className="py-0.5 px-2 font-mono text-left text-rose-700">- {Number(invoice.discount).toLocaleString()} {currencyLabel}</td>
+                          {totalsRows.map((r, idx) => (
+                            <tr key={r.id} data-testid={`print-total-${r.id}`} className={`${idx < totalsRows.length - 1 ? 'border-b border-black' : ''} ${r.strong ? 'bg-slate-50 font-black' : ''}`}>
+                              <td className={`py-0.5 px-2 border-l border-black ${r.strong ? '' : 'bg-slate-100'}`}>{r.label}</td>
+                              <td className={`py-0.5 px-2 font-mono text-left ${r.strong ? 'text-xs' : ''} ${r.tone === 'rose' ? 'text-rose-700' : r.tone === 'green' ? 'text-emerald-700' : ''}`}>{r.value}</td>
                             </tr>
-                          )}
-                          <tr className="border-b border-black">
-                            <td className="py-0.5 px-2 border-l border-black bg-slate-100">مجموع القائمة</td>
-                            <td className="py-0.5 px-2 font-mono text-left">{invoiceTotal.toLocaleString()} {currencyLabel}</td>
-                          </tr>
-                          <tr className="border-b border-black">
-                            <td className="py-0.5 px-2 border-l border-black bg-slate-100">الدين القديم</td>
-                            <td className="py-0.5 px-2 font-mono text-left">{previousDebt.toLocaleString()} {currencyLabel}</td>
-                          </tr>
-                          <tr className="border-b border-black bg-slate-50 font-black">
-                            <td className="py-0.5 px-2 border-l border-black">المجموع الكلي</td>
-                            <td className="py-0.5 px-2 font-mono text-left text-xs">{grandTotal.toLocaleString()} {currencyLabel}</td>
-                          </tr>
-                          <tr className="border-b border-black">
-                            <td className="py-0.5 px-2 border-l border-black bg-slate-100">الواصل</td>
-                            <td className="py-0.5 px-2 font-mono text-left text-emerald-700">{paid.toLocaleString()} {currencyLabel}</td>
-                          </tr>
-                          <tr className="bg-slate-100 font-black">
-                            <td className="py-0.5 px-2 border-l border-black">الباقي</td>
-                            <td className="py-0.5 px-2 font-mono text-left text-rose-700">{totalRemainingDebt.toLocaleString()} {currencyLabel}</td>
-                          </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -890,32 +891,12 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
               {/* أسفل الفاتورة للورق الحراري (مضبوط بالكامل ضد الانقطاع الجانبي) */}
               {isThermal && (
                 <div className="border-t border-black pt-1.5 mt-2 space-y-0.5 text-[9.5px] font-bold w-full">
-                  {(invoice.discount || 0) > 0 && (
-                    <div className="flex justify-between items-center px-0.5">
-                      <span>خصم القائمة:</span>
-                      <span className="font-mono">- {Number(invoice.discount).toLocaleString()} {currencyLabel}</span>
+                  {totalsRows.map((r) => (
+                    <div key={r.id} data-testid={`print-total-${r.id}`} className={`flex justify-between items-center px-0.5 ${r.strong ? 'font-black border-t border-dotted border-black pt-0.5' : ''}`}>
+                      <span>{r.label}:</span>
+                      <span className="font-mono">{r.value}</span>
                     </div>
-                  )}
-                  <div className="flex justify-between items-center px-0.5">
-                    <span>مجموع القائمة:</span>
-                    <span className="font-mono">{invoiceTotal.toLocaleString()} {currencyLabel}</span>
-                  </div>
-                  <div className="flex justify-between items-center px-0.5">
-                    <span>الدين القديم:</span>
-                    <span className="font-mono">{previousDebt.toLocaleString()} {currencyLabel}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-[10.5px] font-black border-t border-dotted border-black pt-1 px-0.5">
-                    <span>المجموع الكلي:</span>
-                    <span className="font-mono">{grandTotal.toLocaleString()} {currencyLabel}</span>
-                  </div>
-                  <div className="flex justify-between items-center px-0.5">
-                    <span>الواصل:</span>
-                    <span className="font-mono">{paid.toLocaleString()} {currencyLabel}</span>
-                  </div>
-                  <div className="flex justify-between items-center border-t border-black pt-0.5 font-black px-0.5">
-                    <span>المتبقي:</span>
-                    <span className="font-mono">{totalRemainingDebt.toLocaleString()} {currencyLabel}</span>
-                  </div>
+                  ))}
                   {invoice.notes && (
                     <div className="border-t border-dotted border-black pt-1 mt-1 text-[8.5px] text-slate-800 break-words">
                       <span className="font-black">ملاحظات: </span>
