@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 export interface UiScale { pct: number; font: 'default' | 'tajawal' | 'cairo' | 'system'; bold: boolean; }
 const KEY = 'mufakir_ui_scale_v1';
 export const DEFAULT_SCALE: UiScale = { pct: 100, font: 'default', bold: false };
-export const MIN_PCT = 75, MAX_PCT = 150;
+export const MIN_PCT = 25, MAX_PCT = 400;
 
 function load(): UiScale {
   try {
@@ -27,8 +27,10 @@ const FONTS: Record<string, string> = {
 
 export function applyUiScale(s: UiScale = state) {
   const el = document.documentElement;
-  // كل أحجام Tailwind بوحدة rem فتتكبّر/تتصغّر معاً
-  if (s.pct === 100) el.style.removeProperty('font-size'); else el.style.fontSize = `${s.pct}%`;
+  // zoom يكبّر/يصغّر كل شيء (حتى الأحجام بوحدة px مثل text-[11px]) ولا يتأثر بخط الجهاز
+  el.style.removeProperty('font-size');
+  if (s.pct === 100) { el.style.removeProperty('zoom'); el.removeAttribute('data-uiz'); el.style.removeProperty('--uiz'); }
+  else { (el.style as any).zoom = String(s.pct / 100); el.setAttribute('data-uiz', '1'); el.style.setProperty('--uiz', String(s.pct / 100)); }
   let st = document.getElementById('ui-scale-style') as HTMLStyleElement | null;
   const css = (s.font !== 'default' ? `html body,html body *:not(svg):not(svg *){font-family:${FONTS[s.font]} !important}` : '') + (s.bold ? `html body{font-weight:600}` : '');
   if (!css) { st?.remove(); return; }

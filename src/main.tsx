@@ -8,6 +8,7 @@ import { installThemeCustom } from './utils/themeCustom';
 import { installAutoContrast } from './utils/autoContrast';
 import { installModernMode } from './utils/modernMode';
 import { installUiScale } from './utils/uiScale';
+import { installModalScroll } from './utils/modalScroll';
 import './modern.css';
 
 installNativeDialogFix();
@@ -17,5 +18,6 @@ installThemeCustom();
 installAutoContrast();
 installModernMode();
 installUiScale();
+installModalScroll();
 
 createRoot(document.getElementById('root')!).render(<App />);

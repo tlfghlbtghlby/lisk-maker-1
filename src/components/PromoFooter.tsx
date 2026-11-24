@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const PROMO_TEXT = 'صدرت هذه القائمة من برنامج المفكر المحاسبي';
+export const PROMO_TEXT = 'برنامج المفكر المحاسبي';
 
 /** توقيع صغير أسفل القوائم والوصولات المطبوعة (ترويج للبرنامج) */
 export const PromoFooter: React.FC<{ className?: string }> = ({ className = '' }) => (

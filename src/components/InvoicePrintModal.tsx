@@ -209,6 +209,20 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
 
     const isA5 = printLayout === 'a5';
     const pdfFormat = isA5 ? 'a5' : 'a4';
+
+    // ويندوز (Electron): نفس محرّك الطباعة → PDF حقيقي بنفس شكل الطباعة وتقسيم الصفحات
+    const eApiPdf = (window as any).electronAPI;
+    if (!isThermal && eApiPdf?.printToPdf) {
+      try {
+        const r = await eApiPdf.printToPdf({ pageSize: isA5 ? 'A5' : 'A4' });
+        if (r?.success && r.base64) {
+          const bin = atob(r.base64);
+          const bytes = new Uint8Array(bin.length);
+          for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+          return { base64: r.base64, blob: new Blob([bytes], { type: 'application/pdf' }), fileName: `قائمة_${invoice.invoiceNumber}.pdf` };
+        }
+      } catch (e) { console.warn('printToPdf fallback', e); }
+    }
     
     // ضبط العرض الفعلي لمنع أي انقطاع جانبي في الورق الحراري
     const pdfPageWidth = is58mm ? 54 : printLayout === 'thermal80' ? 76 : isA5 ? 148 : 210;
@@ -254,11 +268,33 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
         return { base64, blob, fileName: `قائمة_${invoice.invoiceNumber}.pdf` };
       }
 
-      if (i > 0) {
-        pdf.addPage(pdfFormat, 'portrait');
+      // A4/A5: القائمة الطويلة تُقسّم على صفحات كاملة (القطع عند حدود الصفوف) بدل ضغطها أو قصّها
+      const pageHmm = (isA5 ? 210 : 297) - margin * 2;
+      const mmPerPx = imgHeightMm / img.naturalHeight;
+      const pagePx = pageHmm / mmPerPx;
+      const cssToImg = img.naturalHeight / Math.max(1, pageEl.getBoundingClientRect().height);
+      const top0 = pageEl.getBoundingClientRect().top;
+      const rowEnds = Array.from(pageEl.querySelectorAll('tbody tr')).map((tr) => (tr.getBoundingClientRect().bottom - top0) * cssToImg).filter((v) => v > 0).sort((x, y) => x - y);
+      const cuts: number[] = [0];
+      while (cuts[cuts.length - 1] + pagePx < img.naturalHeight - 2) {
+        const start = cuts[cuts.length - 1];
+        const limit = start + pagePx;
+        let cut = limit;
+        for (let k = rowEnds.length - 1; k >= 0; k--) { if (rowEnds[k] <= limit && rowEnds[k] > start + pagePx * 0.4) { cut = rowEnds[k]; break; } }
+        cuts.push(cut);
       }
-
-      pdf.addImage(dataUrl, 'PNG', margin, margin, printWidth, imgHeightMm, undefined, 'FAST');
+      cuts.push(img.naturalHeight);
+      for (let c = 0; c < cuts.length - 1; c++) {
+        const y0 = Math.round(cuts[c]); const y1 = Math.round(cuts[c + 1]); const hpx = y1 - y0;
+        if (hpx < 2) continue;
+        const cv = document.createElement('canvas');
+        cv.width = img.naturalWidth; cv.height = hpx;
+        const cx = cv.getContext('2d')!;
+        cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, cv.width, cv.height);
+        cx.drawImage(img, 0, y0, img.naturalWidth, hpx, 0, 0, img.naturalWidth, hpx);
+        if (i > 0 || c > 0) pdf.addPage(pdfFormat, 'portrait');
+        pdf.addImage(cv.toDataURL('image/png'), 'PNG', margin, margin, printWidth, hpx * mmPerPx, undefined, 'FAST');
+      }
     }
 
     const fileName = `قائمة_${invoice.invoiceNumber}.pdf`;
@@ -736,37 +772,37 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                   <table className="w-full text-right border-collapse text-[10px] sm:text-[10.5px]">
                     <thead>
                       <tr className="bg-slate-100 border-b border-black text-black font-black">
-                        <th className="py-1 px-1 border-l border-black text-center w-6">ت</th>
-                        <th className="py-1 px-1.5 border-l border-black">اسم المادة</th>
+                        <th className="py-1 px-0.5 border-l border-black text-center w-6">ت</th>
+                        <th className="py-1 px-1.5 border-l border-black w-[48%]">اسم المادة</th>
                         {!isThermal && (
-                          <th className="py-1 px-2 border-l border-black text-center w-32">الملاحظات</th>
+                          <th className="py-1 px-0.5 border-l border-black text-center w-14">الملاحظات</th>
                         )}
                         {!showCartonCols && (
-                          <th className="py-1 px-1 border-l border-black text-center w-10">العدد</th>
+                          <th className="py-1 px-0.5 border-l border-black text-center w-8">العدد</th>
                         )}
                         {showCartonCols && (
                           <>
-                            <th className="py-0 px-0 border-l border-black text-center w-24">
+                            <th className="py-0 px-0 border-l border-black text-center w-16">
                               <div className="border-b border-black py-0.5">عدد القطع</div>
                               <div className="flex">
                                 <span className="flex-1 py-0.5 border-l border-black">كراتين</span>
                                 <span className="flex-1 py-0.5">قطع</span>
                               </div>
                             </th>
-                            <th className="py-1 px-1 border-l border-black text-center w-14">تعبئة الكارتون</th>
+                            <th className="py-1 px-0.5 border-l border-black text-center w-9">تعبئة الكارتون</th>
                           </>
                         )}
-                        <th className="py-1 px-1 border-l border-black text-center w-16">السعر</th>
+                        <th className="py-1 px-0.5 border-l border-black text-center w-11">السعر</th>
                         {showDiscountCol && (
-                          <th className="py-1 px-1 border-l border-black text-center w-14">الخصم</th>
+                          <th className="py-1 px-0.5 border-l border-black text-center w-10">الخصم</th>
                         )}
                         {showGiftCol && (
-                          <th className="py-1 px-1 border-l border-black text-center w-12">هدية</th>
+                          <th className="py-1 px-0.5 border-l border-black text-center w-9">هدية</th>
                         )}
                         {showPiecePrice && (
-                          <th className="py-1 px-1 border-l border-black text-center w-16">سعر القطعة</th>
+                          <th className="py-1 px-0.5 border-l border-black text-center w-11">سعر القطعة</th>
                         )}
-                        <th className="py-1 px-1 text-center w-16">المبلغ</th>
+                        <th className="py-1 px-0.5 text-center w-12">المبلغ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -797,7 +833,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                               )}
                             </td>
                             {!isThermal && (
-                              <td className="py-0.5 px-2 border-l border-black text-center text-[10px] text-slate-800 truncate max-w-[150px]">
+                              <td className="py-0.5 px-0.5 border-l border-black text-center text-[9px] text-slate-700 truncate max-w-[60px]">
                                 {(item as any).notes || (item.isGift ? 'هدية مجانية' : '-')}
                               </td>
                             )}
@@ -819,25 +855,25 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                                 </td>
                               </>
                             )}
-                            <td className="py-0.5 px-1 border-l border-black text-center font-mono">
+                            <td className="py-0.5 px-0.5 border-l border-black text-center font-mono">
                               {item.isGift ? '0' : rowShownPrice(item).toLocaleString()}
                             </td>
                             {showDiscountCol && (
-                              <td className="py-0.5 px-1 border-l border-black text-center font-mono">
+                              <td className="py-0.5 px-0.5 border-l border-black text-center font-mono">
                                 {!item.isGift && !item.discountIsOffer && rowDiscount(item) > 0 ? rowDiscount(item).toLocaleString() : '-'}
                               </td>
                             )}
                             {showGiftCol && (
-                              <td className="py-0.5 px-1 border-l border-black text-center font-mono">
+                              <td className="py-0.5 px-0.5 border-l border-black text-center font-mono">
                                 {item.giftQty ? item.giftQty.toLocaleString() : '-'}
                               </td>
                             )}
                             {showPiecePrice && (
-                              <td className="py-0.5 px-1 border-l border-black text-center font-mono">
+                              <td className="py-0.5 px-0.5 border-l border-black text-center font-mono">
                                 {item.isWeighted ? '-' : getPiecePriceOfItem(item).toLocaleString()}
                               </td>
                             )}
-                            <td className="py-0.5 px-1 text-center font-mono font-bold">
+                            <td className="py-0.5 px-0.5 text-center font-mono font-bold">
                               {rowAmount(item).toLocaleString()}
                             </td>
                           </tr>

@@ -4,7 +4,7 @@ import { uiScale, useUiScale, MIN_PCT, MAX_PCT } from '../utils/uiScale';
 /** حجم الخط داخل البرنامج (منفصل عن إعدادات الكمبيوتر/الهاتف، ويخص هذا الجهاز فقط) */
 export default function UiScaleSetting() {
   const s = useUiScale();
-  const presets = [{ l: 'صغير', v: 90 }, { l: 'عادي', v: 100 }, { l: 'كبير', v: 115 }, { l: 'كبير جداً', v: 130 }];
+  const presets = [{ l: 'صغير جداً', v: 70 }, { l: 'صغير', v: 90 }, { l: 'عادي', v: 100 }, { l: 'كبير', v: 125 }, { l: 'كبير جداً', v: 160 }, { l: 'ضخم', v: 250 }];
   return (
     <div data-testid="ui-scale-setting" className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 space-y-3">
       <div className="text-xs font-black text-slate-900 dark:text-white">🔠 حجم الخط والنصوص داخل البرنامج</div>

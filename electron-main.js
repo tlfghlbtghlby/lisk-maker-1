@@ -532,6 +532,19 @@ const handlePrint = async (event, options = {}) => {
   });
 };
 
+// حفظ الصفحة الحالية (وصل/قائمة) كملف PDF بنفس محرّك الطباعة (صفحات كاملة، نص حقيقي)
+ipcMain.handle('print-to-pdf', async (event, options = {}) => {
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return { success: false };
+    const pageSize = options.pageSize === 'A5' ? 'A5' : 'A4';
+    const buf = await win.webContents.printToPDF({ printBackground: true, pageSize, margins: { marginType: 'default' } });
+    return { success: true, base64: Buffer.from(buf).toString('base64') };
+  } catch (err) {
+    return { success: false, error: String(err && err.message || err) };
+  }
+});
+
 ipcMain.handle('print-silent', handlePrint);
 ipcMain.handle('print-direct', handlePrint);
 
