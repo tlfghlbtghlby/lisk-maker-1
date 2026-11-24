@@ -773,7 +773,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     <thead>
                       <tr className="bg-slate-100 border-b border-black text-black font-black">
                         <th className="py-1 px-0.5 border-l border-black text-center w-6">ت</th>
-                        <th className="py-1 px-1.5 border-l border-black w-[48%]">اسم المادة</th>
+                        <th className="py-1 px-1.5 border-l border-black w-[39%]">اسم المادة</th>
                         {!isThermal && (
                           <th className="py-1 px-0.5 border-l border-black text-center w-14">الملاحظات</th>
                         )}
