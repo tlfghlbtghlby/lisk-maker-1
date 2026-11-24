@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
       const migs = await loadMigrations();
       const latest = migs.length ? migs[migs.length - 1].version : 0;
       const list = (rows as any[]) || [];
-      if (!list.length) return json({ ok: true, latest, shops: [], message: 'لا يوجد محل له رمز وصول محفوظ.' });
+      if (!list.length) return json({ ok: true, latest, shops: [], results: [], changed: 0, failed: 0, message: 'لا يوجد محل له رمز وصول محفوظ.' });
 
       if (action === 'status') {
         const shops = [];
@@ -146,6 +146,28 @@ Deno.serve(async (req) => {
         ok: true, latest, results, changed, failed,
         message: failed ? `فشل ${failed} محل، راجع التفاصيل.` : changed ? `رُفعت التعديلات على ${changed} محل.` : 'ليس هناك تعديلات نحتاج إلى رفعها.',
       });
+    }
+    // ---- إصدارات التطبيق (يظهر للزبائن زر التحديث إذا كان إصدارهم أقل) ----
+    if (action === 'get_release') {
+      const { data } = await sb.from('system_settings').select('latest_version,update_url_android,update_url_windows,update_message,min_required_version,changelog').eq('id', 'global_config').maybeSingle();
+      return json({ ok: true, release: data || null });
+    }
+    if (action === 'set_release') {
+      const ver = String(body?.version || '').trim();
+      if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ver)) return json({ error: 'bad_version', message: 'الإصدار بصيغة 2.3.0' }, 400);
+      const okUrl = (u: unknown) => { const t = String(u || '').trim(); return !t ? null : /^https:\/\/[^\s]{4,500}$/i.test(t) ? t : undefined; };
+      const ua = okUrl(body?.urlAndroid), uw = okUrl(body?.urlWindows);
+      if (ua === undefined || uw === undefined) return json({ error: 'bad_url', message: 'الرابط يجب أن يبدأ بـ https://' }, 400);
+      const notes: string[] = Array.isArray(body?.notes) ? body.notes.map((x: unknown) => String(x).trim().slice(0, 200)).filter(Boolean).slice(0, 12) : [];
+      const { data: cur } = await sb.from('system_settings').select('changelog').eq('id', 'global_config').maybeSingle();
+      let cl: any[] = Array.isArray((cur as any)?.changelog) ? (cur as any).changelog.filter((e: any) => e && e.version) : [];
+      const today = new Date().toISOString().slice(0, 10);
+      cl = cl.filter((e) => e.version !== ver).map((e) => (e.title === 'الإصدار الحالي' ? { ...e, title: 'الإصدار السابق' } : e));
+      cl.unshift({ date: today, version: ver, title: 'الإصدار الحالي', notes });
+      const patch: Record<string, unknown> = { latest_version: ver, update_url_android: ua, update_url_windows: uw, changelog: cl.slice(0, 30), latest_released_at: new Date().toISOString() };
+      const { error } = await sb.from('system_settings').update(patch).eq('id', 'global_config');
+      if (error) return json({ error: 'save_failed', message: String(error.message).slice(0, 200) }, 500);
+      return json({ ok: true, version: ver });
     }
     return json({ error: 'unknown_action' }, 400);
   } catch (e) {
