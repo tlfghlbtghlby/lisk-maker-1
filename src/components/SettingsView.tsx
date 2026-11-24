@@ -92,6 +92,7 @@ import ViewOptionsSetting from './ViewOptionsSetting';
 import BarcodeSetting from './BarcodeSetting';
 import CatalogPriceSetting from './CatalogPriceSetting';
 import ReturnModeSetting from './ReturnModeSetting';
+import PrintTotalsOrderSetting from './PrintTotalsOrderSetting';
 import UiScaleSetting from './UiScaleSetting';
 import UpdatesPanel from './UpdatesPanel';
 import { useUpdateInfo } from '../utils/appUpdates';
@@ -2200,6 +2201,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
               className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white rounded-lg focus:outline-none"
             />
           </div>
+
+          <PrintTotalsOrderSetting />
 
           <div className="flex justify-end pt-2">
             <button

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { fmtDateTime } from '../utils/dateFmt';
 import { useApp } from '../context/AppContext';
 import { netUnitPrice } from '../utils/promotions';
+import ReturnReceiptModal, { ReturnReceiptData } from './ReturnReceiptModal';
 
 type Mode = 'loose' | 'invoice';
 interface LooseLine { productId: string; name: string; code: string; quantity: number; unitPrice: number }
@@ -14,7 +15,7 @@ const seqOf = (n: string) => {
   return m ? parseInt(m[1], 10) : NaN;
 };
 
-export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
+export default function ReturnItemsModal({ onClose, initialInvoiceId }: { onClose: () => void; initialInvoiceId?: string }) {
   const { products, invoices, customers, formatMoney, returnLooseItems, returnPartialInvoice, requestApproval, hasPermission, openInvoiceEditor, settings } = useApp() as any;
   // الوضع الافتراضي عند فتح النافذة يحدده الإعداد (رجوع من قائمة / رجوع مواد صافي)
   const [mode, setMode] = useState<Mode>(settings?.returnDefaultMode === 'loose' ? 'loose' : 'invoice');
@@ -34,8 +35,13 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
   const [extras, setExtras] = useState<LooseLine[]>([]);
   const [alerts, setAlerts] = useState<string[]>([]);
   const [confirming, setConfirming] = useState(false);
+  const [receipt, setReceipt] = useState<ReturnReceiptData | null>(null);
+  const initDone = useRef(false);
 
   useEffect(() => { inputRef.current?.focus(); }, [mode]);
+  useEffect(() => {
+    if (initialInvoiceId && !initDone.current) { initDone.current = true; setMode('invoice'); setSelectedId(initialInvoiceId); }
+  }, [initialInvoiceId]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -134,9 +140,18 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
     const toReturn = Array.from(agg.entries()).map(([productId, quantity]) => ({ productId, quantity }));
     const run = async () => {
       let okAll = true; let err = '';
+      const custBefore = (customers as any[]).find(c => c.id === selected.customerId);
+      const prevDebt = custBefore ? Number(custBefore.totalDebt) || 0 : undefined;
+      const rLines = [
+        ...selected.items.map((it: any, idx: number) => ({ it, q: retQty[idx] || 0 })).filter((x: any) => x.q > 0)
+          .map((x: any) => { const up = netUnitPrice(x.it); return { name: x.it.productName || x.it.name || '', quantity: x.q, unitPrice: up, amount: Math.round(x.q * up) }; }),
+        ...extras.filter(e => e.quantity > 0).map(e => ({ name: e.name, quantity: e.quantity, unitPrice: e.unitPrice, amount: Math.round(e.quantity * e.unitPrice) })),
+      ];
+      const rTotal = rLines.reduce((a: number, l: any) => a + l.amount, 0);
+      let extraCut = 0;
       if (extras.length) {
         const r = returnLooseItems(extras, selected.customerId || undefined, `إرجاع مادة ليست في القائمة ${selected.invoiceNumber}`, { grantId: selected.id, consume: toReturn.length === 0 });
-        if (!r.success) { okAll = false; err = r.error || ''; }
+        if (!r.success) { okAll = false; err = r.error || ''; } else extraCut = r.debtReduction || 0;
       }
       if (okAll && toReturn.length) {
         const r = await returnPartialInvoice(selected.id, toReturn, 'استرجاع من نافذة الاسترجاع');
@@ -144,6 +159,14 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
       }
       if (okAll) {
         setMsg({ ok: true, text: `تم الاسترجاع على القائمة ${selected.invoiceNumber}.` });
+        const itemsTotal = invRefund - extrasTotal;
+        const cut = (toReturn.length && selected.remainingAmount > 0 ? Math.min(selected.remainingAmount, itemsTotal) : 0) + extraCut;
+        setReceipt({
+          invoiceNumber: selected.invoiceNumber, customerName: selected.customerName, date: new Date().toISOString(),
+          lines: rLines, total: rTotal,
+          prevDebt, currentDebt: prevDebt === undefined ? undefined : Math.max(0, prevDebt - cut),
+          cashRefund: Math.max(0, rTotal - cut),
+        });
         setSelectedId(null); setRetQty({}); setExtras([]); setAlerts([]);
         inputRef.current?.focus();
       } else setMsg({ ok: false, text: err || 'تعذّر الاسترجاع' });
@@ -202,6 +225,8 @@ export default function ReturnItemsModal({ onClose }: { onClose: () => void }) {
 
   const tabCls = (m: Mode) => `flex-1 py-2.5 rounded-xl text-sm font-black transition cursor-pointer ${mode === m ? 'bg-amber-500 text-slate-900 shadow' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`;
   const canLoose = hasPermission ? hasPermission('canReturnInvoice') : true;
+
+  if (receipt) return <ReturnReceiptModal data={receipt} onClose={() => setReceipt(null)} />;
 
   return (
     <div
