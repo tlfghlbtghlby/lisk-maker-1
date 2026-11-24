@@ -269,6 +269,8 @@ export interface Invoice {
   paymentDueDate?: string;
   status: InvoiceStatus;
   notes?: string;
+  /** ملاحظة خاصة بالوصل (تحل محل ملاحظة التذييل الافتراضية عند الطباعة، وتظهر داخلياً في السجلات) */
+  specialNote?: string;
   date: string;
   createdAt?: string;
   updatedAt?: string;
@@ -316,6 +318,9 @@ export interface POSDraftOrder {
   paidAmount: number;
   dueDate: string;
   notes: string;
+  /** ملاحظة خاصة بهذا الوصل: تُطبع بدل ملاحظة التذييل الافتراضية إن كُتبت، وتظهر كملاحظة داخلية في السجلات */
+  specialNoteOn?: boolean;
+  specialNote?: string;
   updatedAt: string;
   selectedSalesRepId?: string;
   showRepOnInvoice?: boolean;
@@ -470,6 +475,7 @@ export interface CreateInvoiceInput {
   extraPaid?: number;
   paymentDueDate?: string;
   notes?: string;
+  specialNote?: string;
   salesRepId?: string;
   salesRepName?: string;
   salesRepCommission?: number;

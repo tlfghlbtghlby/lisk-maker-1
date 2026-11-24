@@ -838,9 +838,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                           <span>{invoice.notes}</span>
                         </div>
                       )}
-                      {settings.invoiceFooterNote && (
+                      {(invoice.specialNote?.trim() || settings.invoiceFooterNote) && (
                         <p className="border border-slate-300 rounded p-1.5 bg-slate-50 font-bold leading-relaxed">
-                          {settings.invoiceFooterNote}
+                          {invoice.specialNote?.trim() || settings.invoiceFooterNote}
                         </p>
                       )}
                     </div>
@@ -922,9 +922,9 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                       <span>{invoice.notes}</span>
                     </div>
                   )}
-                  {settings.invoiceFooterNote && (
+                  {(invoice.specialNote?.trim() || settings.invoiceFooterNote) && (
                     <div className="text-center text-[8.5px] text-slate-700 pt-1 border-t border-dotted border-black mt-1">
-                      {settings.invoiceFooterNote}
+                      {invoice.specialNote?.trim() || settings.invoiceFooterNote}
                     </div>
                   )}
                   <PromoFooter />

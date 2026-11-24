@@ -293,7 +293,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [waAutoPaste, setWaAutoPaste] = useState<boolean>(settings.waAutoPaste !== false);
   const [permSupId, setPermSupId] = useState<string | null>(null);
   const [waAttachPdf, setWaAttachPdf] = useState<boolean>(settings.waAttachPdf !== false);
-  const [enableChangeCalculator, setEnableChangeCalculator] = useState<boolean>(settings.enableChangeCalculator !== false);
   const [posClassicCart, setPosClassicCart] = useState<boolean>(settings.posClassicCart === true && settings.posListMode !== true);
   const [posListMode, setPosListMode] = useState<boolean>(settings.posListMode === true);
   const [separateCartonPieces, setSeparateCartonPieces] = useState<boolean>(settings.separateCartonPieces === true);
@@ -490,7 +489,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setWaAutoOpen(settings.waAutoOpen !== false);
       setWaAutoPaste(settings.waAutoPaste !== false);
       setWaAttachPdf(settings.waAttachPdf !== false);
-      setEnableChangeCalculator(settings.enableChangeCalculator !== false);
       setPosClassicCart(settings.posClassicCart === true && settings.posListMode !== true);
       setPosListMode(settings.posListMode === true);
       setSeparateCartonPieces(settings.separateCartonPieces === true);
@@ -604,7 +602,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       waAutoOpen,
       waAutoPaste,
       waAttachPdf,
-      enableChangeCalculator,
       posClassicCart,
       posListMode,
       separateCartonPieces,
@@ -2030,18 +2027,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 type="checkbox"
                 checked={showLastCustomerPrice}
                 onChange={(e) => setShowLastCustomerPrice(e.target.checked)}
-                className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
-              />
-            </label>
-            <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
-              <div>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">حاسبة الباقي (F5)</span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">عند الانتهاء من القائمة اضغط F5 (أو زر «حاسبة الباقي») فتظهر فئات النقود العراقية: اضغط على الفئة التي استلمتها من الزبون (كل ضغطة تُضيف مرة) فيظهر لك كم الباقي. الإلغاء يغلق الحاسبة فقط دون المساس بالقائمة. عند الإيقاف يعمل F5 كتحديث عادي للصفحة.</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={enableChangeCalculator}
-                onChange={(e) => setEnableChangeCalculator(e.target.checked)}
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>

@@ -24,7 +24,10 @@ function pickUpdateUrl(d: any): string | undefined {
 }
 
 /** يجلب معلومات التحديث من السحابة (قراءة فقط). أي فشل = صمت، والبرنامج يعمل كالمعتاد */
+let lastCheck: { ok: boolean; at: number } | null = null;
+export const getLastUpdateCheck = () => lastCheck;
 export async function fetchUpdateInfo(): Promise<UpdateInfo | null> {
+  lastCheck = { ok: false, at: Date.now() };
   try {
     const { data, error } = await supabase.from('system_settings').select('*').eq('id', 'global_config').maybeSingle();
     if (error || !data) return info;
@@ -38,6 +41,7 @@ export async function fetchUpdateInfo(): Promise<UpdateInfo | null> {
       message: d.update_message || undefined,
       changelog: cl,
     };
+    lastCheck = { ok: true, at: Date.now() };
     emit();
   } catch { /* offline */ }
   return info;

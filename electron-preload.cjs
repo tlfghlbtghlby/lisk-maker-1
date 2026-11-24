@@ -39,6 +39,7 @@ const electronAPI = {
   // إرسال ملف PDF عبر واتساب (نسخ للحافظة + فتح المحادثة)
   whatsappSendPdf: (options) => ipcRenderer.invoke('whatsapp-send-pdf', options),
   whatsappOpenChat: (options) => ipcRenderer.invoke('whatsapp-open-chat', options),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
   // استعلام المسار الأولي الممرر عبر الوسائط (--open-route=...)
   getInitialRoute: () => ipcRenderer.invoke('get-initial-route'),
