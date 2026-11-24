@@ -180,42 +180,47 @@ const ListEntryCell: React.FC<{
   );
 };
 
-/** خلية «هدية» في جدول القائمة: كتابة عدد تعرض اقتراحات (قطعة / كرتون) تحتها */
-const GiftHelperCell: React.FC<{
-  existing: number;
-  canCarton: boolean;
-  cartonLabel: string;
-  onPick: (qty: number, unit: 'piece' | 'carton') => void;
-}> = ({ existing, canCarton, cartonLabel, onPick }) => {
+/** خلية مساعدة (خصم/هدية) في جدول القائمة: كتابة رقم تعرض اقتراحات تحتها لاختيار النوع */
+const HelperCell: React.FC<{
+  kind: 'discount' | 'gift';
+  current: string;                       // نص القيمة الحالية (مثل «5%» أو «250» أو «1»)
+  options: (n: number) => { label: string; apply: () => void }[];
+  onClear: () => void;
+  color: string;
+}> = ({ kind, current, options, onClear, color }) => {
   const [v, setV] = useState('');
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
   const ref = useRef<HTMLInputElement>(null);
   const n = parseFloat(v);
   const ok = Number.isFinite(n) && n > 0;
-  const place = () => { const r = ref.current?.getBoundingClientRect(); if (r) setRect({ left: r.left, top: r.bottom + 2, width: Math.max(r.width, 130) }); };
-  const pick = (u: 'piece' | 'carton') => { if (ok) onPick(n, u); setV(''); setOpen(false); };
+  const place = () => { const r = ref.current?.getBoundingClientRect(); if (r) setRect({ left: r.left, top: r.bottom + 2, width: Math.max(r.width, 150) }); };
+  const opts = ok ? options(n) : [];
+  const run = (i: number) => { const o = opts[i]; if (o) o.apply(); setV(''); setOpen(false); };
   return (
     <>
       <input
         ref={ref}
-        data-testid="gift-helper-input"
+        data-testid={`${kind}-helper-input`}
         inputMode="decimal"
         value={v}
-        placeholder={existing > 0 ? String(existing) : ''}
+        placeholder={current}
         onChange={(e) => { setV(e.target.value.replace(/[^\d.]/g, '')); setOpen(true); place(); }}
         onFocus={() => { place(); if (v) setOpen(true); }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && ok) { e.preventDefault(); e.stopPropagation(); pick('piece'); }
-          else if (e.key === 'Escape') { setV(''); setOpen(false); }
+          if (e.key === 'Enter') {
+            if (ok) { e.preventDefault(); e.stopPropagation(); run(0); }
+            else if (v === '0') { e.preventDefault(); e.stopPropagation(); onClear(); setV(''); setOpen(false); }
+          } else if (e.key === 'Escape') { setV(''); setOpen(false); }
         }}
-        className="w-full bg-transparent border-0 text-center font-mono text-pink-700 placeholder:text-pink-700 placeholder:font-bold focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-400 px-0.5 py-1"
+        className={`w-full bg-transparent border-0 text-center font-mono placeholder:font-bold focus:outline-none focus:ring-2 focus:ring-inset px-0.5 py-1 ${color}`}
       />
-      {open && ok && rect && createPortal(
-        <div className="fixed z-[200] bg-white border border-pink-300 rounded-lg shadow-2xl overflow-hidden" style={{ left: rect.left, top: rect.top, width: rect.width }} dir="rtl" data-testid="gift-suggestions">
-          <button type="button" tabIndex={-1} onMouseDown={(e) => { e.preventDefault(); pick('piece'); }} className="w-full px-2.5 py-1.5 text-right text-[12px] font-bold hover:bg-pink-100 border-b border-slate-100 cursor-pointer">🎁 {n} قطعة</button>
-          {canCarton && <button type="button" tabIndex={-1} onMouseDown={(e) => { e.preventDefault(); pick('carton'); }} className="w-full px-2.5 py-1.5 text-right text-[12px] font-bold hover:bg-pink-100 cursor-pointer">🎁 {n} {cartonLabel}</button>}
+      {open && opts.length > 0 && rect && createPortal(
+        <div className="fixed z-[200] bg-white border border-slate-300 rounded-lg shadow-2xl overflow-hidden" style={{ left: rect.left, top: rect.top, width: rect.width }} dir="rtl" data-testid={`${kind}-suggestions`}>
+          {opts.map((o, i) => (
+            <button key={i} type="button" tabIndex={-1} onMouseDown={(e) => { e.preventDefault(); run(i); }} className="w-full px-2.5 py-1.5 text-right text-[12px] font-bold text-slate-800 hover:bg-slate-100 border-b border-slate-100 last:border-b-0 cursor-pointer">{o.label}</button>
+          ))}
         </div>,
         document.body
       )}
@@ -761,30 +766,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     setTimeout(() => setScanNotice(null), 2500);
   };
 
-  /** مساعد الهدية: إضافة هدية بعدد ووحدة محددة (قطعة/كرتون) كسطر يدوي — لا يتداخل مع هدايا العروض */
-  const addGiftQty = (product: Product, qty: number, unit: 'piece' | 'carton') => {
-    const isWeighted = Boolean(product.isWeighted || product.unit === 'كغم' || product.unit === 'كيلو');
-    const cap = isWeighted ? 1 : Math.max(1, product.piecesPerCarton || 1);
-    const u: 'piece' | 'carton' = unit === 'carton' && cap > 1 ? 'carton' : 'piece';
-    setCartItems((prev) => {
-      const idx = prev.findIndex((it) => it.productId === product.id && it.isGift);
-      const base = idx > -1 ? prev[idx] : null;
-      const sameUnit = base && (base.unitType || 'piece') === u;
-      const q = Math.round(((sameUnit ? base!.quantity : 0) + qty) * 1000) / 1000;
-      const gift: InvoiceItem = {
-        ...(base || {}),
-        productId: product.id, productName: product.name, code: product.code,
-        unit: isWeighted ? 'كغم' : product.unit, priceType: 'retail', unitType: u,
-        packLabel: u === 'carton' ? (product.packLabel || 'كرتون') : undefined,
-        piecesPerCarton: cap, deductedPieces: u === 'carton' ? q * cap : q,
-        costPrice: product.costPrice, unitPrice: 0, quantity: q, isWeighted, total: 0, isGift: true, notes: 'هدية',
-      } as any;
-      return [gift, ...prev.filter((_, i) => i !== idx)];
-    });
-    setScanNotice(`🎁 هدية: ${qty} ${u === 'carton' ? 'كرتون' : 'قطعة'} من "${product.name}"`);
-    setTimeout(() => setScanNotice(null), 2500);
-  };
-
   const addToCartWithPrice = (product: Product, priceType: PriceType, delta = 1) => {
     if (resolveFor(product, priceType) === null) {
       setScanNotice(`لا يوجد سعر ${PRICE_TYPE_LABELS[priceType]} للمادة "${product.name}"`);
@@ -949,7 +930,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   // وضع القائمة (ثالث الأوضاع) يُطفئ الكلاسيكي والعكس
   const listMode = settings.posListMode === true && settings.deviceMode !== 'mobile';
   const classicMode = settings.posClassicCart === true && !listMode && settings.deviceMode !== 'mobile';
-  const [discTyping, setDiscTyping] = useState(false);
   const helperOn = settings.posDiscountGiftHelper === true && (listMode || classicMode);
 
   const isWeightedProd = (p: Product) => Boolean(p.isWeighted || p.unit === 'كغم' || p.unit === 'كيلو');
@@ -1578,10 +1558,46 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   };
 
   // تطبيق العروض والخصومات الفعالة على السلة (لا تُعدّل السلة نفسها، تُحسب عند العرض والحفظ)
-  const promoResult = useMemo(
-    () => applyPromotions(cartItems, settings.promotions, products, settings),
-    [cartItems, settings.promotions, settings.promoDiscountDisplay, settings.promoOfferDisplay, products]
-  );
+  const promoResult = useMemo(() => {
+    const r = applyPromotions(cartItems, settings.promotions, products, settings);
+    // مساعد الخصم/الهدية: خصم وهدية يدويان على السطر، يُطبّقان فوق العروض ولا يتعارضان معها
+    let extraTotal = 0; let anyDisc = false; let anyGift = false;
+    const items = r.items.map((it: any) => {
+      const { manualDisc, manualGift, ...rest } = it;
+      if (it.isGift || (!manualDisc && !manualGift)) return rest as InvoiceItem;
+      const room = Math.max(0, rest.total);
+      const d = manualDisc ? Math.min(room, manualDisc.mode === 'percent' ? Math.round(room * Math.min(100, manualDisc.value) / 100) : manualDisc.value) : 0;
+      const g = manualGift ? Math.min(Math.max(0, room - d), Math.round(manualGift * (rest.unitPrice || 0))) : 0;
+      if (d + g <= 0 && !manualGift) return rest as InvoiceItem;
+      extraTotal += d + g; if (d > 0) anyDisc = true; if (manualGift) anyGift = true;
+      return {
+        ...rest,
+        discount: (rest.discount || 0) + d + g,
+        discountIsOffer: d > 0 ? rest.discountIsOffer && false : (rest.discountIsOffer ?? true),
+        total: Math.max(0, rest.total - d - g),
+        giftQty: manualGift ? (rest.giftQty || 0) + manualGift : rest.giftQty,
+      } as InvoiceItem;
+    });
+    if (extraTotal === 0 && !anyGift) return r;
+    return {
+      ...r, items,
+      discountTotal: r.discountTotal + extraTotal,
+      showDiscountColumn: r.showDiscountColumn || anyDisc,
+      showGiftColumn: r.showGiftColumn || anyGift,
+    };
+  }, [cartItems, settings.promotions, settings.promoDiscountDisplay, settings.promoOfferDisplay, products]);
+
+  const setLineManual = (key: string, patch: { manualDisc?: { mode: 'percent' | 'amount'; value: number } | undefined; manualGift?: number | undefined }) => {
+    setCartItems((prev) => prev.map((it) => (lineKeyOf(it) === key ? ({ ...it, ...patch } as InvoiceItem) : it)));
+  };
+  /** صافي مبلغ السطر بعد الخصم/الهدية اليدويين (للعرض في الجدول) */
+  const lineNetOf = (it: InvoiceItem) => {
+    if (it.isGift) return it.total;
+    const room = Math.max(0, it.total);
+    const d = it.manualDisc ? Math.min(room, it.manualDisc.mode === 'percent' ? Math.round(room * Math.min(100, it.manualDisc.value) / 100) : it.manualDisc.value) : 0;
+    const g = it.manualGift ? Math.min(Math.max(0, room - d), Math.round(it.manualGift * (it.unitPrice || 0))) : 0;
+    return Math.max(0, room - d - g);
+  };
 
   const subtotal = useMemo(() => {
     return promoResult.items.reduce((sum, item) => sum + item.total, 0);
@@ -1962,6 +1978,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 )}
                 <th className="py-1 px-1 border-l border-slate-800 text-center w-16">السعر</th>
                 {piecePriceColOn && <th className="py-1 px-1 border-l border-slate-800 text-center w-14">سعر القطعة</th>}
+                {helperOn && <th data-testid="disc-th" className="py-1 px-1 border-l border-slate-800 text-center w-14 text-rose-700">خصم</th>}
                 {helperOn && <th data-testid="gift-th" className="py-1 px-1 border-l border-slate-800 text-center w-14 text-pink-700">هدية</th>}
                 {entry && canViewCost && showCostCol && <th data-testid="list-cost-th" className="py-1 px-1 border-l border-slate-800 text-center w-16 text-amber-800 bg-amber-50 print:hidden">التكلفة</th>}
                 <th className="py-1 px-1 border-l border-slate-800 text-center w-16">المبلغ</th>
@@ -2025,24 +2042,54 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       </td>
                     )}
                     {helperOn && (
+                      <td className="p-0 border-l border-slate-800 bg-rose-50/40" data-testid="disc-td">
+                        {item.isGift ? <span className="block text-center text-slate-300">-</span> : (
+                          <HelperCell
+                            kind="discount"
+                            color="text-rose-700 placeholder:text-rose-700 focus:ring-rose-400"
+                            current={item.manualDisc ? (item.manualDisc.mode === 'percent' ? `${item.manualDisc.value}%` : String(item.manualDisc.value)) : ''}
+                            options={(n) => [
+                              ...(n <= 100 ? [{ label: `${n}% (≈ ${formatMoney(Math.round(Math.max(0, item.total) * n / 100))})`, apply: () => setLineManual(key, { manualDisc: { mode: 'percent', value: n } }) }] : []),
+                              { label: `${formatMoney(n)} مبلغ ثابت`, apply: () => setLineManual(key, { manualDisc: { mode: 'amount', value: n } }) },
+                            ]}
+                            onClear={() => setLineManual(key, { manualDisc: undefined })}
+                          />
+                        )}
+                      </td>
+                    )}
+                    {helperOn && (
                       <td className="p-0 border-l border-slate-800 bg-pink-50/40" data-testid="gift-td">
                         {item.isGift ? (
                           <span className="block text-center font-mono text-pink-700">{item.quantity}</span>
                         ) : (() => {
-                          const prodH = products.find((pp) => pp.id === item.productId);
-                          const promoG = (promoResult.items as any[]).filter((x) => x.productId === item.productId && !x.isGift).reduce((a, x) => a + (Number(x.giftQty) || 0), 0)
-                            + (promoResult.items as any[]).filter((x) => x.productId === item.productId && x.isGift && x.promoLabel).reduce((a, x) => a + (Number(x.quantity) || 0), 0);
-                          const manualG = cartItems.filter((x) => x.productId === item.productId && x.isGift).reduce((a, x) => a + (Number(x.quantity) || 0), 0);
-                          return prodH ? (
-                            <GiftHelperCell existing={promoG + manualG} canCarton={!item.isWeighted && (prodH.piecesPerCarton || 1) > 1} cartonLabel={prodH.packLabel || 'كرتون'} onPick={(qn, un) => addGiftQty(prodH, qn, un)} />
-                          ) : <span className="block text-center text-slate-300">-</span>;
+                          const promoG = (promoResult.items as any[]).filter((x) => lineKeyOf(x) === key && !x.isGift).reduce((a, x) => a + (Number(x.giftQty) || 0), 0) - (item.manualGift || 0);
+                          const cur = (promoG > 0 ? promoG : 0) + (item.manualGift || 0);
+                          const isCartonLine = !item.isWeighted && item.unitType === 'carton';
+                          const canCarton = !item.isWeighted && cap > 1;
+                          const lineUnit = isCartonLine ? (item.packLabel || 'كرتون') : 'قطعة';
+                          const toLine = (n: number, u: 'piece' | 'carton') => {
+                            const pcs = u === 'carton' ? n * cap : n;
+                            return isCartonLine ? Math.round((pcs / cap) * 1000) / 1000 : pcs;
+                          };
+                          return (
+                            <HelperCell
+                              kind="gift"
+                              color="text-pink-700 placeholder:text-pink-700 focus:ring-pink-400"
+                              current={cur > 0 ? String(cur) : ''}
+                              options={(n) => [
+                                { label: `🎁 ${n} قطعة مجاناً`, apply: () => setLineManual(key, { manualGift: toLine(n, 'piece') }) },
+                                ...(canCarton ? [{ label: `🎁 ${n} ${item.packLabel || 'كرتون'} مجاناً`, apply: () => setLineManual(key, { manualGift: toLine(n, 'carton') }) }] : []),
+                              ]}
+                              onClear={() => setLineManual(key, { manualGift: undefined })}
+                            />
+                          );
                         })()}
                       </td>
                     )}
                     {entry && canViewCost && showCostCol && (
                       <td data-testid="list-cost-td" className="py-0.5 px-1 border-l border-slate-800 text-center font-mono text-amber-800 bg-amber-50/60 print:hidden">{formatMoney(Math.round(item.costPrice || 0))}</td>
                     )}
-                    <td className="py-0.5 px-1 border-l border-slate-800 text-center font-mono font-bold">{formatMoney(item.total)}</td>
+                    <td className="py-0.5 px-1 border-l border-slate-800 text-center font-mono font-bold">{formatMoney(helperOn ? lineNetOf(item) : item.total)}</td>
                     <td className="py-0.5 px-0.5 text-center">
                       <button
                         type="button"
@@ -2058,7 +2105,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 );
               })}
               {entry && (() => {
-                const total = 2 + (cartonColsOn ? 3 : 1) + 1 + (piecePriceColOn ? 1 : 0) + (helperOn ? 1 : 0) + (canViewCost && showCostCol ? 1 : 0) + 1 + 1;
+                const total = 2 + (cartonColsOn ? 3 : 1) + 1 + (piecePriceColOn ? 1 : 0) + (helperOn ? 2 : 0) + (canViewCost && showCostCol ? 1 : 0) + 1 + 1;
                 const fillers = Math.max(0, 14 - cartItems.length - 1);
                 return (
                   <>
@@ -3444,8 +3491,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         value={discountRaw || ''}
                         placeholder="0"
                         data-testid="cart-discount-input"
-                        onChange={(e) => { setDiscountRaw(parseFloat(e.target.value) || 0); setDiscTyping(true); }}
-                        onBlur={() => setTimeout(() => setDiscTyping(false), 150)}
+                        onChange={(e) => setDiscountRaw(parseFloat(e.target.value) || 0)}
                         className="w-full min-w-0 text-left px-1.5 py-0.5 text-[11px] font-bold border border-slate-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-rose-400"
                       />
                       <div className="flex shrink-0 rounded overflow-hidden border border-slate-300 text-[10px] font-black">
@@ -3460,14 +3506,6 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                           className={`px-1.5 py-0.5 cursor-pointer ${discountMode === 'percent' ? 'bg-rose-600 text-white' : 'bg-white text-slate-600'}`}
                         >%</button>
                       </div>
-                    </div>
-                  )}
-                  {helperOn && discTyping && discountRaw > 0 && (
-                    <div className="flex gap-1.5" data-testid="discount-suggestions">
-                      {discountRaw <= 100 && (
-                        <button type="button" onMouseDown={(e) => { e.preventDefault(); updateActiveDraft({ discountMode: 'percent', discount: discountRaw }); setDiscTyping(false); }} className="flex-1 px-2 py-1 rounded border border-rose-300 bg-rose-50 text-rose-800 text-[11px] font-black cursor-pointer">{discountRaw}% (≈ {formatMoney(Math.round(subtotal * discountRaw / 100))})</button>
-                      )}
-                      <button type="button" onMouseDown={(e) => { e.preventDefault(); updateActiveDraft({ discountMode: 'amount', discount: discountRaw }); setDiscTyping(false); }} className="flex-1 px-2 py-1 rounded border border-rose-300 bg-rose-50 text-rose-800 text-[11px] font-black cursor-pointer">{formatMoney(discountRaw)} مبلغ ثابت</button>
                     </div>
                   )}
                   {discountAmount > 0 && (
