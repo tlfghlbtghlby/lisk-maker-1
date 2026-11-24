@@ -618,6 +618,8 @@ export interface StoreSettings {
   enableChangeCalculator?: boolean;
   /** مساعد الخصم/الهدية: اقتراحات (٪ أو مبلغ، قطعة أو كرتون) تحت خلية الخصم وعمود الهدية في الوضع الكلاسيكي والقائمة */
   posDiscountGiftHelper?: boolean;
+  /** خصم السطر يُحسب على القطع المدفوعة فقط (بعد استبعاد الهدايا) بدل كامل الكمية */
+  discountAfterGift?: boolean;
   /** إظهار خانات الملاحظة (وصل + خاصة) في شاشة البيع؛ الافتراضي مفعّل */
   showInvoiceNoteFields?: boolean;
   /** أقسام/تصنيفات المواد التي أضافها المستخدم يدوياً */

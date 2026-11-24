@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 /** خيارات اختيارية (كلها مغلقة افتراضياً): كاشير سريع + إعادة عرض كل الأسعار القديم. */
 export default function ViewOptionsSetting() {
   const { settings, updateSettings } = useApp() as any;
-  const Row = ({ k, title, desc, defaultOn }: { k: 'fastCashierMode' | 'showAllPricesList' | 'enableChangeCalculator' | 'posDiscountGiftHelper'; title: string; desc: string; defaultOn?: boolean }) => (
+  const Row = ({ k, title, desc, defaultOn }: { k: 'fastCashierMode' | 'showAllPricesList' | 'enableChangeCalculator' | 'posDiscountGiftHelper' | 'discountAfterGift'; title: string; desc: string; defaultOn?: boolean }) => (
     <label className="flex items-start gap-3 cursor-pointer">
       <input type="checkbox" data-testid={`opt-${k}`} checked={defaultOn ? settings[k] !== false : settings[k] === true} onChange={(e) => updateSettings({ [k]: e.target.checked })} className="mt-0.5 w-4 h-4 rounded text-emerald-600" />
       <div>
@@ -19,6 +19,7 @@ export default function ViewOptionsSetting() {
       <Row k="fastCashierMode" title="⚡ وضع «كاشير سريع»" desc="اختصارات: F2 للبحث، F8 حفظ القائمة فقط، F9 حفظ وطباعة. اتركه مغلقاً إن كان المستخدمون مجهزي قوائم وليسوا كاشيراً." />
       <Row k="enableChangeCalculator" defaultOn title="💵 حاسبة الباقي (F5)" desc="زر مستقل عن وضع الكاشير: يفتح فئات النقود لمعرفة الباقي (F5 أو زر «حاسبة الباقي»). عند الإيقاف يعمل F5 كتحديث عادي للصفحة." />
       <Row k="posDiscountGiftHelper" title="🎁 مساعد الخصم والهدية (الوضع الكلاسيكي والقائمة)" desc="عند الكتابة في خلية الخصم تظهر اقتراحات (نسبة % أو مبلغ)، وعند كتابة عدد في عمود الهدية تظهر اقتراحات (قطعة / كرتون). لا يتعارض مع العروض: هدايا العروض تظهر كما هي. في الوضع الأول (بدون أعمدة) لا يؤثر." />
+      <Row k="discountAfterGift" title="🧮 حساب الخصم بعد استبعاد الهدايا" desc="عند التفعيل يُحسب خصم السطر (٪ أو مبلغ) على القطع المدفوعة فقط ولا يدخل فيه عدد الهدايا. مثال: بيع 6 بسعر 1,250 وخصم 5% وهدية 2 ← 4 قطع × 1,187.5 = 4,750. عند الإطفاء يُحسب الخصم على كامل الكمية كما كان." />
     </div>
   );
 }

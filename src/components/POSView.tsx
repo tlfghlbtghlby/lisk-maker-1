@@ -1566,8 +1566,15 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       const { manualDisc, manualGift, ...rest } = it;
       if (it.isGift || (!manualDisc && !manualGift)) return rest as InvoiceItem;
       const room = Math.max(0, rest.total);
-      const d = manualDisc ? Math.min(room, manualDisc.mode === 'percent' ? Math.round(room * Math.min(100, manualDisc.value) / 100) : manualDisc.value) : 0;
-      const g = manualGift ? Math.min(Math.max(0, room - d), Math.round(manualGift * (rest.unitPrice || 0))) : 0;
+      let d: number; let g: number;
+      if (settings.discountAfterGift === true) {
+        g = manualGift ? Math.min(room, Math.round(manualGift * (rest.unitPrice || 0))) : 0;
+        const paid = Math.max(0, room - g);
+        d = manualDisc ? Math.min(paid, manualDisc.mode === 'percent' ? Math.round(paid * Math.min(100, manualDisc.value) / 100) : manualDisc.value) : 0;
+      } else {
+        d = manualDisc ? Math.min(room, manualDisc.mode === 'percent' ? Math.round(room * Math.min(100, manualDisc.value) / 100) : manualDisc.value) : 0;
+        g = manualGift ? Math.min(Math.max(0, room - d), Math.round(manualGift * (rest.unitPrice || 0))) : 0;
+      }
       if (d + g <= 0 && !manualGift) return rest as InvoiceItem;
       extraTotal += d + g; if (d > 0) anyDisc = true; if (manualGift) anyGift = true;
       return {
@@ -1585,7 +1592,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       showDiscountColumn: r.showDiscountColumn || anyDisc,
       showGiftColumn: r.showGiftColumn || anyGift,
     };
-  }, [cartItems, settings.promotions, settings.promoDiscountDisplay, settings.promoOfferDisplay, products]);
+  }, [cartItems, settings.promotions, settings.promoDiscountDisplay, settings.promoOfferDisplay, settings.discountAfterGift, products]);
 
   const setLineManual = (key: string, patch: { manualDisc?: { mode: 'percent' | 'amount'; value: number } | undefined; manualGift?: number | undefined }) => {
     setCartItems((prev) => prev.map((it) => (lineKeyOf(it) === key ? ({ ...it, ...patch } as InvoiceItem) : it)));
@@ -1594,8 +1601,15 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const lineNetOf = (it: InvoiceItem) => {
     if (it.isGift) return it.total;
     const room = Math.max(0, it.total);
-    const d = it.manualDisc ? Math.min(room, it.manualDisc.mode === 'percent' ? Math.round(room * Math.min(100, it.manualDisc.value) / 100) : it.manualDisc.value) : 0;
-    const g = it.manualGift ? Math.min(Math.max(0, room - d), Math.round(it.manualGift * (it.unitPrice || 0))) : 0;
+    let d: number; let g: number;
+    if (settings.discountAfterGift === true) {
+      g = it.manualGift ? Math.min(room, Math.round(it.manualGift * (it.unitPrice || 0))) : 0;
+      const paid = Math.max(0, room - g);
+      d = it.manualDisc ? Math.min(paid, it.manualDisc.mode === 'percent' ? Math.round(paid * Math.min(100, it.manualDisc.value) / 100) : it.manualDisc.value) : 0;
+    } else {
+      d = it.manualDisc ? Math.min(room, it.manualDisc.mode === 'percent' ? Math.round(room * Math.min(100, it.manualDisc.value) / 100) : it.manualDisc.value) : 0;
+      g = it.manualGift ? Math.min(Math.max(0, room - d), Math.round(it.manualGift * (it.unitPrice || 0))) : 0;
+    }
     return Math.max(0, room - d - g);
   };
 
@@ -2049,7 +2063,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             color="text-rose-700 placeholder:text-rose-700 focus:ring-rose-400"
                             current={item.manualDisc ? (item.manualDisc.mode === 'percent' ? `${item.manualDisc.value}%` : String(item.manualDisc.value)) : ''}
                             options={(n) => [
-                              ...(n <= 100 ? [{ label: `${n}% (≈ ${formatMoney(Math.round(Math.max(0, item.total) * n / 100))})`, apply: () => setLineManual(key, { manualDisc: { mode: 'percent', value: n } }) }] : []),
+                              ...(n <= 100 ? [{ label: `${n}% (≈ ${formatMoney(Math.round(Math.max(0, settings.discountAfterGift === true ? item.total - Math.round((item.manualGift || 0) * (item.unitPrice || 0)) : item.total) * n / 100))})`, apply: () => setLineManual(key, { manualDisc: { mode: 'percent', value: n } }) }] : []),
                               { label: `${formatMoney(n)} مبلغ ثابت`, apply: () => setLineManual(key, { manualDisc: { mode: 'amount', value: n } }) },
                             ]}
                             onClear={() => setLineManual(key, { manualDisc: undefined })}
