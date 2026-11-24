@@ -454,6 +454,7 @@ export const ShiftDetailsModal: React.FC<ShiftDetailsModalProps> = ({
                       <tr key={inv.id} className="hover:bg-slate-50 transition">
                         <td className="py-2.5 px-3 font-mono font-bold text-slate-900">
                           {inv.invoiceNumber}
+                          {inv.specialNote && <div data-testid="inv-special-note" className="mt-0.5 text-[10px] font-bold text-amber-800 font-sans">📝 {inv.specialNote}</div>}
                         </td>
                         <td className="py-2.5 px-3 text-slate-500 text-[11px]">
                           {new Date(inv.date).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })}

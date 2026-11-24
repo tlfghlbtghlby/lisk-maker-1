@@ -1,20 +1,41 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CURRENT_APP_VERSION } from '../context/AppContext';
-import { useUpdateInfo, markUpdateSeen } from '../utils/appUpdates';
+import { useUpdateInfo, markUpdateSeen, getLastUpdateCheck } from '../utils/appUpdates';
 
 /** قسم «التحديثات» في الإعدادات: التحديث اختياري، والتنزيل عبر رابط مباشر يضعه المطوّر */
 export default function UpdatesPanel() {
   const { info, loading, isNew, refresh } = useUpdateInfo();
   useEffect(() => { if (info) markUpdateSeen(); }, [info?.latestVersion]);
   const fmt = (d?: string) => { if (!d) return ''; try { return new Date(d).toLocaleDateString('ar-IQ', { year: 'numeric', month: 'long', day: 'numeric' }); } catch { return d; } };
-  const open = () => { if (info?.url) window.open(info.url, '_blank', 'noopener'); };
+  const [busy, setBusy] = useState(false);
+  const [checked, setChecked] = useState<{ ok: boolean; at: number } | null>(null);
+  const check = async () => {
+    setBusy(true);
+    const t0 = Date.now();
+    try { await refresh(); } finally {
+      // إبقاء حالة «جارٍ التحقق» ظاهرة لحظة كافية ليراها المستخدم
+      const wait = Math.max(0, 600 - (Date.now() - t0));
+      setTimeout(() => { setChecked(getLastUpdateCheck()); setBusy(false); }, wait);
+    }
+  };
+  const open = () => {
+    if (!info?.url) return;
+    const api: any = (window as any).electronAPI || (window as any).electron;
+    if (api?.openExternal) { api.openExternal(info.url).catch(() => window.open(info.url, '_blank', 'noopener')); return; }
+    window.open(info.url, '_blank', 'noopener');
+  };
   return (
     <div data-testid="updates-panel" className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="text-xs font-black text-slate-900 dark:text-white">🔄 التحديثات</div>
-        <button type="button" onClick={() => refresh()} className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-100 cursor-pointer">تحقق الآن</button>
+        <button type="button" data-testid="update-check" disabled={busy} onClick={check} className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-100 cursor-pointer disabled:opacity-60">{busy ? 'جارٍ التحقق…' : 'تحقق الآن'}</button>
       </div>
       <div className="text-[11px] text-slate-500 dark:text-slate-400">إصدارك الحالي: <b dir="ltr">{CURRENT_APP_VERSION}</b></div>
+      {checked && !busy && (
+        <div data-testid="update-check-result" className={`text-[11px] font-bold ${checked.ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600'}`}>
+          {checked.ok ? `✓ تم الفحص الساعة ${new Date(checked.at).toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' })}` : '⚠️ تعذّر الاتصال بالسحابة، حاول لاحقاً. البرنامج يعمل بشكل طبيعي.'}
+        </div>
+      )}
       {loading && !info ? (
         <div className="text-xs text-slate-500">جارٍ التحقق…</div>
       ) : !info ? (

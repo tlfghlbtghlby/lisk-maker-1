@@ -283,6 +283,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const setDiscountMode = (m: 'amount' | 'percent') => updateActiveDraft({ discountMode: m, discount: 0 });
   const setDueDate = (val: string) => updateActiveDraft({ dueDate: val });
   const setNotes = (val: string) => updateActiveDraft({ notes: val });
+  const specialNoteOn = activeDraft.specialNoteOn === true;
+  const specialNote = activeDraft.specialNote || '';
 
   const setSelectedSalesRepId = (val: string) => {
     const rep = (settings.salesReps || []).find(r => r.id === val);
@@ -1608,6 +1610,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       extraPaid,
       paymentDueDate: saleType === 'credit' ? dueDate : undefined,
       notes: notes.trim(),
+      specialNote: specialNoteOn ? specialNote.trim() : '',
       salesRepId: effectiveRepId || undefined,
       salesRepName: repObj?.name || undefined,
       showRepOnInvoice: showRepOnInvoice,
@@ -2873,11 +2876,12 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   </div>
 )}
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 min-w-0 max-w-full">
+                    <span data-testid="session-top" className="shrink-0"><SessionBadgeButton compact={true} /></span>
                     <button
                       type="button"
                       onClick={() => setShowClearConfirmModal(true)}
-                      className="w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 flex items-center justify-center transition shadow-2xs cursor-pointer"
+                      className="shrink-0 w-7 h-7 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-rose-600 flex items-center justify-center transition shadow-2xs cursor-pointer"
                       title={`حذف وتفريغ القائمة الحالية (رقم ${activeDraft.orderNumber})`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -2886,13 +2890,13 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     <button
                       type="button"
                       onClick={handleAddNewDraft}
-                      className="w-7 h-7 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition shadow-2xs cursor-pointer"
+                      className="shrink-0 w-7 h-7 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition shadow-2xs cursor-pointer"
                       title="تعليق القائمة الحالية وبدء قائمة جديدة (+)"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                     </button>
 
-                    <div className="flex items-center gap-0.5">
+                    <div data-testid="draft-tabs" className="flex items-center gap-0.5 overflow-x-auto min-w-0 max-w-[9rem] sm:max-w-[13rem] py-0.5 px-0.5 scrollbar-thin">
                       {draftOrders.map((order) => {
                         const isActive = order.id === activeDraft.id;
                         return (
@@ -2900,7 +2904,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                             key={order.id}
                             type="button"
                             onClick={() => switchToDraft(order.id)}
-                            className={`w-7 h-7 rounded-lg font-mono font-black text-xs flex items-center justify-center transition cursor-pointer shadow-2xs ${
+                            className={`shrink-0 w-7 h-7 rounded-lg font-mono font-black text-xs flex items-center justify-center transition cursor-pointer shadow-2xs ${
                               isActive
                                 ? 'bg-emerald-600 text-white ring-2 ring-emerald-500/40 ring-offset-1'
                                 : 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400'
@@ -2968,14 +2972,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         )}
                       </div>
                     </div>
-                    <SessionBadgeButton compact={true} />
                   </div>
-                ) : (
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[11px]">
-                    <span className="font-bold text-slate-600 text-[10px]">الجلسة:</span>
-                    <SessionBadgeButton compact={true} />
-                  </div>
-                )}
+                ) : null}
               </div>
 
               {sessionRole === 'employee' && !activeShift && (
@@ -3491,6 +3489,20 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                   onChange={(e) => setNotes(e.target.value)}
                   className="text-[11px] px-2 py-1 border border-slate-300 rounded-lg bg-white focus:outline-none"
                 />
+                <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer select-none -mt-1">
+                  <input type="checkbox" data-testid="special-note-toggle" checked={specialNoteOn} onChange={(e) => updateActiveDraft({ specialNoteOn: e.target.checked })} className="w-3 h-3 accent-amber-600" />
+                  <span>تفعيل ملاحظة خاصة بهذا الوصل</span>
+                </label>
+                {specialNoteOn && (
+                  <input
+                    type="text"
+                    data-testid="special-note-input"
+                    placeholder="ملاحظة خاصة: تُطبع بدل الملاحظة الافتراضية (اتركها فارغة لتظهر الافتراضية)"
+                    value={specialNote}
+                    onChange={(e) => updateActiveDraft({ specialNote: e.target.value })}
+                    className="text-[11px] px-2 py-1 border border-amber-300 rounded-lg bg-amber-50 focus:outline-none"
+                  />
+                )}
 
                 {settings.enableSalesReps && (
                   <div className="p-2 rounded-lg border bg-indigo-50/70 border-indigo-200 text-[11px] flex flex-col gap-1.5 shadow-2xs">

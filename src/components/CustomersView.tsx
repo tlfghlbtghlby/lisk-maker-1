@@ -701,7 +701,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
                         {customerInvoicesInPeriod(selectedCustomer)
                           .map((inv) => (
                             <tr key={inv.id} className="hover:bg-slate-50">
-                              <td className="py-2 px-3 font-mono font-bold">{inv.invoiceNumber}</td>
+                              <td className="py-2 px-3 font-mono font-bold">{inv.invoiceNumber}{inv.specialNote && <div data-testid="inv-special-note" className="mt-0.5 text-[10px] font-bold text-amber-800 font-sans">📝 {inv.specialNote}</div>}</td>
                               <td className="py-2 px-3 text-slate-500">
                                 {fmtDateTime(inv.date)}
                               </td>

@@ -364,6 +364,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ onViewInvoice }) => 
                       <td className="py-3 px-4 font-mono font-bold text-slate-800 text-xs">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span>{inv.invoiceNumber}</span>
+                          {inv.specialNote && <span data-testid="inv-special-note" title="ملاحظة داخلية" className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold max-w-[220px] truncate">📝 {inv.specialNote}</span>}
                           {inv.status === 'returned' && (
                             <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-300 text-[10px] font-black">
                               مرتجعة بالكامل

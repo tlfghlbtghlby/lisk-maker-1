@@ -347,6 +347,13 @@ ipcMain.handle('product-image-list', () => {
   }
 });
 
+// فتح رابط (تحميل تحديث مثلاً) في المتصفح الافتراضي. http/https فقط
+ipcMain.handle('open-external', async (_e, url) => {
+  if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return false;
+  await shell.openExternal(url);
+  return true;
+});
+
 // إرسال القائمة PDF عبر واتساب (ويندوز): حفظ الملف مؤقتاً، نسخه للحافظة كملف، وفتح محادثة واتساب ليلصقه المستخدم (Ctrl+V)
 // فتح محادثة واتساب: target='app' (تطبيق ويندوز) أو 'web' (واتساب ويب في المتصفح)
 async function openWhatsAppChat(num, text, target) {
