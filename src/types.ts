@@ -149,6 +149,8 @@ export interface InvoiceItem {
   discount?: number;          // مبلغ الخصم الإجمالي على هذا السطر (دينار)
   discountIsOffer?: boolean;  // الخصم ناتج عن عرض (مثل 2+1 داخل الكمية) وليس خصماً عادياً
   giftQty?: number;           // عدد القطع المجانية المذكورة في عمود «هدية»
+  manualDisc?: { mode: 'percent' | 'amount'; value: number }; // خصم يدوي على السطر (مساعد الخصم) — يُحسب عند العرض/الحفظ
+  manualGift?: number;        // هدية يدوية على السطر بوحدة السطر (تنقص من مبلغه وتبقى في عمود «هدية»)
   hiddenFromPrint?: boolean;  // سطر هدية لا يُطبع (يُخصم من المخزن فقط)
   promoLabel?: string;        // وصف العرض/الخصم المطبق
 }
