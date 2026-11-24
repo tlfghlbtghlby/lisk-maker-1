@@ -10,7 +10,7 @@ import { installThemeCustom } from './utils/themeCustom';
 import { installAutoContrast } from './utils/autoContrast';
 import { installModernMode } from './utils/modernMode';
 import { installUiScale } from './utils/uiScale';
-import { installModalScroll } from './utils/modalScroll';
+import { installModalScroll, installPopupClamp } from './utils/modalScroll';
 import './modern.css';
 
 // تهيئة تطبيق الأندرويد (شريط الحالة...) ولا أثر لها خارجه
@@ -23,5 +23,6 @@ installAutoContrast();
 installModernMode();
 installUiScale();
 installModalScroll();
+installPopupClamp();
 
 createRoot(document.getElementById('root')!).render(<App />);
