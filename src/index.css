@@ -892,3 +892,9 @@ body.modal-open{overflow:hidden !important}
 .fixed.inset-0[class*="bg-black"],.fixed.inset-0[class*="bg-slate-900/"],.fixed.inset-0[class*="bg-slate-950/"],.fixed.inset-0[class*="backdrop-blur"]{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .fixed.inset-0.items-center[class*="bg-black"],.fixed.inset-0.items-center[class*="bg-slate-900/"],.fixed.inset-0.items-center[class*="backdrop-blur"]{align-items:safe center}
 @media print{body.modal-open{overflow:visible !important}}
+
+/* طباعة كشف حساب الزبون: النافذة مُدرجة في body خارج #root، فنخفي التطبيق ونُظهر الكشف فقط */
+@media print {
+  body.stmt-print-open #root { display: none !important; }
+  body.stmt-print-open .stmt-print-root { position: static !important; display: block !important; background: transparent !important; padding: 0 !important; }
+}
