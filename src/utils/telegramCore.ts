@@ -7,6 +7,7 @@ export const TELEGRAM_EVENT_LABELS: Record<TelegramEventKey, { label: string; hi
   invoiceSold: { label: 'بيع قائمة', hint: 'كل قائمة تُباع، بكامل موادها وتفاصيلها' },
   creditSale: { label: 'بيع بالدين', hint: 'عند إضافة دين على زبون (الدين القديم والجديد)' },
   debtPayment: { label: 'تسديد دين', hint: 'دفعات الزبائن والمتبقي بعدها' },
+  manualDebt: { label: 'دين يدوي', hint: 'دين يُضاف على زبون بمبلغ محدد (بدون قائمة مشتريات)' },
   invoiceDeleted: { label: 'حذف قائمة', hint: 'من حذفها ومتى وتفاصيلها' },
   invoiceReturnedFull: { label: 'إرجاع كامل', hint: 'الجهة التي أرجعت، الوقت، السبب' },
   invoiceReturnedPartial: { label: 'إرجاع جزئي', hint: 'المواد المرجعة، السبب، من قام به' },
@@ -128,6 +129,20 @@ export function formatPayment(p: PaymentRecord, remainingDebt: number, ctx: FmtC
     `المتبقي عليه: <b>${money(remainingDebt, cur)}</b>`,
     p.notes ? `📝 ${esc(p.notes)}` : '',
     `🧾 سند: <code>${esc(p.receiptNumber)}</code>`,
+    !forCustomer && ctx.actor ? `🧑‍💼 المنفذ: ${esc(ctx.actor)}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+export function formatManualDebt(e: { customerName: string; amount: number; date: string; notes?: string; receiptNumber: string }, newDebt: number, ctx: FmtCtx, forCustomer = false): string {
+  const cur = ctx.currency;
+  return [
+    `📌 <b>دين مضاف يدوياً</b>${ctx.storeName ? ` — ${esc(ctx.storeName)}` : ''}`,
+    `🕒 ${when(e.date)}`,
+    `👤 الزبون: ${esc(e.customerName)}`,
+    `المبلغ المضاف: <b>${money(e.amount, cur)}</b>`,
+    `إجمالي الدين عليه الآن: <b>${money(newDebt, cur)}</b>`,
+    e.notes ? `📝 ${esc(e.notes)}` : '',
+    `🧾 رقم: <code>${esc(e.receiptNumber)}</code>`,
     !forCustomer && ctx.actor ? `🧑‍💼 المنفذ: ${esc(ctx.actor)}` : '',
   ].filter(Boolean).join('\n');
 }
