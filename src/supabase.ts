@@ -12,26 +12,40 @@ export const supabaseAnonKey: string =
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+/** آخر خطأ حقيقي من السحابة (لعرض السبب بدل رسالة عامة) */
+export let lastCloudError = '';
+const isTransientErr = (e: any) => /57014|statement timeout|timeout|timed out|fetch|network|502|503|504/i.test(`${e?.code || ''} ${e?.message || ''}`);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 // دالة لجلب وثيقة محددة من السحابة (تُرجع null عند الخطأ أو عدم الوجود)
 export async function getDocument(collectionName: string, docId: string) {
   if (shopCloudBlocked(collectionName, docId)) return null; // حساب يلزمه سحابة خاصة ولم تُفعَّل: لا نقرأ من الرئيسية
-  try {
-    const { data, error } = await (shopClientFor(collectionName, docId) || supabase)
-      .from('documents')
-      .select('data')
-      .eq('collection', collectionName)
-      .eq('id', docId)
-      .maybeSingle();
+  const isShop = !!shopClientFor(collectionName, docId);
+  const tries = isShop ? 3 : 1; // سحابة المحل المستقلة: إعادة المحاولة عند انتهاء المهلة/انقطاع عابر
+  for (let i = 0; i < tries; i++) {
+    try {
+      const { data, error } = await (shopClientFor(collectionName, docId) || supabase)
+        .from('documents')
+        .select('data')
+        .eq('collection', collectionName)
+        .eq('id', docId)
+        .maybeSingle();
 
-    if (error) {
-      console.error(`Error fetching ${collectionName}/${docId}:`, error);
+      if (error) {
+        console.error(`Error fetching ${collectionName}/${docId}:`, error);
+        lastCloudError = error.message || String(error);
+        if (i < tries - 1 && isTransientErr(error)) { await sleep(1500 * (i + 1)); continue; }
+        return null;
+      }
+      return data ? data.data : null;
+    } catch (err: any) {
+      console.error('Network error fetching document:', err);
+      lastCloudError = err?.message || String(err);
+      if (i < tries - 1 && isTransientErr(err)) { await sleep(1500 * (i + 1)); continue; }
       return null;
     }
-    return data ? data.data : null;
-  } catch (err) {
-    console.error('Network error fetching document:', err);
-    return null;
   }
+  return null;
 }
 
 // نسخة صارمة: ترمي خطأ عند فشل الاتصال، لتمييز "غير موجود" عن "تعذر الاتصال" (مهم لتسجيل الدخول)
@@ -56,24 +70,33 @@ export async function getMainDocument(collectionName: string, docId: string) {
 // دالة لحفظ أو تحديث وثيقة في السحابة
 export async function setDocument(collectionName: string, docId: string, docData: any) {
   if (shopCloudBlocked(collectionName, docId)) throw new Error('shop_cloud_required'); // لا كتابة على الرئيسية لحساب يلزمه سحابة خاصة
-  try {
-    const { error } = await (shopClientFor(collectionName, docId) || supabase)
-      .from('documents')
-      .upsert({
-        collection: collectionName,
-        id: docId,
-        data: docData,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'collection,id' });
+  const tries = shopClientFor(collectionName, docId) ? 3 : 1;
+  let last: any = null;
+  for (let i = 0; i < tries; i++) {
+    try {
+      const { error } = await (shopClientFor(collectionName, docId) || supabase)
+        .from('documents')
+        .upsert({
+          collection: collectionName,
+          id: docId,
+          data: docData,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'collection,id' });
 
-    if (error) {
-      console.error(`Error saving ${collectionName}/${docId}:`, error);
-      throw error;
+      if (error) {
+        console.error(`Error saving ${collectionName}/${docId}:`, error);
+        throw error;
+      }
+      lastCloudError = '';
+      return;
+    } catch (err: any) {
+      last = err;
+      lastCloudError = err?.message || String(err);
+      if (i < tries - 1 && isTransientErr(err)) { await sleep(2000 * (i + 1)); continue; }
+      break;
     }
-  } catch (err) {
-    console.error('Network error saving document:', err);
-    throw err;
   }
+  throw last;
 }
 
 // دالة الاستماع اللحظي للتعديلات
