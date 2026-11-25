@@ -5,6 +5,7 @@ import { useApp } from '../context/AppContext';
 import ReturnItemsModal from './ReturnItemsModal';
 import CustomerTelegramModal from './CustomerTelegramModal';
 import CustomerWhatsAppModal from './CustomerWhatsAppModal';
+import CustomerStatementPrint from './CustomerStatementPrint';
 import OverdueRemindersModal from './OverdueRemindersModal';
 import { Customer, Invoice, PaymentRecord } from '../types';
 import { 
@@ -72,6 +73,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
   const [telegramCustomer, setTelegramCustomer] = useState<Customer | null>(null);
   const [waCustomer, setWaCustomer] = useState<Customer | null>(null);
   const [isStatementOpen, setIsStatementOpen] = useState(false);
+  const [stmtPrintOpen, setStmtPrintOpen] = useState(false);
   const [returnInvoiceId, setReturnInvoiceId] = useState<string | null>(null);
   // فترة التصفية (تحدد قوائم ودفعات ومواد الزبون في كشف الحساب). فارغة = كل الفترة
   const [showOverdue, setShowOverdue] = useState(false);
@@ -583,6 +585,15 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
               </div>
 
               <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  data-testid="open-statement-print"
+                  onClick={() => setStmtPrintOpen(true)}
+                  className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  طباعة الكشف
+                </button>
                 <div className="bg-amber-100 px-3 py-1.5 rounded-lg border border-amber-300 text-right">
                   <div className="text-[10px] text-amber-900 font-bold">الدين الحالي المستحق</div>
                   <div className={`font-black text-sm ${selectedCustomer.totalDebt < 0 ? 'text-emerald-700' : 'text-amber-950'}`}>
@@ -879,6 +890,10 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ onViewInvoice }) =
 
           </div>
         </div>
+      )}
+
+      {stmtPrintOpen && selectedCustomer && (
+        <CustomerStatementPrint customer={selectedCustomer} initialFrom={periodFrom} initialTo={periodTo} onClose={() => setStmtPrintOpen(false)} />
       )}
 
       {/* Modal 2: Record Payment / Debt Settlement (تسجيل سند قبض وسداد دين) */}
