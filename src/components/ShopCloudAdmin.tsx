@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { updateClientAccount, getMainDocument } from '../supabase';
 import { makeShopClient, setShopCloudCfg, probeShopCloud } from '../utils/shopCloud';
 import { shopAdminCall, getAdminKey } from '../utils/shopCloudPush';
+import { deltaPush, deltaReset, ITEM_COLS } from '../utils/deltaSync';
 
 const counts = (d: any) => ({
   invoices: Array.isArray(d?.invoices) ? d.invoices.length : 0,
@@ -23,6 +24,8 @@ export default function ShopCloudAdmin({ client, onSaved }: { client: any; onSav
   const [busy, setBusy] = useState<string>('');
   const [msg, setMsg] = useState<Msg>(null);
   const [verified, setVerified] = useState(false);
+  const [delta, setDelta] = useState<boolean>(initial.delta === true);
+  const [deltaOk, setDeltaOk] = useState(false);
   const [token, setToken] = useState('');
   const uid: string = client.uid;
   const docId = `store_${uid}`;
@@ -59,7 +62,7 @@ export default function ShopCloudAdmin({ client, onSaved }: { client: any; onSav
           const pr = await probeShopCloud(url, key);
           if (!pr.ok) throw new Error(`لن أفعّل: المشروع غير مجهّز بعد (${pr.reason}). احفظ رمز الوصول ثم اضغط «رفع تعديلات السحابات» أولاً، وبعدها فعّل.`);
         }
-        await persist({ url: url.trim().replace(/\/+$/, ''), anonKey: key.trim(), enabled: nextEnabled });
+        await persist({ url: url.trim().replace(/\/+$/, ''), anonKey: key.trim(), enabled: nextEnabled, ...(delta ? { delta: true } : {}) });
         setEnabled(nextEnabled);
         setMsg({ ok: true, text: nextEnabled ? 'فُعّلت السحابة المستقلة لهذا المحل ✅ (تعمل على أجهزته عند فتح البرنامج أو إعادة تشغيله).' : 'حُفظت البيانات (غير مفعّلة).' });
       }
@@ -85,6 +88,52 @@ export default function ShopCloudAdmin({ client, onSaved }: { client: any; onSav
       setVerified(true);
       setMsg({ ok: true, text: `نُقلت البيانات وتطابقت 100% ✅ (${fmtCounts(after)}). النسخة الأصلية ما زالت في السحابة الرئيسية. يمكنك الآن «حفظ وتفعيل».` });
     } catch (e: any) { setMsg({ ok: false, text: e?.message || 'فشل النقل' }); }
+    setBusy('');
+  };
+
+  /** ترحيل وثيقة المحل الحية (من سحابة المحل نفسها) إلى صفوف التغييرات، مع تحقق من تطابق الأعداد. لا يحذف الوثيقة الأصلية. */
+  const migrateDelta = async () => {
+    setBusy('dmig'); setMsg(null); setDeltaOk(false);
+    try {
+      const cl = makeShopClient(url, key);
+      if (!cl) throw new Error('أدخل الرابط والمفتاح أولاً.');
+      const chk = await cl.from('documents').select('seq').limit(1);
+      if (chk.error) throw new Error('قاعدة المحل لم تُجهَّز لنظام التغييرات بعد (التعديل 5 غير مطبَّق). اضغط «رفع تعديلات السحابات» أولاً.');
+      let back: any = null;
+      for (let i = 0; i < 3 && !back; i++) {
+        const r = await cl.from('documents').select('data').eq('collection', 'stores').eq('id', docId).maybeSingle();
+        if (!r.error) { back = r; break; }
+        if (i === 2) throw new Error(`تعذرت قراءة وثيقة المحل من سحابته: ${r.error.message}`);
+        await new Promise((res) => setTimeout(res, 2000 * (i + 1)));
+      }
+      const src: any = back?.data?.data;
+      if (!src) throw new Error('لا توجد وثيقة للمحل في سحابته الخاصة (لا شيء لترحيله).');
+      const before = counts(src);
+      deltaReset(docId);
+      const pushed = await deltaPush(cl, docId, src);
+      deltaReset(docId);
+      const got: Record<string, number> = {};
+      for (const c of ITEM_COLS) {
+        const r = await cl.from('documents').select('id', { count: 'exact', head: true }).eq('collection', `r_${c}`);
+        if (r.error) throw new Error(`فشل التحقق: ${r.error.message}`);
+        got[c] = r.count || 0;
+      }
+      const bad = ITEM_COLS.filter((c) => (got as any)[c] !== (before as any)[c]);
+      if (bad.length) throw new Error(`عدم تطابق بعد الترحيل في: ${bad.join('، ')} — الأصل ${fmtCounts(before)} / الجديد ${got.invoices} فاتورة · ${got.products} مادة. لا تفعّل.`);
+      setDeltaOk(true);
+      setMsg({ ok: true, text: `رُحِّلت البيانات إلى نظام التغييرات وتطابقت الأعداد ✅ (${fmtCounts(before)}، ${pushed} سجلاً). الوثيقة الأصلية باقية دون تغيير. يمكنك الآن «تفعيل المزامنة بالتغييرات».` });
+    } catch (e: any) { setMsg({ ok: false, text: e?.message || 'فشل الترحيل' }); }
+    setBusy('');
+  };
+
+  const setDeltaMode = async (on: boolean) => {
+    setBusy('dset'); setMsg(null);
+    try {
+      if (!enabled) throw new Error('فعّل السحابة المستقلة للمحل أولاً.');
+      await persist({ url: url.trim().replace(/\/+$/, ''), anonKey: key.trim(), enabled: true, ...(on ? { delta: true } : {}) });
+      setDelta(on);
+      setMsg({ ok: true, text: on ? 'فُعّلت المزامنة بالتغييرات ✅ (تعمل على أجهزة المحل عند إعادة فتح البرنامج؛ يجب أن تكون كلها على هذا الإصدار).' : 'أُوقفت المزامنة بالتغييرات، وعاد المحل للوثيقة الكاملة (قد تحتاج مزامنة لتحديثها).' });
+    } catch (e: any) { setMsg({ ok: false, text: e?.message || 'تعذر الحفظ' }); }
     setBusy('');
   };
 
@@ -123,6 +172,15 @@ export default function ShopCloudAdmin({ client, onSaved }: { client: any; onSav
           <button type="button" disabled={!!busy || token.trim().length < 20} onClick={() => saveToken(false)} data-testid="cloud-token-save" className="px-3 py-1.5 rounded-lg text-xs font-bold bg-sky-600 text-white cursor-pointer disabled:opacity-50">{busy === 'tok' ? '...' : 'حفظ الرمز'}</button>
           <button type="button" disabled={!!busy} onClick={() => saveToken(true)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 cursor-pointer disabled:opacity-50">حذف الرمز</button>
         </div>
+      </div>
+      <div className="pt-1 border-t border-sky-200 dark:border-sky-800 space-y-1.5">
+        <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300">⚡ المزامنة بالتغييرات (للمحلات الكبيرة): ترفع التعديل فقط بدل الوثيقة كلها. تحتاج «رفع تعديلات السحابات» (التعديل 5) ثم الترحيل ثم التفعيل. جميع أجهزة المحل يجب أن تكون على هذا الإصدار.</div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={!!busy || !enabled} onClick={migrateDelta} data-testid="cloud-delta-migrate" className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-white cursor-pointer disabled:opacity-50">{busy === 'dmig' ? 'جارٍ الترحيل…' : 'ترحيل إلى نظام التغييرات'}</button>
+          <button type="button" disabled={!!busy || !enabled || delta} onClick={() => setDeltaMode(true)} data-testid="cloud-delta-enable" className="px-3 py-1.5 rounded-lg text-xs font-black bg-emerald-600 text-white cursor-pointer disabled:opacity-50">تفعيل المزامنة بالتغييرات</button>
+          <button type="button" disabled={!!busy || !delta} onClick={() => setDeltaMode(false)} className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 cursor-pointer disabled:opacity-50">إيقاف التغييرات (العودة للوثيقة)</button>
+        </div>
+        <div className="text-[11px] font-bold">{delta ? <span className="text-emerald-700">المزامنة بالتغييرات: مفعّلة</span> : <span className="text-slate-500">المزامنة بالتغييرات: غير مفعّلة{deltaOk ? ' — الترحيل متحقَّق منه' : ''}</span>}</div>
       </div>
       {msg && <div className={`text-[11px] font-bold rounded-lg px-3 py-2 border break-words ${msg.ok ? 'text-emerald-800 bg-emerald-50 border-emerald-300' : 'text-rose-800 bg-rose-50 border-rose-300'}`}>{msg.text}</div>}
     </div>

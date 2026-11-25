@@ -6,7 +6,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  * أما الحسابات وكلمات المرور والكتالوج فتبقى في السحابة الرئيسية. منطق المزامنة والدمج لا يتغير إطلاقاً:
  * فقط وجهة القراءة/الكتابة تتغير.
  */
-export interface ShopCloudCfg { url: string; anonKey: string; enabled: boolean; }
+export interface ShopCloudCfg { url: string; anonKey: string; enabled: boolean; /** مزامنة بالتغييرات فقط (تحتاج تعديل قاعدة المحل 5) */ delta?: boolean; }
 
 const KEY = 'mufakir_shop_cloud_v1';
 type CfgMap = Record<string, ShopCloudCfg>;
@@ -21,7 +21,7 @@ const clean = (c: any): ShopCloudCfg | null => {
   const url = String(c.url || '').trim().replace(/\/+$/, '');
   const anonKey = String(c.anonKey || '').trim();
   if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url) || anonKey.length < 20) return null;
-  return { url, anonKey, enabled: c.enabled === true };
+  return c.delta === true ? { url, anonKey, enabled: c.enabled === true, delta: true } : { url, anonKey, enabled: c.enabled === true };
 };
 
 // حسابات تُلزِم سحابة خاصة (كل حساب جديد): لا يُسمح لها بالتعامل مع وثيقة المحل في السحابة الرئيسية إطلاقاً
@@ -42,6 +42,13 @@ export function shopCloudBlocked(collection: string, docId: string): boolean {
   if (!required[uid]) return false;
   const c = cfgs[uid];
   return !c || !c.enabled;
+}
+
+/** هل مزامنة التغييرات فقط مفعّلة لهذه الوثيقة؟ (للمحلات ذات السحابة المستقلة المفعّلة فقط) */
+export function shopDeltaFor(collection: string, docId: string): SupabaseClient | null {
+  if (collection !== 'stores' || !docId.startsWith('store_')) return null;
+  const c = cfgs[docId.slice(6)];
+  return c && c.enabled && c.delta === true ? shopClientFor(collection, docId) : null;
 }
 
 export function getShopCloudCfg(uid: string): ShopCloudCfg | null { return cfgs[uid] || null; }
