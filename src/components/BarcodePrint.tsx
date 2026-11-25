@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Printer, Plus, Trash2, X, Minus, FileStack } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
-import { barcodeSheet, buildSheetHtml, printLabels, printSheet, useBarcodeSheet } from '../utils/barcodeSheet';
+import { barcodeSheet, buildSheetHtml, printLabels, printSheet, useBarcodeSheet, labelOptsFromSettings } from '../utils/barcodeSheet';
 
 /** قائمة كليك يمين على مادة في المخزن: طباعة باركود / إضافة لورقة الباركودات المجمّعة */
 export function ProductBarcodeMenu({ x, y, product, onClose }: { x: number; y: number; product: Product; onClose: () => void }) {
@@ -12,7 +12,7 @@ export function ProductBarcodeMenu({ x, y, product, onClose }: { x: number; y: n
   const [askCount, setAskCount] = useState(false);
   const [count, setCount] = useState<number>(Math.max(1, Number(settings?.barcodePrintCount) || 1));
   const code = product.code || '';
-  const size = { w: Number(settings?.barcodeLabelW) || 50, h: Number(settings?.barcodeLabelH) || 30 };
+  const size = labelOptsFromSettings(settings);
   const mode: 'ask' | 'one' | 'fixed' = settings?.barcodePrintMode || 'ask';
 
   useEffect(() => {
@@ -25,7 +25,7 @@ export function ProductBarcodeMenu({ x, y, product, onClose }: { x: number; y: n
   const left = Math.min(x, window.innerWidth - 250);
   const top = Math.min(y, window.innerHeight - 190);
 
-  const doPrint = (n: number) => { printLabels(product.name, code, n, size); onClose(); };
+  const doPrint = (n: number) => { printLabels(product.name, code, n, size, settings?.barcodePrinter || undefined); onClose(); };
   const onPrintClick = () => {
     if (!code) return;
     if (mode === 'one') doPrint(1);
