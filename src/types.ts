@@ -175,6 +175,7 @@ export type TelegramEventKey =
   | 'invoiceSold'
   | 'creditSale'
   | 'debtPayment'
+  | 'manualDebt'
   | 'invoiceDeleted'
   | 'invoiceReturnedFull'
   | 'invoiceReturnedPartial'

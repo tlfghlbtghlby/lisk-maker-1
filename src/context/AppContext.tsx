@@ -44,7 +44,7 @@ import { broadcastSync, subscribeSync, SyncMessage } from '../utils/syncChannel'
 import pkg from '../../package.json';
 import type { TelegramEventKey, StockLogEntry } from '../types';
 import {
-  tgNotify, formatDebtReminder, formatInvoice, formatPayment, formatReturnFull, formatReturnPartial, formatDeletedInvoice,
+  tgNotify, formatDebtReminder, formatInvoice, formatPayment, formatManualDebt, formatReturnFull, formatReturnPartial, formatDeletedInvoice,
   formatProductEvent, diffProduct, formatSimple, esc as tgEsc, FmtCtx,
 } from '../utils/telegram';
 import { generateStoreSecret, getStoreCode, computeInvoiceSeal } from '../utils/invoiceSeal';
@@ -3244,6 +3244,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     saveStoreToCloud({ customers: updatedCustomers });
     broadcastSyncEvent('CUSTOMERS_UPDATED', { customers: updatedCustomers }, currentSessionId, currentUser?.uid);
     updateSettings({ customerDebtEntries: [entry, ...((stateRef.current.settings?.customerDebtEntries as CustomerDebtEntry[]) || [])] });
+    // إشعارات الدين اليدوي: واتساب (للزبون الذي فعّل له الخيار) + تليجرام (للمحل وللزبون إن كان مربوطاً)
+    const newDebtAfter = (Number(cust.totalDebt) || 0) + amt;
+    try {
+      window.dispatchEvent(new CustomEvent('wa-debt', { detail: { customerId, kind: 'manual', amount: amt, newDebt: newDebtAfter, notes: entry.notes } }));
+    } catch {}
+    emitTelegram('manualDebt', ctx => ({
+      store: formatManualDebt(entry, newDebtAfter, ctx),
+      customerId,
+      customer: formatManualDebt(entry, newDebtAfter, ctx, true),
+    }));
     return entry;
   };
 

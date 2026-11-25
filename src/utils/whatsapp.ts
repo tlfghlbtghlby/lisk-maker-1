@@ -32,6 +32,7 @@ export interface DebtEvent {
   extraPaid?: number;
   invoice?: any;
   prevDebt?: number;
+  notes?: string;
 }
 
 const curName = (c: string) => (/^(د\.?\s?ع\.?|iqd)$/i.test((c || '').trim()) || !c ? 'دينار عراقي' : c);
@@ -46,6 +47,7 @@ export function buildDebtMessage(c: Customer, ev: DebtEvent, storeName: string, 
     if (ev.paid) body += `\nالمسدد: ${fmt(ev.paid)} ${cur}.`;
     if (ev.extraPaid) body += `\nزيادة مسددة خُصمت من الدين القديم: ${fmt(ev.extraPaid)} ${cur}.`;
   } else if (ev.kind === 'notice') body = 'نذكّركم بحسابكم لدينا.';
+  else if (ev.kind === 'manual') body = `تمت إضافة دين على حسابكم بقيمة ${fmt(ev.amount)} ${cur}${ev.notes ? `\nالبيان: ${ev.notes}` : ''}.`;
   else body = `تم تسجيل حركة على حسابكم بقيمة ${fmt(ev.amount)} ${cur}.`;
   const debtLine = ev.newDebt > 0
     ? `إجمالي الدين: ${fmt(ev.newDebt)} ${cur}.`
