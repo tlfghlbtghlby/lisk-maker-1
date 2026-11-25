@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { ADMIN_EMAIL } from './types';
-import { shopClientFor, shopCloudBlocked, setShopCloudRequired, setShopCloudCfg } from './utils/shopCloud';
+import { shopClientFor, shopDeltaFor, shopCloudBlocked, setShopCloudRequired, setShopCloudCfg } from './utils/shopCloud';
+import { deltaPull, deltaPush } from './utils/deltaSync';
 import { hashPassword, verifyPassword, isPasswordHash } from './utils/passwordHash';
 
 // يمكن تغيير الإعدادات عبر ملف .env (VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY) دون تعديل الكود.
@@ -21,6 +22,21 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export async function getDocument(collectionName: string, docId: string) {
   if (shopCloudBlocked(collectionName, docId)) return null; // حساب يلزمه سحابة خاصة ولم تُفعَّل: لا نقرأ من الرئيسية
   const isShop = !!shopClientFor(collectionName, docId);
+  const dcl = shopDeltaFor(collectionName, docId);
+  if (dcl) {
+    // مزامنة بالتغييرات فقط: وثيقة جزئية بما تغيّر منذ آخر مؤشر (أو null قبل ترحيل المحل ليعمل المسار القديم)
+    for (let i = 0; i < 3; i++) {
+      try {
+        const r = await deltaPull(dcl, docId);
+        if (!r.empty) { lastCloudError = ''; return r.doc; }
+        break; // لا صفوف بعد: نقرأ الوثيقة القديمة أدناه (قبل الترحيل)
+      } catch (err: any) {
+        lastCloudError = err?.message || String(err);
+        if (i < 2 && isTransientErr(err)) { await sleep(1500 * (i + 1)); continue; }
+        return null;
+      }
+    }
+  }
   const tries = isShop ? 3 : 1; // سحابة المحل المستقلة: إعادة المحاولة عند انتهاء المهلة/انقطاع عابر
   for (let i = 0; i < tries; i++) {
     try {
@@ -71,9 +87,11 @@ export async function getMainDocument(collectionName: string, docId: string) {
 export async function setDocument(collectionName: string, docId: string, docData: any) {
   if (shopCloudBlocked(collectionName, docId)) throw new Error('shop_cloud_required'); // لا كتابة على الرئيسية لحساب يلزمه سحابة خاصة
   const tries = shopClientFor(collectionName, docId) ? 3 : 1;
+  const dclW = shopDeltaFor(collectionName, docId);
   let last: any = null;
   for (let i = 0; i < tries; i++) {
     try {
+      if (dclW) { await deltaPush(dclW, docId, docData); lastCloudError = ''; return; }
       const { error } = await (shopClientFor(collectionName, docId) || supabase)
         .from('documents')
         .upsert({
@@ -103,6 +121,31 @@ export async function setDocument(collectionName: string, docId: string, docData
 export function subscribeToDocument(collectionName: string, docId: string, callback: (data: any) => void) {
   if (shopCloudBlocked(collectionName, docId)) return { unsubscribe: () => {} };
   const client = shopClientFor(collectionName, docId) || supabase;
+  if (shopDeltaFor(collectionName, docId)) {
+    // مزامنة التغييرات: إشعار لحظي بأي صف جديد ثم نجلب الجديد فقط، مع استطلاع احتياطي كل دقيقة
+    let timer: any = null;
+    let busy = false;
+    let stopped = false;
+    const pull = async () => {
+      if (busy || stopped) return;
+      busy = true;
+      try {
+        const r = await deltaPull(client, docId);
+        if (r.doc && r.changed && !stopped) callback(r.doc);
+      } catch (e) { console.warn('delta pull failed:', e); }
+      busy = false;
+    };
+    const kick = () => { clearTimeout(timer); timer = setTimeout(pull, 400); };
+    const ch = client
+      .channel(`realtime:delta:${docId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'documents' }, (p: any) => {
+        const c = p?.new?.collection;
+        if (typeof c === 'string' && c.startsWith('r_')) kick();
+      })
+      .subscribe();
+    const poll = setInterval(pull, 60000);
+    return { unsubscribe: () => { stopped = true; clearTimeout(timer); clearInterval(poll); client.removeChannel(ch); } };
+  }
   const channel = client
     .channel(`realtime:${collectionName}:${docId}`)
     .on(
@@ -277,7 +320,7 @@ export interface UpdateClientInput {
   enableWholesalePrice?: boolean;
   enableSpecialPrice?: boolean;
   /** سحابة المحل المستقلة (url/anonKey/enabled). يضبطها المدير فقط */
-  cloud?: { url: string; anonKey: string; enabled: boolean } | null;
+  cloud?: { url: string; anonKey: string; enabled: boolean; delta?: boolean } | null;
 }
 
 async function loadAllRawAccounts(): Promise<any[]> {
