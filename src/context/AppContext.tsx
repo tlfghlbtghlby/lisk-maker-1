@@ -1664,6 +1664,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }>;
   }>({ timer: null, override: {} });
 
+  const uploadFailedRef = useRef('');
+
   const saveStoreToCloud = async (
     overridePartial?: Partial<{
       products: Product[];
@@ -1685,6 +1687,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const executeUpload = async () => {
       if (!currentUser?.uid) return;
+      uploadFailedRef.current = '';
       const merged = { ...pendingCloudSyncRef.current.override };
       pendingCloudSyncRef.current.override = {};
 
@@ -1739,6 +1742,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (err) {
         console.warn('Background save notice:', err);
         setIsCloudConnected(false); // فشل الحفظ في السحابة: أظهر ذلك بدل أن تبدو المبيعات محفوظة
+        uploadFailedRef.current = String((err as any)?.message || err || 'خطأ غير معروف');
       }
     };
 
@@ -1785,6 +1789,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await saveStoreToCloud(undefined, true);
       } else {
         await saveStoreToCloud(undefined, true);
+      }
+      if (uploadFailedRef.current) {
+        const why = uploadFailedRef.current;
+        setIsCloudConnected(false);
+        setSyncNotice(`⚠️ فشل رفع التغييرات إلى السحابة: ${/57014|statement timeout/i.test(why) ? 'انتهت مهلة قاعدة بيانات المحل (البيانات كبيرة) — اطلب من الإدارة «رفع تعديلات السحابات»' : why}`);
+        setTimeout(() => setSyncNotice(null), 9000);
+        return;
       }
       setIsCloudConnected(true);
       setLastSyncTime(new Date().toLocaleTimeString('ar-IQ'));
