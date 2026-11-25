@@ -509,6 +509,7 @@ ipcMain.handle('get-hotspot-url', () => {
 });
 
 const handlePrint = async (event, options = {}) => {
+  // customPageMm يصل من الواجهة بصيغة {w,h}
   return new Promise(async (resolve) => {
     try {
       const isA4 = options.pageSize === 'A4';
@@ -522,6 +523,14 @@ const handlePrint = async (event, options = {}) => {
         margins: { marginType: 'default' },
         pageSize: isA4 ? 'A4' : { width: 72000, height: options.heightMicrons || 80000 },
       };
+      // ملصقات الباركود: مقاس ورق مخصص دقيق (مم → ميكرون) وبلا هوامش
+      if (options.customPageMm && options.customPageMm.w > 0 && options.customPageMm.h > 0) {
+        printOptions.pageSize = {
+          width: Math.round(options.customPageMm.w * 1000),
+          height: Math.round(options.customPageMm.h * 1000),
+        };
+        printOptions.margins = { marginType: 'none' };
+      }
 
       win.webContents.print(printOptions, (success, failureReason) => {
         resolve(success);

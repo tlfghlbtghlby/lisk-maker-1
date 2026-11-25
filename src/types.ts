@@ -721,6 +721,17 @@ export interface StoreSettings {
   /** مقاس الملصق بالملّيمتر (الافتراضي 50×30) */
   barcodeLabelW?: number;
   barcodeLabelH?: number;
+  /** label: ورق ليبل جاهز (ملصق لكل صفحة) | roll: ورق متصل/طابعة فواتير (فراغ وخط قص بين الملصقات) */
+  barcodePaperMode?: 'label' | 'roll';
+  barcodeRollW?: number;
+  barcodeGap?: number;
+  barcodeRotate?: boolean;
+  barcodeOffsetX?: number;
+  barcodeOffsetY?: number;
+  barcodeShowName?: boolean;
+  barcodeShowNumber?: boolean;
+  /** اسم طابعة الملصقات للطباعة المباشرة (إلكترون) — فارغ = نافذة الطباعة */
+  barcodePrinter?: string;
   /** في وضع زرّي «نقد/آجل»: إجراء كل زر — حفظ وطباعة أو حفظ فقط */
   cashSaleAction?: 'print' | 'save';
   creditSaleAction?: 'print' | 'save';
