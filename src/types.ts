@@ -700,6 +700,8 @@ export interface StoreSettings {
   autoContrast?: boolean;
   /** الوضع العصري: تنسيق شامل للواجهات (طبقة CSS) */
   modernMode?: boolean;
+  /** وضع سطح المكتب (الوضع الثالث): قائمة جانبية ومربعات داكنة وجداول بترويسة صفراء */
+  deskMode?: boolean;
   /** زر «بيع آجل» السريع في واجهة البيع: يختار زبوناً ويحفظ القائمة آجلاً مباشرة */
   quickCreditButton?: boolean;
   /** اختصارات وضع زرّي النقد/الآجل: الإجراء عند Enter وعند Ctrl+Enter */

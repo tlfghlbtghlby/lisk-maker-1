@@ -8,6 +8,7 @@ import ModernDock from './components/ModernDock';
 import { TelegramBackupRunner } from './components/TelegramBackup';
 import { LocalBackupRunner } from './components/LocalBackup';
 import { isModernMode, useModernMode } from './utils/modernMode';
+import { isDeskMode, useDeskMode } from './utils/uiMode';
 import CatalogContributor from './components/CatalogContributor';
 import { POSView } from './components/POSView';
 import { InventoryView } from './components/InventoryView';
@@ -82,10 +83,11 @@ const MainContent: React.FC = () => {
         if (hash.includes('pos') || openRoute === 'pos') return 'pos';
       }
     }
-    return isModernMode() ? 'home' : 'pos'; // الافتراضي للنافذة الكاملة (الرئيسية في الوضع العصري)
+    return (isModernMode() || isDeskMode()) ? 'home' : 'pos'; // الافتراضي للنافذة الكاملة (الرئيسية في الوضع العصري)
   });
   const modern = useModernMode();
-  useEffect(() => { if (!modern && activeTab === 'home') setActiveTab('pos'); }, [modern, activeTab]);
+  const desk = useDeskMode();
+  useEffect(() => { if (!modern && !desk && activeTab === 'home') setActiveTab('pos'); }, [modern, desk, activeTab]);
   // اتجاه انتقال الشاشات في الوضع العصري: الدخول من الأسفل للأعلى، والخروج بنزول الشاشة للأسفل
   const prevTabRef = useRef(activeTab);
   const navDirRef = useRef<'up' | 'down'>('up');
@@ -202,6 +204,7 @@ const MainContent: React.FC = () => {
 
   const isMobile = settings.deviceMode === 'mobile';
   const isFullComputerMode = !isMobile && (settings.desktopLayout === 'full');
+  const deskShell = desk && !isStandaloneWindow && !isFullComputerMode;
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
@@ -335,9 +338,15 @@ const MainContent: React.FC = () => {
       )}
 
       {/* 2. شريط التبويبات العلوي (يختفي تماماً في أي نافذة منفصلة لأي خانة) */}
-      {!isStandaloneWindow && !isFullComputerMode && !modern && (
+      {!isStandaloneWindow && !isFullComputerMode && !modern && !desk && (
         <Navigation activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
       )}
+      {/* وضع سطح المكتب: قائمة جانبية بدل التبويبات العلوية؛ خارجه يكون الغلاف شفافاً (display: contents) فلا يتغير أي تخطيط */}
+      <div className={deskShell ? 'desk-body' : 'contents'}>
+      {deskShell && (
+        <Navigation variant="sidebar" activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
+      )}
+      <div className={deskShell ? 'desk-col' : 'contents'}>
 
       {/* شريط الشفت والجلسة: يظهر في كل الخانات (وليس البيع فقط) للنافذة المنفصلة وللموظف العادي */}
       {storeFeatures?.enableShifts !== false && (isStandaloneWindow || !hasPermission('canManageShifts')) && (
@@ -495,8 +504,8 @@ const MainContent: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'home' && modern && (
-          <ModernHome onSelectTab={(tab) => setActiveTab(tab)} />
+        {activeTab === 'home' && (modern || desk) && (
+          <ModernHome variant={desk ? 'desk' : undefined} onSelectTab={(tab) => setActiveTab(tab)} />
         )}
 
         {activeTab === 'pos' && (
@@ -555,6 +564,8 @@ const MainContent: React.FC = () => {
           <SettingsView initialTab={settingsInitialTab} onSaved={() => setActiveTab('pos')} />
         )}
       </main>
+      </div>
+      </div>
 
       {!isStandaloneWindow && <TelegramBackupRunner />}
       {!isStandaloneWindow && <LocalBackupRunner />}

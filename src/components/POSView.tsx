@@ -3140,7 +3140,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 </div>
               )}
 
-              <div className="flex-1 overflow-y-auto p-2 space-y-1.5 min-h-[90px] scrollbar-thin">
+              <div className="flex-1 overflow-y-auto p-2 space-y-1.5 min-h-[90px] scrollbar-thin desk-cart-list">
                 {listMode ? (
                   renderClassicTable(true)
                 ) : cartItems.length === 0 ? (
@@ -3483,7 +3483,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 )}
               </div>
 
-              <div className="p-2 sm:p-2.5 bg-slate-50 border-t border-slate-200 flex flex-col gap-1.5 shrink-0 text-right">
+              <div className="p-2 sm:p-2.5 bg-slate-50 border-t border-slate-200 flex flex-col gap-1.5 shrink-0 text-right desk-cart-foot">
                 {promoResult.notes.length > 0 && (
                   <div className="rounded-lg border border-fuchsia-300 bg-fuchsia-50 px-2 py-1 text-[11px] text-fuchsia-900 space-y-0.5">
                     <div className="font-black">🏷️ عروض وخصومات مطبقة</div>

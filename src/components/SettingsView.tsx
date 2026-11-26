@@ -88,7 +88,7 @@ import ExpensesSettingsCard from './ExpensesSettingsCard';
 import DefaultCartonSetting from './DefaultCartonSetting';
 import AutoContrastToggle from './AutoContrastToggle';
 import PremiumButtonsToggle from './PremiumButtonsToggle';
-import ModernModeToggle from './ModernModeToggle';
+import UiModeSelector from './UiModeSelector';
 import QuickCreditSetting from './QuickCreditSetting';
 import ViewOptionsSetting from './ViewOptionsSetting';
 import BarcodeSetting from './BarcodeSetting';
@@ -1337,7 +1337,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
-          <ModernModeToggle />
+          <UiModeSelector />
           <AutoContrastToggle />
           <PremiumButtonsToggle />
           <ThemeCustomizer />
