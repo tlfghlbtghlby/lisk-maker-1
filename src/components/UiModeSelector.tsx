@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { getUiMode, setUiMode, type UiMode } from '../utils/uiMode';
+import { deskModeSupported, getUiMode, setUiMode, type UiMode } from '../utils/uiMode';
 
 const OPTS: { id: UiMode; title: string; desc: string }[] = [
   { id: 'classic', title: 'اعتيادي', desc: 'الشكل المعتاد للبرنامج.' },
@@ -14,7 +14,8 @@ export default function UiModeSelector() {
   const pick = (m: UiMode) => {
     setMode(m);
     setUiMode(m);
-    updateSettings({ modernMode: m === 'modern', deskMode: m === 'desk' });
+    // على الأندرويد لا نلمس deskMode كي لا نغيّر إعداد أجهزة الويندوز المتزامنة
+    updateSettings(deskModeSupported ? { modernMode: m === 'modern', deskMode: m === 'desk' } : { modernMode: m === 'modern' });
   };
   return (
     <div data-testid="ui-mode" className="p-4 rounded-xl border border-orange-200 dark:border-orange-400/30 bg-gradient-to-l from-orange-50 to-amber-50 dark:from-orange-500/10 dark:to-amber-500/5">
@@ -23,7 +24,7 @@ export default function UiModeSelector() {
         يغيّر شكل كل الواجهات فوراً دون أن يمسّ بياناتك. يُحفظ لهذا الجهاز، ويمكنك الرجوع لأي وضع في أي وقت.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        {OPTS.map((o) => (
+        {OPTS.filter((o) => o.id !== 'desk' || deskModeSupported).map((o) => (
           <button
             key={o.id}
             type="button"

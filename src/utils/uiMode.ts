@@ -3,12 +3,17 @@
 // الأوضاع الثلاثة متنافية: تفعيل أحدها يُطفئ الآخرين، والاعتيادي هو الافتراضي.
 import { useEffect, useState } from 'react';
 import { isModernMode, setModernMode } from './modernMode';
+import { isAndroidNative } from './platform';
 
 export const DESK_LS_KEY = 'mufakir_desk';
 export type UiMode = 'classic' | 'modern' | 'desk';
 const EVT = 'mufakir-desk-change';
 
+/** وضع سطح المكتب للويندوز/الويب فقط؛ تطبيق الأندرويد له واجهته ولا يتأثر به إطلاقاً. */
+export const deskModeSupported: boolean = !isAndroidNative;
+
 export function isDeskMode(): boolean {
+  if (!deskModeSupported) return false;
   try { return localStorage.getItem(DESK_LS_KEY) === '1'; } catch { return false; }
 }
 
@@ -19,6 +24,7 @@ export function getUiMode(): UiMode {
 
 /** يضبط الوضع ويطفئ غيره. الوضع العصري يبقى بمفتاحه القديم كي لا يتأثر أي جهاز محدَّث لاحقاً. */
 export function setUiMode(mode: UiMode): void {
+  if (mode === 'desk' && !deskModeSupported) return;
   try { localStorage.setItem(DESK_LS_KEY, mode === 'desk' ? '1' : '0'); } catch { /* ignore */ }
   if (typeof document !== 'undefined') document.documentElement.classList.toggle('desk', mode === 'desk');
   setModernMode(mode === 'modern');
