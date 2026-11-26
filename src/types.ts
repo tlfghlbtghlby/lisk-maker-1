@@ -590,6 +590,8 @@ export interface StoreSettings {
   invoiceTotalsLayout?: { order: string[]; hidden: string[] };
   printFormat: PrintFormatType;
   invoiceTemplate?: InvoiceTemplateType;
+  /** تصميم «ورقة الكاشير» للطباعة الحرارية فقط (A4/A5 لا تتأثر) */
+  thermalCashierSheet?: boolean;
   modernHeader?: ModernInvoiceHeaderConfig;
   directPrintEnabled?: boolean;
   selectedPrinterName?: string;

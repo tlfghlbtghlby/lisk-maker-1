@@ -41,19 +41,19 @@ const StarburstSeal: React.FC<{ text: string }> = ({ text }) => (
 export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, onClose }) => {
   const { settings, hasPermission, featureOn, openInvoiceEditor, invoices: allInvoices, requestApproval, clearApprovalGrant, shifts } = useApp();
   const modernAllowed = featureOn('enableModernDesign');
-  const [activeTemplateRaw, setActiveTemplate] = useState<'classic' | 'modern' | 'cashier'>(
-    settings.invoiceTemplate || 'modern'
-  );
-  // عند إلغاء الطباعة العصرية من مالك البرنامج تُفرض الكلاسيكية (قالب ورقة الكاشير مستقل عنها)
-  const activeTemplate: 'classic' | 'modern' | 'cashier' =
-    activeTemplateRaw === 'cashier' ? 'cashier' : modernAllowed ? activeTemplateRaw : 'classic';
-  const isCashier = activeTemplate === 'cashier';
+  // قديماً كانت القيمة 'cashier' تُحفظ كقالب؛ الآن «ورقة الكاشير» خيار مستقل للورق الحراري فقط، وA4/A5 تبقيان كما كانتا
+  const normTpl = (t: any): 'classic' | 'modern' => (t === 'classic' ? 'classic' : 'modern');
+  const [activeTemplateRaw, setActiveTemplate] = useState<'classic' | 'modern'>(normTpl(settings.invoiceTemplate));
+  const [cashierOn, setCashierOn] = useState<boolean>(settings.thermalCashierSheet === true || (settings.invoiceTemplate as any) === 'cashier');
+  // عند إلغاء الطباعة العصرية من مالك البرنامج تُفرض الكلاسيكية
+  const activeTemplate: 'classic' | 'modern' = modernAllowed ? activeTemplateRaw : 'classic';
 
   useEffect(() => {
     if (settings.invoiceTemplate) {
-      setActiveTemplate(settings.invoiceTemplate);
+      setActiveTemplate(normTpl(settings.invoiceTemplate));
     }
-  }, [settings.invoiceTemplate]);
+    setCashierOn(settings.thermalCashierSheet === true || (settings.invoiceTemplate as any) === 'cashier');
+  }, [settings.invoiceTemplate, settings.thermalCashierSheet]);
 
   const [printLayout, setPrintLayout] = useState<'a4' | 'a5' | 'thermal80' | 'thermal58'>(
     settings.printFormat === 'thermal58'
@@ -73,6 +73,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
 
   const isThermal = printLayout === 'thermal80' || printLayout === 'thermal58';
   const is58mm = printLayout === 'thermal58';
+  const isCashier = cashierOn && isThermal; // ورقة الكاشير: للورق الحراري فقط
 
   const displayedItems = useMemo(() => {
     if (!invoice?.items) return [];
@@ -585,19 +586,25 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                   <span>عصري ملون</span>
                 </button>
                 )}
-                <button
-                  type="button"
-                  data-testid="tpl-cashier"
-                  onClick={() => setActiveTemplate('cashier')}
-                  className={`px-2 py-1 rounded-md transition cursor-pointer flex items-center gap-1 ${
-                    activeTemplate === 'cashier' ? 'bg-black text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Receipt className="w-3 h-3" />
-                  <span>ورقة الكاشير</span>
-                </button>
               </div>
             </div>
+
+            {isThermal && (
+            <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2.5 sm:mr-1">
+              <button
+                type="button"
+                data-testid="tpl-cashier"
+                onClick={() => setCashierOn((v) => !v)}
+                className={`px-2 py-1 rounded-md transition cursor-pointer flex items-center gap-1 text-xs font-bold ${
+                  cashierOn ? 'bg-black text-white shadow-xs' : 'bg-slate-200 text-slate-600 hover:text-slate-900'
+                }`}
+                title="تصميم ورقة الكاشير للطابعة الحرارية فقط"
+              >
+                <Receipt className="w-3 h-3" />
+                <span>ورقة الكاشير</span>
+              </button>
+            </div>
+            )}
 
             <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2.5 sm:mr-1">
               <label 
