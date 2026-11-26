@@ -38,6 +38,7 @@ import {
   Percent,
   Sliders,
   Sparkles,
+  Receipt,
   Zap,
   Printer,
   Users,
@@ -86,6 +87,7 @@ import ThemeCustomizer from './ThemeCustomizer';
 import ExpensesSettingsCard from './ExpensesSettingsCard';
 import DefaultCartonSetting from './DefaultCartonSetting';
 import AutoContrastToggle from './AutoContrastToggle';
+import PremiumButtonsToggle from './PremiumButtonsToggle';
 import ModernModeToggle from './ModernModeToggle';
 import QuickCreditSetting from './QuickCreditSetting';
 import ViewOptionsSetting from './ViewOptionsSetting';
@@ -632,7 +634,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         employeePermissions,
         supervisorPermissions,
       } : {}),
-      invoiceTemplate: featureOn('enableModernDesign') ? invoiceTemplate : 'classic',
+      invoiceTemplate: invoiceTemplate === 'cashier' ? 'cashier' : featureOn('enableModernDesign') ? invoiceTemplate : 'classic',
       modernHeader: modernHeaderConfig,
     } as any);
     // نافذة نجاح ثم العودة للنافذة الرئيسية دون أي أثر للحفظ في الإعدادات
@@ -1334,6 +1336,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
 
           <ModernModeToggle />
           <AutoContrastToggle />
+          <PremiumButtonsToggle />
           <ThemeCustomizer />
           <ExpensesSettingsCard />
           <DefaultCartonSetting />
@@ -1454,8 +1457,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 </div>
               </div>
 
-              {featureOn('enableModernDesign') && (
               <div className="inline-flex p-1 bg-slate-200/80 dark:bg-slate-800 rounded-xl border border-slate-300/80 dark:border-slate-700 text-xs font-bold">
+                {featureOn('enableModernDesign') && (
                 <button
                   type="button"
                   onClick={() => setInvoiceTemplate('modern')}
@@ -1467,6 +1470,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>التصميم العصري الملون</span>
+                </button>
+                )}
+                <button
+                  type="button"
+                  data-testid="settings-tpl-cashier"
+                  onClick={() => setInvoiceTemplate('cashier')}
+                  className={`px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
+                    invoiceTemplate === 'cashier'
+                      ? 'bg-black text-white shadow-xs'
+                      : 'text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  <Receipt className="w-3.5 h-3.5" />
+                  <span>ورقة الكاشير</span>
                 </button>
                 <button
                   type="button"
@@ -1481,7 +1498,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   <span>التصميم الكلاسيكي</span>
                 </button>
               </div>
-              )}
             </div>
 
             <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-indigo-200 dark:border-slate-700 space-y-3">

@@ -22,6 +22,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { PartialReturnModal } from './PartialReturnModal';
 import { ModernInvoiceHeader } from './ModernInvoiceHeader';
+import { CashierInvoiceHeader } from './CashierInvoiceHeader';
 
 interface InvoicePrintModalProps {
   invoice: Invoice | null;
@@ -38,13 +39,15 @@ const StarburstSeal: React.FC<{ text: string }> = ({ text }) => (
 );
 
 export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, onClose }) => {
-  const { settings, hasPermission, featureOn, openInvoiceEditor, invoices: allInvoices, requestApproval, clearApprovalGrant } = useApp();
+  const { settings, hasPermission, featureOn, openInvoiceEditor, invoices: allInvoices, requestApproval, clearApprovalGrant, shifts } = useApp();
   const modernAllowed = featureOn('enableModernDesign');
-  const [activeTemplateRaw, setActiveTemplate] = useState<'classic' | 'modern'>(
+  const [activeTemplateRaw, setActiveTemplate] = useState<'classic' | 'modern' | 'cashier'>(
     settings.invoiceTemplate || 'modern'
   );
-  // عند إلغاء الطباعة العصرية من مالك البرنامج تُفرض الكلاسيكية
-  const activeTemplate: 'classic' | 'modern' = modernAllowed ? activeTemplateRaw : 'classic';
+  // عند إلغاء الطباعة العصرية من مالك البرنامج تُفرض الكلاسيكية (قالب ورقة الكاشير مستقل عنها)
+  const activeTemplate: 'classic' | 'modern' | 'cashier' =
+    activeTemplateRaw === 'cashier' ? 'cashier' : modernAllowed ? activeTemplateRaw : 'classic';
+  const isCashier = activeTemplate === 'cashier';
 
   useEffect(() => {
     if (settings.invoiceTemplate) {
@@ -134,6 +137,10 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
   const minutes = String(dateObj.getMinutes()).padStart(2, '0');
   const seconds = String(dateObj.getSeconds()).padStart(2, '0');
   const timeFormatted = `${hours}:${minutes}:${seconds}`;
+  const accountantName = (() => {
+    const sh = invoice.shiftId ? (shifts || []).find((x: any) => x.id === invoice.shiftId) : null;
+    return (sh as any)?.openedBy?.name || (invoice as any).cashierName || '';
+  })();
 
   // اسم المندوب يظهر في القائمة إن وُجد، إلا إذا أُلغي إظهاره صراحةً عند البيع
   const repNameToShow =
@@ -554,7 +561,6 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
               </div>
             </div>
 
-            {modernAllowed && (
             <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2.5 sm:mr-1">
               <span className="text-xs font-bold text-slate-700">شكل القائمة:</span>
               <div className="flex items-center bg-slate-200 p-0.5 rounded-lg text-xs font-bold">
@@ -567,6 +573,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                 >
                   كلاسيكي
                 </button>
+                {modernAllowed && (
                 <button
                   type="button"
                   onClick={() => setActiveTemplate('modern')}
@@ -577,9 +584,20 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                   <Sparkles className="w-3 h-3 text-amber-300" />
                   <span>عصري ملون</span>
                 </button>
+                )}
+                <button
+                  type="button"
+                  data-testid="tpl-cashier"
+                  onClick={() => setActiveTemplate('cashier')}
+                  className={`px-2 py-1 rounded-md transition cursor-pointer flex items-center gap-1 ${
+                    activeTemplate === 'cashier' ? 'bg-black text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Receipt className="w-3 h-3" />
+                  <span>ورقة الكاشير</span>
+                </button>
               </div>
             </div>
-            )}
 
             <div className="flex items-center gap-1.5 border-r border-slate-300 pr-2.5 sm:mr-1">
               <label 
@@ -688,7 +706,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
           {paginatedPages.map((page, pageIdx) => (
             <div
               key={pageIdx}
-              className={`keep-light printable-invoice-page bg-white shadow-xl text-black transition-all box-border print:p-0 print:m-0 print:border-none print:shadow-none print:rounded-none print:w-full print:page-break-after-always ${
+              className={`keep-light printable-invoice-page ${isCashier ? 'tpl-cashier' : ''} bg-white shadow-xl text-black transition-all box-border print:p-0 print:m-0 print:border-none print:shadow-none print:rounded-none print:w-full print:page-break-after-always ${
                 is58mm
                   ? 'w-[200px] max-w-[200px] p-2 font-mono text-[9px]'
                   : printLayout === 'thermal80'
@@ -702,7 +720,22 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                 {/* ترويسة الصفحة الأولى فقط */}
                 {page.isFirst && (
                   <>
-                    {!isThermal ? (
+                    {isCashier ? (
+                      <CashierInvoiceHeader
+                        storeName={settings.storeName || 'المحل'}
+                        subtitle={settings.businessSubtitle}
+                        phone={settings.phone}
+                        date={dateFormatted}
+                        time={`${Number(hours) >= 12 ? 'PM' : 'AM'} ${String(Number(hours) % 12 || 12).padStart(2, '0')}:${minutes}`}
+                        invoiceNumber={String(invoice.invoiceNumber)}
+                        accountant={accountantName}
+                        customerName={invoice.customerName}
+                        repName={repNameToShow}
+                        seal={invoice.seal}
+                        pageLabel={!isThermal && paginatedPages.length > 1 ? `${pageIdx + 1} / ${paginatedPages.length}` : undefined}
+                        compact={is58mm}
+                      />
+                    ) : !isThermal ? (
                       activeTemplate === 'modern' ? (
                         <ModernInvoiceHeader
                           settings={settings}
@@ -735,6 +768,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                     )}
 
                     {/* شريط معلومات الفاتورة */}
+                    {!isCashier && (
                     <div className="border border-black rounded px-2 py-1 flex items-center justify-between text-[10px] sm:text-[10.5px] font-bold text-black flex-wrap gap-1">
                       <div><span>رقم القائمة: </span><span className="font-mono underline">{invoice.invoiceNumber}</span></div>
                       {invoice.seal && (
@@ -754,6 +788,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                         </div>
                       )}
                     </div>
+                    )}
                   </>
                 )}
 
@@ -768,7 +803,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                 )}
 
                 {/* جدول المواد */}
-                <div className="border border-black rounded overflow-hidden">
+                <div className={`border border-black rounded overflow-hidden ${isCashier ? 'cashier-table' : ''}`}>
                   <table className="w-full text-right border-collapse text-[10px] sm:text-[10.5px]">
                     <thead>
                       <tr className="bg-slate-100 border-b border-black text-black font-black">
@@ -902,7 +937,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
                       )}
                     </div>
 
-                    <div className="w-56 border border-black rounded overflow-hidden shrink-0">
+                    <div className={`w-56 border border-black rounded overflow-hidden shrink-0 ${isCashier ? 'cashier-totals' : ''}`}>
                       <table className="w-full text-right border-collapse text-[10.5px] font-bold">
                         <tbody>
                           {totalsRows.map((r, idx) => (
@@ -926,7 +961,7 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({ invoice, o
 
               {/* أسفل الفاتورة للورق الحراري (مضبوط بالكامل ضد الانقطاع الجانبي) */}
               {isThermal && (
-                <div className="border-t border-black pt-1.5 mt-2 space-y-0.5 text-[9.5px] font-bold w-full">
+                <div className={`border-t border-black pt-1.5 mt-2 space-y-0.5 text-[9.5px] font-bold w-full ${isCashier ? 'cashier-totals' : ''}`}>
                   {totalsRows.map((r) => (
                     <div key={r.id} data-testid={`print-total-${r.id}`} className={`flex justify-between items-center px-0.5 ${r.strong ? 'font-black border-t border-dotted border-black pt-0.5' : ''}`}>
                       <span>{r.label}:</span>

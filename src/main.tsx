@@ -10,6 +10,7 @@ import { installThemeCustom } from './utils/themeCustom';
 import { installAutoContrast } from './utils/autoContrast';
 import { installModernMode } from './utils/modernMode';
 import { installUiScale } from './utils/uiScale';
+import { installPremiumButtons } from './utils/premiumButtons';
 import { installModalScroll, installPopupClamp } from './utils/modalScroll';
 import './modern.css';
 
@@ -22,6 +23,7 @@ installThemeCustom();
 installAutoContrast();
 installModernMode();
 installUiScale();
+installPremiumButtons();
 installModalScroll();
 installPopupClamp();
 
