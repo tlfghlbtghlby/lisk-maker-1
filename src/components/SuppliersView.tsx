@@ -4,11 +4,14 @@ import { useApp } from '../context/AppContext';
 import { Supplier, SupplierTxn } from '../types';
 import { owedTo, txnsOf, txnEffect, fmtDate } from '../utils/suppliers';
 import { AiScanModal } from './AiScanModal';
+import { useDeskMode } from '../utils/uiMode';
+import { DeskActionBar } from './DeskActionBar';
 import { SupplierFormModal, SupplierPaymentModal, ReceiveGoodsModal } from './SupplierModals';
 
 /** الموردون: استلام البضاعة وتسجيل الدين علينا والتسديد، مع تبويب خاص بمندوبي الشركات */
 export function SuppliersView() {
   const { settings, updateSettings, formatMoney, applyStockChanges } = useApp() as any;
+  const deskUi = useDeskMode();
   const suppliers: Supplier[] = settings.suppliers || [];
   const txns: SupplierTxn[] = settings.supplierTxns || [];
 
@@ -89,7 +92,7 @@ export function SuppliersView() {
   const card = 'bg-white border border-slate-200 rounded-2xl shadow-xs';
 
   return (
-    <div className="space-y-4 text-slate-900" dir="rtl">
+    <div className={`space-y-4 text-slate-900 ${deskUi ? 'desk-page' : ''}`} dir="rtl">
       <div className="flex flex-wrap items-center gap-2 justify-between">
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center"><Truck className="w-5 h-5" /></div>
@@ -98,7 +101,7 @@ export function SuppliersView() {
             <p className="text-[11px] text-slate-500">استلام البضاعة وتسجيل الدين علينا وتسديده</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className={deskUi ? 'hidden' : 'flex gap-2'}>
           <button onClick={() => setAiScanOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-l from-violet-600 to-fuchsia-600 text-white text-xs font-extrabold">✨ استلام من صورة (AI)</button>
           <button onClick={() => setReceiveFor('any')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold"><Package className="w-4 h-4" />استلام بضاعة</button>
           <button onClick={() => setFormFor('new')} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold"><Plus className="w-4 h-4" />مورد جديد</button>
@@ -177,6 +180,28 @@ export function SuppliersView() {
         rows.length === 0 ? (
           <div className={`${card} p-8 text-center text-sm text-slate-500`}>{suppliers.length === 0 ? 'لا يوجد موردون بعد. اضغط «مورد جديد» لإضافة أول شركة.' : 'لا توجد نتائج.'}</div>
         ) : (
+          deskUi ? (
+            <div className={`${card} overflow-x-auto`}>
+              <table className="w-full text-xs" data-testid="desk-suppliers-table">
+                <thead><tr>
+                  <th className="px-3 py-2 w-10">م</th><th className="text-right px-3 py-2">الشركة</th><th className="text-right px-3 py-2">المسؤول</th>
+                  <th className="text-right px-3 py-2">الهاتف</th><th className="text-right px-3 py-2">المندوبون</th><th className="px-3 py-2">الدين علينا</th>
+                </tr></thead>
+                <tbody>
+                  {rows.map(({ s, owed }, i) => (
+                    <tr key={s.id} onClick={() => setDetailId(s.id)} className="cursor-pointer border-t border-slate-100">
+                      <td className="px-3 py-2 text-center">{i + 1}</td>
+                      <td className="px-3 py-2 font-extrabold">{s.company}</td>
+                      <td className="px-3 py-2">{s.name || '—'}</td>
+                      <td className="px-3 py-2 font-mono" dir="ltr">{s.phone || '—'}</td>
+                      <td className="px-3 py-2">{(s.reps || []).map((r) => r.name).join('، ') || '—'}</td>
+                      <td className={`px-3 py-2 text-center font-black ${owed > 0 ? 'text-rose-600' : owed < 0 ? 'text-emerald-600' : 'text-slate-500'}`}>{owed < 0 ? `له ${formatMoney(-owed)}` : formatMoney(owed)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {rows.map(({ s, owed }) => (
               <button key={s.id} onClick={() => setDetailId(s.id)} className={`${card} p-3 text-right hover:border-indigo-400 transition`}>
@@ -191,6 +216,7 @@ export function SuppliersView() {
               </button>
             ))}
           </div>
+          )
         )
       ) : repRows.length === 0 ? (
         <div className={`${card} p-8 text-center text-sm text-slate-500`}>لا يوجد مندوبون مسجلون. أضف المندوبين من نافذة المورد.</div>
@@ -216,6 +242,14 @@ export function SuppliersView() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {deskUi && (
+        <DeskActionBar actions={[
+          { label: 'مورد جديد', hotkey: ' F2', icon: <Plus className="w-5 h-5" />, onClick: () => setFormFor('new'), tone: 'blue', testid: 'desk-act-new' },
+          { label: 'استلام بضاعة', hotkey: ' F3', icon: <Package className="w-5 h-5" />, onClick: () => setReceiveFor('any'), tone: 'green', testid: 'desk-act-receive' },
+          { label: 'استلام من صورة', icon: <span className="text-base">✨</span>, onClick: () => setAiScanOpen(true) },
+        ]} />
       )}
 
       {detail && (() => {

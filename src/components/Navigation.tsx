@@ -12,6 +12,9 @@ interface NavigationProps {
   onSelectTab: (tab: TabType) => void;
   /** sidebar = القائمة الجانبية لوضع سطح المكتب */
   variant?: 'tabs' | 'sidebar';
+  /** القائمة الجانبية مطويّة (أيقونات فقط) */
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 export function useNavItems() {
@@ -154,14 +157,17 @@ export function useNavItems() {
   return allNavItems.filter((item) => item.permitted);
 }
 
-export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, variant = 'tabs' }) => {
+export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, variant = 'tabs', collapsed = false, onToggleCollapse }) => {
   const { settings } = useApp();
   const navItems = useNavItems();
   const isMobile = settings.deviceMode === 'mobile';
 
   if (variant === 'sidebar') {
     return (
-      <nav data-testid="desk-sidebar" className="no-print desk-sidebar" dir="rtl">
+      <nav data-testid="desk-sidebar" className={`no-print desk-sidebar ${collapsed ? 'is-collapsed' : ''}`} dir="rtl">
+        <button type="button" data-testid="desk-sidebar-toggle" onClick={onToggleCollapse} aria-label={collapsed ? 'فتح القائمة' : 'طيّ القائمة'} title={collapsed ? 'فتح القائمة' : 'طيّ القائمة'} className="desk-burger">
+          <span /><span /><span />
+        </button>
         {navItems.map((item) => {
           const isActive = activeTab === item.id;
           return (
@@ -170,6 +176,7 @@ export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, 
                 type="button"
                 data-testid={`desk-nav-${item.id}`}
                 onClick={() => onSelectTab(item.id)}
+                title={item.label}
                 className={`desk-nav-item ${isActive ? 'is-active' : ''}`}
               >
                 <span className="desk-nav-ic">{item.icon}</span>
