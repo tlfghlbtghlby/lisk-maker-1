@@ -172,3 +172,22 @@ html.desk:not(.dark) .desk-page table td{border-inline:1px solid #e2e8f0}
 html.desk:not(.dark) .desk-col > main [data-kb-index] .desk-price{
   background:linear-gradient(180deg,#f43f5e,#be123c);color:#fff !important;padding:2px 9px;border-radius:5px;box-shadow:0 1px 0 #0004;font-size:12px;
 }
+
+/* ---------- شبكة المواد: خلايا ملتصقة كجدول (نمط برامج المولات) ---------- */
+html.desk:not(.dark) .desk-col > main div:has(> [data-kb-index]){gap:0 !important;border:1px solid #1e293b;background:#fff}
+html.desk:not(.dark) .desk-col > main div:has(> [data-kb-index]) > [data-kb-index]{
+  border-radius:0 !important;border:1px solid #b6c0d4 !important;margin:0 -1px -1px 0;box-shadow:none !important;text-align:center;
+}
+html.desk:not(.dark) .desk-col > main div:has(> [data-kb-index]) > [data-kb-index]:hover{background:#fff8c4;outline:2px solid var(--dk-orange);outline-offset:-2px;z-index:1;position:relative}
+
+/* ---------- أزرار الحفظ/البيع السفلية: أيقونة فوق الاسم وبحجم الإبهام ---------- */
+html.desk:not(.dark) .desk-cart-foot .grid.grid-cols-2 > button{
+  flex-direction:column !important;gap:3px !important;padding:10px 6px !important;min-height:64px;border-radius:6px !important;
+  background:linear-gradient(180deg,#fff,#d5dbe8) !important;color:#1f2937 !important;border:1px solid #8793ab !important;
+  box-shadow:inset 0 1px 0 #fff,0 2px 0 #0007 !important;font-size:13px !important;
+}
+html.desk:not(.dark) .desk-cart-foot .grid.grid-cols-2 > button svg{width:22px !important;height:22px !important}
+html.desk:not(.dark) .desk-cart-foot .grid.grid-cols-2 > button:first-child svg{color:#15803d}
+html.desk:not(.dark) .desk-cart-foot .grid.grid-cols-2 > button:last-child svg{color:#1d4ed8}
+html.desk:not(.dark) .desk-cart-foot .grid.grid-cols-2 > button:hover:not(:disabled){filter:brightness(1.05)}
+html.desk:not(.dark) .desk-cart-foot .grid.grid-cols-2 > button:disabled{opacity:.55}
