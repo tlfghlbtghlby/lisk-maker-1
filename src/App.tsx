@@ -441,7 +441,7 @@ const MainContent: React.FC = () => {
       )}
 
       {/* 3. منطقة المحتوى فقط (تأخذ الشاشة كاملة 100% بدون أي أشرطة مشتتة) */}
-      <main key={isAndroidNative ? activeTab : 'main'} data-dir={modern ? navDirRef.current : undefined} data-leaving={modern && leaving ? '1' : undefined} className={`no-print flex-1 w-full mx-auto ${isAndroidNative && !isStandaloneWindow ? 'android-page ' : ''}${
+      <main key={isAndroidNative ? activeTab : 'main'} data-dir={modern ? navDirRef.current : undefined} data-leaving={modern && leaving ? '1' : undefined} className={`no-print flex-1 w-full mx-auto ${deskShell && activeTab !== 'pos' ? 'desk-page ' : ''}${isAndroidNative && !isStandaloneWindow ? 'android-page ' : ''}${
         isStandaloneWindow
           ? 'w-full h-full p-2 max-w-full overflow-auto'
           : isMobile 
