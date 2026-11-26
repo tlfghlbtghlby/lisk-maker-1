@@ -3,14 +3,20 @@
 // الأوضاع الثلاثة متنافية: تفعيل أحدها يُطفئ الآخرين، والاعتيادي هو الافتراضي.
 import { useEffect, useState } from 'react';
 import { isModernMode, setModernMode } from './modernMode';
-import { isAndroidNative } from './platform';
 
 export const DESK_LS_KEY = 'mufakir_desk';
 export type UiMode = 'classic' | 'modern' | 'desk';
 const EVT = 'mufakir-desk-change';
 
 /** وضع سطح المكتب للويندوز/الويب فقط؛ تطبيق الأندرويد له واجهته ولا يتأثر به إطلاقاً. */
-export const deskModeSupported: boolean = !isAndroidNative;
+export const deskModeSupported: boolean = (() => {
+  try {
+    const c = (window as any).Capacitor; // يُحقن في تطبيق الأندرويد فقط
+    return !(c?.isNativePlatform?.() && c.getPlatform?.() === 'android');
+  } catch {
+    return true;
+  }
+})();
 
 export function isDeskMode(): boolean {
   if (!deskModeSupported) return false;
