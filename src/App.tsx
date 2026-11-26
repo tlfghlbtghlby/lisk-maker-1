@@ -204,6 +204,8 @@ const MainContent: React.FC = () => {
 
   const isMobile = settings.deviceMode === 'mobile';
   const isFullComputerMode = !isMobile && (settings.desktopLayout === 'full');
+  const [deskCollapsed, setDeskCollapsed] = useState<boolean>(() => { try { return localStorage.getItem('mufakir_desk_sb') === '1'; } catch { return false; } });
+  const toggleDeskSidebar = () => setDeskCollapsed((v) => { const n = !v; try { localStorage.setItem('mufakir_desk_sb', n ? '1' : '0'); } catch { /* ignore */ } return n; });
   const deskShell = desk && !isStandaloneWindow && !isFullComputerMode;
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -344,7 +346,7 @@ const MainContent: React.FC = () => {
       {/* وضع سطح المكتب: قائمة جانبية بدل التبويبات العلوية؛ خارجه يكون الغلاف شفافاً (display: contents) فلا يتغير أي تخطيط */}
       <div className={deskShell ? 'desk-body' : 'contents'}>
       {deskShell && (
-        <Navigation variant="sidebar" activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
+        <Navigation variant="sidebar" collapsed={deskCollapsed} onToggleCollapse={toggleDeskSidebar} activeTab={activeTab} onSelectTab={(tab) => setActiveTab(tab)} />
       )}
       <div className={deskShell ? 'desk-col' : 'contents'}>
 

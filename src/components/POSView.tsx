@@ -52,6 +52,7 @@ import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { ChangeCalculatorModal } from './ChangeCalculatorModal';
 import { ProductThumbPreview } from './ProductImageModal';
 import { SessionBadgeButton } from './SessionBadgeButton';
+import { useDeskMode } from '../utils/uiMode';
 
 interface POSViewProps {
   onInvoiceCreated: (invoice: Invoice, andPrint: boolean) => void;
@@ -263,6 +264,7 @@ const ClassicCell: React.FC<{
 };
 
 export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewProduct, onEditProduct, onOpenSettings }) => {
+  const deskUi = useDeskMode(); // وضع سطح المكتب: السلة جدول حقيقي كبرامج المحاسبة المكتبية
   const { 
     products, 
     customers, 
@@ -929,7 +931,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const cartonKey = (settings.cartonHotkey || 'c').toLowerCase();
   // وضع القائمة (ثالث الأوضاع) يُطفئ الكلاسيكي والعكس
   const listMode = settings.posListMode === true && settings.deviceMode !== 'mobile';
-  const classicMode = settings.posClassicCart === true && !listMode && settings.deviceMode !== 'mobile';
+  const classicMode = (settings.posClassicCart === true || deskUi) && !listMode && settings.deviceMode !== 'mobile';
   const helperOn = settings.posDiscountGiftHelper === true && (listMode || classicMode);
 
   const isWeightedProd = (p: Product) => Boolean(p.isWeighted || p.unit === 'كغم' || p.unit === 'كيلو');
@@ -2659,7 +2661,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                         </div>
 
                         <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-baseline justify-between gap-1">
-                          <span className="text-xs sm:text-sm font-black text-emerald-700 font-mono">
+                          <span className="text-xs sm:text-sm font-black text-emerald-700 font-mono desk-price">
                             {effectivePriceN === null ? 'غير متاح' : formatMoney(effectivePrice)}
                           </span>
                           {prod.isWeighted && (
@@ -3528,7 +3530,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       <span>الخصم: <span className="font-mono">- {formatMoney(discountAmount)}</span></span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center text-xs sm:text-sm font-black text-slate-900">
+                  <div className="flex justify-between items-center text-xs sm:text-sm font-black text-slate-900 desk-total-row">
                     <span>المبلغ المطلوب:</span>
                     <span className="text-emerald-700 font-mono">{formatMoney(finalTotal)}</span>
                   </div>
