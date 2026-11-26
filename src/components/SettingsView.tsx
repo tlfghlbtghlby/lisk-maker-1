@@ -88,7 +88,7 @@ import ExpensesSettingsCard from './ExpensesSettingsCard';
 import DefaultCartonSetting from './DefaultCartonSetting';
 import AutoContrastToggle from './AutoContrastToggle';
 import PremiumButtonsToggle from './PremiumButtonsToggle';
-import ModernModeToggle from './ModernModeToggle';
+import UiModeSelector from './UiModeSelector';
 import QuickCreditSetting from './QuickCreditSetting';
 import ViewOptionsSetting from './ViewOptionsSetting';
 import BarcodeSetting from './BarcodeSetting';
@@ -387,7 +387,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [editPresetNotes, setEditPresetNotes] = useState('');
 
   // تفاصيل الترويسة الملونة
-  const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplateType>(settings.invoiceTemplate || 'modern');
+  const [invoiceTemplate, setInvoiceTemplate] = useState<InvoiceTemplateType>(settings.invoiceTemplate === 'classic' ? 'classic' : 'modern');
+  const [thermalCashier, setThermalCashier] = useState<boolean>(settings.thermalCashierSheet === true || (settings.invoiceTemplate as any) === 'cashier');
   const [modernBadgeText, setModernBadgeText] = useState(settings.modernHeader?.badgeText ?? 'قرطاسية');
   const [modernFontFamily, setModernFontFamily] = useState(settings.modernHeader?.fontFamily ?? 'Aref Ruqaa');
   const [modernRightColor, setModernRightColor] = useState(settings.modernHeader?.rightBannerColor ?? '#1e40af');
@@ -515,7 +516,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       if (settings.managerLabel) setManagerLabel(settings.managerLabel);
       if (settings.supervisorPin) setSupervisorPin(settings.supervisorPin);
       if (settings.defaultSessionOnLaunch) setDefaultSessionOnLaunch(settings.defaultSessionOnLaunch);
-      if (settings.invoiceTemplate) setInvoiceTemplate(settings.invoiceTemplate);
+      if (settings.invoiceTemplate) setInvoiceTemplate(settings.invoiceTemplate === 'classic' ? 'classic' : 'modern');
+      setThermalCashier(settings.thermalCashierSheet === true || (settings.invoiceTemplate as any) === 'cashier');
       if (settings.modernHeader) {
         const m = settings.modernHeader;
         if (m.badgeText !== undefined) setModernBadgeText(m.badgeText);
@@ -634,7 +636,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
         employeePermissions,
         supervisorPermissions,
       } : {}),
-      invoiceTemplate: invoiceTemplate === 'cashier' ? 'cashier' : featureOn('enableModernDesign') ? invoiceTemplate : 'classic',
+      invoiceTemplate: featureOn('enableModernDesign') ? invoiceTemplate : 'classic',
+      thermalCashierSheet: thermalCashier,
       modernHeader: modernHeaderConfig,
     } as any);
     // نافذة نجاح ثم العودة للنافذة الرئيسية دون أي أثر للحفظ في الإعدادات
@@ -1334,7 +1337,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
             </div>
           </div>
 
-          <ModernModeToggle />
+          <UiModeSelector />
           <AutoContrastToggle />
           <PremiumButtonsToggle />
           <ThemeCustomizer />
@@ -1474,19 +1477,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 )}
                 <button
                   type="button"
-                  data-testid="settings-tpl-cashier"
-                  onClick={() => setInvoiceTemplate('cashier')}
-                  className={`px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
-                    invoiceTemplate === 'cashier'
-                      ? 'bg-black text-white shadow-xs'
-                      : 'text-slate-700 dark:text-slate-300'
-                  }`}
-                >
-                  <Receipt className="w-3.5 h-3.5" />
-                  <span>ورقة الكاشير</span>
-                </button>
-                <button
-                  type="button"
                   onClick={() => setInvoiceTemplate('classic')}
                   className={`px-4 py-2 rounded-lg transition cursor-pointer flex items-center gap-1.5 ${
                     invoiceTemplate === 'classic'
@@ -1498,6 +1488,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   <span>التصميم الكلاسيكي</span>
                 </button>
               </div>
+              <label data-testid="settings-tpl-cashier" className="mt-3 flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={thermalCashier} onChange={(e) => setThermalCashier(e.target.checked)} className="mt-0.5 w-4 h-4 rounded" />
+                <span className="text-xs text-slate-700 dark:text-slate-300">
+                  <b className="font-black">ورقة الكاشير للطابعة الحرارية</b> — شريط أسود باسم المحل، صفوف معلومات بإطار، وباركود برقم القائمة لتسهيل الاسترجاع. تخص الورق الحراري فقط؛ طباعة A4 وA5 تبقى كما هي.
+                </span>
+              </label>
             </div>
 
             <div className="bg-white dark:bg-[#070e1b] p-4 rounded-xl border border-indigo-200 dark:border-slate-700 space-y-3">

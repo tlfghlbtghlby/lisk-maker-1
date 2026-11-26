@@ -18,7 +18,7 @@ interface Tile {
 }
 
 // الشاشة الرئيسية للوضع العصري: مربعات كبيرة بأيقونات ملوّنة (كلها مضمَّنة في البرنامج).
-export default function ModernHome({ onSelectTab }: { onSelectTab: (tab: TabType) => void }) {
+export default function ModernHome({ onSelectTab, variant }: { onSelectTab: (tab: TabType) => void; variant?: 'desk' }) {
   const { products, customers, settings, hasPermission, storeFeatures, activeShift } = useApp() as any;
   const [menu, setMenu] = useState<{ x: number; y: number; tile: Tile } | null>(null);
   const [online, setOnline] = useState(() => (typeof navigator === 'undefined' ? true : navigator.onLine));
@@ -50,6 +50,45 @@ export default function ModernHome({ onSelectTab }: { onSelectTab: (tab: TabType
   ];
   const visible = tiles.filter((t) => t.permitted);
 
+
+  if (variant === 'desk') {
+    return (
+      <div data-testid="desk-home" className="desk-home" dir="rtl">
+        <div className="desk-home-grid">
+          {visible.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              data-testid={`home-tile-${t.id}`}
+              onClick={() => onSelectTab(t.id)}
+              onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, tile: t }); }}
+              className="desk-tile"
+            >
+              {t.badge && <span className="desk-tile-badge">{t.badge}</span>}
+              <span className="desk-tile-ic">{t.icon}</span>
+              <span className="desk-tile-lb">{t.label}</span>
+              <span className="desk-tile-sub">{t.sub}</span>
+            </button>
+          ))}
+        </div>
+        {menu && (
+          <TabContextMenu
+            x={menu.x}
+            y={menu.y}
+            tabId={menu.tile.id}
+            tabLabel={menu.tile.label}
+            tabIcon={menu.tile.icon}
+            onClose={() => setMenu(null)}
+            onSelectTab={(tab) => { setMenu(null); onSelectTab(tab); }}
+          />
+        )}
+        <div className="desk-home-status">
+          {online ? <Wifi className="w-3.5 h-3.5" style={{ color: '#34d399' }} /> : <WifiOff className="w-3.5 h-3.5" style={{ color: '#fb7185' }} />}
+          <span>{online ? 'متصل — المزامنة تعمل' : 'غير متصل — تعمل أوفلاين وتُزامَن عند عودة الاتصال'}</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div data-testid="modern-home" className="space-y-4" dir="rtl">

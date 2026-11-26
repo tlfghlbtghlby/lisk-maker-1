@@ -54,6 +54,7 @@ import { reconcileBatches, addBatch } from '../utils/expiry';
 import { applyThemeCustom } from '../utils/themeCustom';
 import { setAutoContrast } from '../utils/autoContrast';
 import { setModernMode } from '../utils/modernMode';
+import { setUiMode } from '../utils/uiMode';
 
 export interface StockChangeInput {
   id: string;
@@ -847,6 +848,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (typeof settings?.modernMode === 'boolean' && localStorage.getItem('mufakir_modern') === null) setModernMode(settings.modernMode);
     } catch {}
   }, [settings?.modernMode]);
+
+  useEffect(() => {
+    try {
+      if (settings?.deskMode === true && localStorage.getItem('mufakir_desk') === null) setUiMode('desk');
+    } catch {}
+  }, [settings?.deskMode]);
 
   const toggleTheme = () => {
     setTheme(prev => {

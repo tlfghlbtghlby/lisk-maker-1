@@ -3,12 +3,15 @@ import { Home, ShoppingCart, Boxes, FileText, Users, BarChart3, Settings, Briefc
 import { useApp } from '../context/AppContext';
 import { ContextMenuWrapper } from './ContextMenuWrapper';
 import { useModernMode } from '../utils/modernMode';
+import { useDeskMode } from '../utils/uiMode';
 
 export type TabType = 'home' | 'pos' | 'inventory' | 'suppliers' | 'invoices' | 'customers' | 'reports' | 'expenses' | 'sales-reps' | 'offers' | 'shifts' | 'settings';
 
 interface NavigationProps {
   activeTab: TabType;
   onSelectTab: (tab: TabType) => void;
+  /** sidebar = القائمة الجانبية لوضع سطح المكتب */
+  variant?: 'tabs' | 'sidebar';
 }
 
 export function useNavItems() {
@@ -32,6 +35,7 @@ export function useNavItems() {
   const isSalesRepsPermitted = storeFeatures?.enableSalesReps !== false && !!settings.enableSalesReps && hasPermission('canManageSalesReps');
 
   const modern = useModernMode();
+  const desk = useDeskMode();
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
   const activeDebtCustomers = customers.filter((c) => c.totalDebt > 0).length;
 
@@ -62,7 +66,7 @@ export function useNavItems() {
   }, [shifts, currentUser?.uid, sessionRole, activeSupervisorId, currentDeviceId]);
 
   const allNavItems: { id: TabType; label: string; icon: React.ReactNode; badge?: number | string; badgeColor?: string; permitted: boolean }[] = [
-    { id: 'home', label: 'الرئيسية', icon: <Home className="w-4 h-4" />, permitted: modern },
+    { id: 'home', label: 'الرئيسية', icon: <Home className="w-4 h-4" />, permitted: modern || desk },
     {
       id: 'pos',
       label: 'نقطة البيع وقائمة جديدة',
@@ -150,10 +154,34 @@ export function useNavItems() {
   return allNavItems.filter((item) => item.permitted);
 }
 
-export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab }) => {
+export const Navigation: React.FC<NavigationProps> = ({ activeTab, onSelectTab, variant = 'tabs' }) => {
   const { settings } = useApp();
   const navItems = useNavItems();
   const isMobile = settings.deviceMode === 'mobile';
+
+  if (variant === 'sidebar') {
+    return (
+      <nav data-testid="desk-sidebar" className="no-print desk-sidebar" dir="rtl">
+        {navItems.map((item) => {
+          const isActive = activeTab === item.id;
+          return (
+            <ContextMenuWrapper key={item.id} route={item.id} title={item.label} icon={item.icon} onSelectTab={onSelectTab}>
+              <button
+                type="button"
+                data-testid={`desk-nav-${item.id}`}
+                onClick={() => onSelectTab(item.id)}
+                className={`desk-nav-item ${isActive ? 'is-active' : ''}`}
+              >
+                <span className="desk-nav-ic">{item.icon}</span>
+                <span className="desk-nav-lb">{item.label}</span>
+                {item.badge !== undefined && <span className="desk-nav-bd">{item.badge}</span>}
+              </button>
+            </ContextMenuWrapper>
+          );
+        })}
+      </nav>
+    );
+  }
 
   return (
     <nav className="no-print bg-white dark:bg-[#0b1728] border-b border-slate-200 dark:border-slate-800/80 sticky top-0 z-20 shadow-xs transition-colors">

@@ -11,6 +11,8 @@ import { installAutoContrast } from './utils/autoContrast';
 import { installModernMode } from './utils/modernMode';
 import { installUiScale } from './utils/uiScale';
 import { installPremiumButtons } from './utils/premiumButtons';
+import { installDeskMode } from './utils/uiMode';
+import './desk.css';
 import { installModalScroll, installPopupClamp } from './utils/modalScroll';
 import './modern.css';
 
@@ -22,6 +24,7 @@ installModalKeyGuard();
 installThemeCustom();
 installAutoContrast();
 installModernMode();
+installDeskMode();
 installUiScale();
 installPremiumButtons();
 installModalScroll();

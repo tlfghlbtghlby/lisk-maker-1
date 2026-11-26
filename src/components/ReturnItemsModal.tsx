@@ -198,6 +198,11 @@ export default function ReturnItemsModal({ onClose, initialInvoiceId }: { onClos
       if (!productHits.length) setMsg({ ok: false, text: `لا توجد مادة بهذا الباركود/الاسم: ${txt}` });
       return;
     }
+    // مسح باركود رقم القائمة المطبوع على الوصل (ورقة الكاشير): يختار القائمة مباشرة إن كان الرقم يطابق قائمة واحدة فقط
+    if (!selected && !p) {
+      const exact = invoiceResults.filter((inv: any) => String(inv.invoiceNumber) === txt);
+      if (exact.length === 1) { selectInvoice(exact[0]); setQuery(''); return; }
+    }
     // وضع القائمة: إن كانت قائمة مختارة والمادة منها → زد كمية الإرجاع، وإلا يبقى النص في البحث ويظهر القوائم
     if (selected && p) {
       const idx = selected.items.findIndex((it: any, k: number) => it.productId === p.id && returnable(it) && (retQty[k] || 0) < itemRemaining(it));

@@ -590,6 +590,8 @@ export interface StoreSettings {
   invoiceTotalsLayout?: { order: string[]; hidden: string[] };
   printFormat: PrintFormatType;
   invoiceTemplate?: InvoiceTemplateType;
+  /** تصميم «ورقة الكاشير» للطباعة الحرارية فقط (A4/A5 لا تتأثر) */
+  thermalCashierSheet?: boolean;
   modernHeader?: ModernInvoiceHeaderConfig;
   directPrintEnabled?: boolean;
   selectedPrinterName?: string;
@@ -698,6 +700,8 @@ export interface StoreSettings {
   autoContrast?: boolean;
   /** الوضع العصري: تنسيق شامل للواجهات (طبقة CSS) */
   modernMode?: boolean;
+  /** وضع سطح المكتب (الوضع الثالث): قائمة جانبية ومربعات داكنة وجداول بترويسة صفراء */
+  deskMode?: boolean;
   /** زر «بيع آجل» السريع في واجهة البيع: يختار زبوناً ويحفظ القائمة آجلاً مباشرة */
   quickCreditButton?: boolean;
   /** اختصارات وضع زرّي النقد/الآجل: الإجراء عند Enter وعند Ctrl+Enter */

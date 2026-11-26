@@ -1,0 +1,117 @@
+/* =====================================================================
+   وضع «سطح المكتب» (الوضع الثالث): يُفعَّل بالصنف html.desk فقط.
+   الشكل: قائمة جانبية كحلية يمين، شاشة رئيسية بمربعات داكنة بأيقونات برتقالية،
+   جداول بترويسة صفراء، زوايا أقل استدارة، حقول بإطار واضح، وشريط أزرار سفلي في البيع.
+   لا يغيّر أي منطق ولا بيانات، ويُطفأ بالرجوع لأي وضع آخر.
+   ===================================================================== */
+html.desk{
+  --dk-navy:#14203b; --dk-navy2:#1b2a4d; --dk-navy3:#26396a; --dk-ink:#0d1630;
+  --dk-tile:#1c2b4d; --dk-line:#c7d0e0; --dk-bg:#e9edf4; --dk-yellow:#fde047; --dk-yellow2:#f5d90a;
+  --dk-orange:#fb923c; --dk-amber:#f59e0b;
+}
+
+/* ---------- الهيكل ---------- */
+html.desk:not(.dark) body, html.desk:not(.dark) .app-root{background:var(--dk-bg) !important}
+html.desk .desk-body{display:flex;flex:1 1 auto;min-height:0;align-items:stretch;width:100%}
+html.desk .desk-col{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+html.desk .desk-col > main{max-width:none !important;width:100%}
+
+/* ---------- القائمة الجانبية ---------- */
+html.desk .desk-sidebar{
+  flex:0 0 228px;width:228px;background:linear-gradient(180deg,var(--dk-navy) 0%,var(--dk-ink) 100%);
+  padding:10px 8px 16px;display:flex;flex-direction:column;gap:3px;
+  position:sticky;top:0;align-self:flex-start;max-height:100vh;overflow-y:auto;
+  border-left:1px solid #070d1f;box-shadow:-2px 0 10px #0004;
+}
+html.desk .desk-sidebar > *{width:100%}
+html.desk .desk-nav-item{
+  width:100%;display:flex;align-items:center;gap:10px;text-align:right;cursor:pointer;
+  padding:10px 12px;border-radius:8px;border:1px solid transparent;border-right:3px solid transparent;
+  color:#cdd7ee;font-weight:700;font-size:13px;background:transparent;transition:background .12s,color .12s;
+}
+html.desk .desk-nav-item:hover{background:#ffffff12;color:#fff}
+html.desk .desk-nav-item.is-active{background:linear-gradient(270deg,var(--dk-navy3),#1f305a);color:#fff;border-right-color:var(--dk-yellow);box-shadow:inset 0 0 0 1px #ffffff14}
+html.desk .desk-nav-ic{display:inline-flex;color:var(--dk-orange)}
+html.desk .desk-nav-ic svg{width:18px;height:18px}
+html.desk .desk-nav-item.is-active .desk-nav-ic{color:var(--dk-yellow)}
+html.desk .desk-nav-lb{flex:1;line-height:1.3}
+html.desk .desk-nav-bd{font-size:10px;font-weight:800;background:#ffffff1c;color:#ffe08a;padding:1px 7px;border-radius:99px;white-space:nowrap}
+
+/* ---------- الشاشة الرئيسية (مربعات داكنة) ---------- */
+html.desk .desk-home{background:#fff;border:1px solid var(--dk-line);border-radius:14px;padding:30px 24px;min-height:62vh;box-shadow:0 1px 3px #0001}
+html.desk.dark .desk-home{background:#0e1730;border-color:#26365c}
+html.desk .desk-home-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:18px;max-width:980px;margin:0 auto}
+html.desk .desk-tile{
+  position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;
+  background:linear-gradient(180deg,#22345e,var(--dk-tile));border:1px solid #2f4478;border-radius:18px;padding:20px 10px 16px;
+  box-shadow:inset 0 1px 0 #ffffff1f,0 6px 14px -6px #0b1530aa;transition:transform .12s,box-shadow .12s,border-color .12s;
+}
+html.desk .desk-tile:hover{transform:translateY(-3px);border-color:var(--dk-orange);box-shadow:inset 0 1px 0 #ffffff2a,0 10px 22px -8px #fb923c88}
+html.desk .desk-tile:active{transform:translateY(0)}
+html.desk .desk-tile-ic{display:inline-flex;width:58px;height:58px;align-items:center;justify-content:center;color:var(--dk-orange);filter:drop-shadow(0 2px 6px #fb923c55)}
+html.desk .desk-tile-ic svg{width:38px;height:38px;stroke-width:1.7}
+html.desk .desk-tile-lb{color:#fff;font-weight:900;font-size:14px}
+html.desk .desk-tile-sub{color:#9fb1d6;font-size:11px}
+html.desk .desk-tile-badge{position:absolute;top:8px;left:8px;background:var(--dk-orange);color:#1b1100;font-size:10px;font-weight:900;padding:1px 8px;border-radius:99px}
+html.desk .desk-home-status{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:26px;font-size:11px;font-weight:700;color:#64748b}
+
+/* ---------- جداول بترويسة صفراء ---------- */
+html.desk:not(.dark) .desk-col > main table thead th,
+html.desk:not(.dark) .desk-col > main table thead td{
+  background:var(--dk-yellow) !important;color:#1f2937 !important;border-color:#d4b800 !important;font-weight:900;
+}
+html.desk:not(.dark) .desk-col > main table thead tr{background:var(--dk-yellow) !important}
+html.desk:not(.dark) .desk-col > main table{border-color:var(--dk-line)}
+html.desk:not(.dark) .desk-col > main table tbody tr:nth-child(even) > td{background-color:#f6f8fc}
+html.desk:not(.dark) .desk-col > main table tbody tr:hover > td{background-color:#fff8c4}
+
+/* ---------- زوايا وحقول بنَفَس مكتبي ---------- */
+html.desk .desk-col > main .rounded-3xl{border-radius:14px !important}
+html.desk .desk-col > main .rounded-2xl{border-radius:10px !important}
+html.desk .desk-col > main .rounded-xl{border-radius:8px !important}
+html.desk:not(.dark) .desk-col > main input:not([type=checkbox]):not([type=radio]):not([type=range]),
+html.desk:not(.dark) .desk-col > main select,
+html.desk:not(.dark) .desk-col > main textarea{border:1px solid #93a3c0 !important;background:#fff;border-radius:6px !important}
+html.desk:not(.dark) .desk-col > main input:focus,
+html.desk:not(.dark) .desk-col > main select:focus,
+html.desk:not(.dark) .desk-col > main textarea:focus{outline:2px solid #fbbf2466;border-color:var(--dk-amber) !important}
+
+/* ---------- الشريط العلوي الكحلي ---------- */
+html.desk .app-root > header{background:linear-gradient(180deg,#0f1a33,#0a1226) !important;border-bottom:2px solid var(--dk-amber) !important}
+
+/* ---------- الهاتف: القائمة الجانبية تصير شريطاً أفقياً ---------- */
+@media (max-width:900px){
+  html.desk .desk-body{flex-direction:column}
+  html.desk .desk-sidebar{flex:0 0 auto;width:100%;flex-direction:row;overflow-x:auto;overflow-y:hidden;position:static;max-height:none;padding:6px}
+  html.desk .desk-sidebar > *{width:auto;flex:0 0 auto}
+  html.desk .desk-nav-item{width:auto;white-space:nowrap;border-right-width:1px;padding:8px 10px}
+  html.desk .desk-nav-item.is-active{border-bottom:3px solid var(--dk-yellow);border-right-color:transparent}
+}
+
+@media print{ html.desk .desk-sidebar{display:none !important} }
+
+/* ---------- نقطة البيع: سلة كجدول دفتري + شريط أزرار سفلي + مواد بحدود مكتبية ---------- */
+html.desk:not(.dark) .desk-cart-list{padding:0 !important;gap:0 !important;background:#fff;border:1px solid var(--dk-line);border-radius:0}
+html.desk:not(.dark) .desk-cart-list::before{
+  content:"المادة  ·  الكمية  ·  السعر  ·  المبلغ";display:block;position:sticky;top:0;z-index:2;
+  background:var(--dk-yellow);color:#1f2937;font-weight:900;font-size:12px;padding:6px 10px;text-align:right;border-bottom:1px solid #d4b800;letter-spacing:.2px;
+}
+html.desk:not(.dark) .desk-cart-list > * + *{margin-top:0 !important}
+html.desk:not(.dark) .desk-cart-list [data-testid="cart-row"]{
+  border-radius:0 !important;border-width:0 0 1px 0 !important;border-color:var(--dk-line) !important;background:#fff !important;padding:6px 10px !important;
+}
+html.desk:not(.dark) .desk-cart-list [data-testid="cart-row"]:nth-child(odd){background:#f6f8fc !important}
+html.desk:not(.dark) .desk-cart-list [data-testid="cart-row"]:hover{background:#fff8c4 !important}
+html.desk:not(.dark) .desk-cart-list [data-testid="cart-row"] span.w-5.h-5{background:var(--dk-navy2) !important;color:#fde047 !important;border-radius:4px !important}
+
+html.desk:not(.dark) .desk-cart-foot{background:#dde4f0 !important;border-top:3px solid var(--dk-amber) !important}
+html.desk:not(.dark) .desk-cart-foot .grid.grid-cols-2 > button,
+html.desk:not(.dark) .desk-cart-foot button[data-testid="quick-cash"],
+html.desk:not(.dark) .desk-cart-foot button[data-testid="quick-credit"]{
+  border-radius:8px !important;border-bottom:3px solid #0006 !important;font-weight:900 !important;
+  background-image:linear-gradient(180deg,#ffffff26,#0000001f);letter-spacing:.2px;
+}
+
+/* بطاقات المواد (مربعات/أشرطة): حدود رفيعة ولمسة برتقالية عند المرور */
+html.desk:not(.dark) .desk-col > main [data-kb-index]{border-radius:8px !important;border-color:var(--dk-line) !important;box-shadow:0 1px 0 #0000000d}
+html.desk:not(.dark) .desk-col > main [data-kb-index]:hover{border-color:var(--dk-orange) !important;box-shadow:0 0 0 2px #fb923c33}
