@@ -550,7 +550,7 @@ export interface UserProfile {
 }
 
 export type PrintFormatType = 'a4' | 'a5' | 'thermal' | 'thermal80' | 'thermal58';
-export type InvoiceTemplateType = 'classic' | 'modern';
+export type InvoiceTemplateType = 'classic' | 'modern' | 'cashier';
 
 export interface ModernInvoiceHeaderConfig {
   badgeText?: string;
