@@ -6,6 +6,7 @@ import { scanImageFile, matchProduct, MatchLevel, MatchCandidate, ScanItem, scor
 import { generateInternalBarcode } from '../utils/barcodeGen';
 import { addBatch } from '../utils/expiry';
 import { newId, todayIso, nextReceiptNo } from '../utils/suppliers';
+import { MANUAL_SCAN_PROMPT, MANUAL_AI_LINKS, parseManualReply } from '../utils/manualScan';
 
 type RowUnit = 'piece' | 'dozen' | 'carton' | 'kg';
 
@@ -120,6 +121,30 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
     }
     setReadErrors(errs);
     if (!all.length) { setStep('pick'); if (!errs.length) setReadErrors(['لم يتم العثور على مواد مقروءة في الصور. جرّب صورة أوضح.']); return; }
+    goReview(all, total, supName);
+  };
+
+  // ---------- الطريقة اليدوية: نسخ البرومت ← ذكاء اصطناعي خارجي ← لصق الرد ----------
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualText, setManualText] = useState('');
+  const [manualErr, setManualErr] = useState('');
+  const [copied, setCopied] = useState(false);
+  const copyPrompt = async () => {
+    try { await navigator.clipboard.writeText(MANUAL_SCAN_PROMPT); }
+    catch {
+      const ta = document.createElement('textarea'); ta.value = MANUAL_SCAN_PROMPT; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch { /* ignore */ } document.body.removeChild(ta);
+    }
+    setCopied(true); setTimeout(() => setCopied(false), 3000);
+  };
+  const applyManual = () => {
+    const r = parseManualReply(manualText);
+    if (r.error) { setManualErr(r.error); return; }
+    setManualErr(''); setReadErrors([]); setFiles([]);
+    goReview(r.items, r.invoiceTotal, r.supplierName || '');
+  };
+
+  const goReview = (all: ScanItem[], total: number | undefined, supName: string) => {
     setInvoiceTotal(total);
     // مطابقة اسم المورد المقروء مع الموردين المسجلين
     let sid = '';
@@ -465,6 +490,36 @@ export function AiScanModal({ onClose }: { onClose: () => void }) {
                   <span className="block text-slate-500">يقرأ الذكاء الاصطناعي الجدول سطراً بسطر دون تفسير، ثم يفرز البرنامج الأعمدة (الاسم، العدد، السعر، المجموع) بنفسه. أزل العلامة للقوائم المكتوبة بخط اليد أو الصور غير المنتظمة.</span>
                 </span>
               </label>
+
+              <div className="rounded-xl border border-sky-300 bg-sky-50/60 p-3" data-testid="manual-scan">
+                <button type="button" onClick={() => setManualOpen((v) => !v)} className="w-full text-right flex items-center justify-between gap-2" data-testid="manual-scan-toggle">
+                  <span className="text-xs font-extrabold text-sky-900">بلغت الحد أو لا تريد الإرسال التلقائي؟ استخدم الطريقة اليدوية (بلا حد)</span>
+                  <span className="text-sky-700 text-xs">{manualOpen ? '▲' : '▼'}</span>
+                </button>
+                {manualOpen && (
+                  <div className="mt-3 space-y-3 text-xs">
+                    <div className="rounded-lg bg-white border border-sky-200 p-3 space-y-2">
+                      <p className="font-extrabold">١) انسخ البرومت</p>
+                      <button type="button" onClick={copyPrompt} data-testid="manual-copy" className="px-3 py-1.5 rounded-lg bg-sky-600 text-white font-extrabold">{copied ? '✓ تم النسخ' : 'نسخ البرومت'}</button>
+                    </div>
+                    <div className="rounded-lg bg-white border border-sky-200 p-3 space-y-2">
+                      <p className="font-extrabold">٢) افتح أي ذكاء اصطناعي، أرفق صورة القائمة، والصق البرومت وأرسل</p>
+                      <div className="flex flex-wrap gap-2">
+                        {MANUAL_AI_LINKS.map((l) => (
+                          <a key={l.url} href={l.url} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 font-extrabold">{l.label} ↗</a>
+                        ))}
+                      </div>
+                      <p className="text-slate-500">انسخ بعدها رد الذكاء الاصطناعي كاملاً.</p>
+                    </div>
+                    <div className="rounded-lg bg-white border border-sky-200 p-3 space-y-2">
+                      <p className="font-extrabold">٣) الصق الرد هنا ليرتّبه البرنامج</p>
+                      <textarea value={manualText} onChange={(e) => { setManualText(e.target.value); setManualErr(''); }} dir="auto" rows={5} data-testid="manual-paste" placeholder='الصق هنا الرد الذي يبدأ بـ { "supplierName": ...' className="w-full border border-slate-300 rounded-lg p-2 font-mono text-[11px] bg-white text-slate-900" />
+                      {manualErr && <p className="font-bold text-rose-600">{manualErr}</p>}
+                      <button type="button" onClick={applyManual} disabled={!manualText.trim()} data-testid="manual-apply" className="w-full py-2 rounded-lg bg-emerald-600 text-white font-extrabold disabled:opacity-40">ترتيب المواد ومراجعتها</button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <button type="button" onClick={startReading} disabled={!files.length} className="w-full py-3 rounded-xl bg-gradient-to-l from-violet-600 to-fuchsia-600 text-white text-sm font-extrabold disabled:opacity-40">
                 قراءة {files.length ? `${files.length} صورة` : 'الصور'}
