@@ -15,7 +15,7 @@ const sb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SE
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
@@ -33,8 +33,27 @@ If you cannot find a trustworthy match, return {"found": false}. Never guess.`;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
-  if (req.method !== 'POST') return json({ error: 'method' }, 405);
   const apiKey = Deno.env.get('GEMINI_API_KEY');
+  if (req.method === 'GET') {
+    // تشخيص: يفتحه صاحب النظام في المتصفح ?barcode=... ليرى حالة كل نموذج (دون حساب في الحصة ودون كشف المفتاح)
+    if (!apiKey) return json({ diag: true, hasKey: false });
+    const code = new URL(req.url).searchParams.get('barcode') || '8695280836498';
+    const out: any[] = [];
+    for (const model of MODELS) {
+      try {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt(code) }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0 } }),
+          signal: AbortSignal.timeout(25000),
+        });
+        const t = (await r.text().catch(() => '')).replaceAll(apiKey, '***').slice(0, 700);
+        out.push({ model, status: r.status, body: t });
+      } catch (e) { out.push({ model, error: String(e).slice(0, 200) }); }
+    }
+    return json({ diag: true, hasKey: true, code, results: out });
+  }
+  if (req.method !== 'POST') return json({ error: 'method' }, 405);
   if (!apiKey) return json({ error: 'no_api_key' }, 503);
 
   let body: any;
