@@ -898,6 +898,9 @@ export interface SupplierTxnItem {
   perCarton?: number;
   loose?: number;
   oldUnitCost?: number;
+  /** سعر البيع (للقطعة) المعتمد وقت الاستلام، والقديم قبله */
+  sellPrice?: number;
+  oldSellPrice?: number;
   discount?: number;
   expiryDate?: string;
   productionDate?: string;
@@ -907,7 +910,11 @@ export interface SupplierTxn {
   id: string;
   supplierId: string;
   /** purchase: استلام بضاعة (يزيد الدين علينا)، payment: تسديد للمورد (ينقص الدين) */
-  type: 'purchase' | 'payment';
+  type: 'purchase' | 'payment' | 'return';
+  /** قائمة استلام جرى استرجاعها بالكامل للمورد */
+  returned?: boolean;
+  /** return: القائمة الأصلية المسترجعة */
+  refTxnId?: string;
   /** تاريخ الحركة YYYY-MM-DD */
   date: string;
   /** purchase: إجمالي القائمة، payment: المبلغ المسدَّد */
