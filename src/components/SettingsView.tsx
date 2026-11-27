@@ -305,6 +305,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [enableUsdPricing, setEnableUsdPricing] = useState<boolean>(settings.enableUsdPricing === true);
   const [usdRateInput, setUsdRateInput] = useState<string>(String(settings.usdRate || 1500));
   const [trackExpiryBatches, setTrackExpiryBatches] = useState<boolean>(settings.trackExpiryBatches !== false);
+  const [expiryWarnDaysInput, setExpiryWarnDaysInput] = useState<string>(String(settings.expiryWarnDays || 30));
   const [globalBarcodeCapture, setGlobalBarcodeCapture] = useState<boolean>(settings.globalBarcodeCapture !== false);
   const [promoDiscountDisplay, setPromoDiscountDisplay] = useState<'column' | 'hidden'>(settings.promoDiscountDisplay === 'hidden' ? 'hidden' : 'column');
   const [promoOfferDisplay, setPromoOfferDisplay] = useState<'gift_column' | 'listed' | 'hidden'>(settings.promoOfferDisplay || 'gift_column');
@@ -502,6 +503,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       setEnableUsdPricing(settings.enableUsdPricing === true);
       setUsdRateInput(String(settings.usdRate || 1500));
       setTrackExpiryBatches(settings.trackExpiryBatches !== false);
+      setExpiryWarnDaysInput(String(settings.expiryWarnDays || 30));
       setGlobalBarcodeCapture(settings.globalBarcodeCapture !== false);
       setAllowMultiDeviceShifts(settings.allowMultiDeviceShifts !== false);
       setPromoDiscountDisplay(settings.promoDiscountDisplay === 'hidden' ? 'hidden' : 'column');
@@ -616,6 +618,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       enableUsdPricing,
       usdRate: parseFloat(usdRateInput) > 0 ? parseFloat(usdRateInput) : (settings.usdRate || 1500),
       trackExpiryBatches,
+      expiryWarnDays: Math.min(365, Math.max(1, Math.floor(parseFloat(expiryWarnDaysInput) || 30))),
       globalBarcodeCapture,
       allowMultiDeviceShifts,
       promoDiscountDisplay,
@@ -2135,6 +2138,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                 className="mt-1 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
               />
             </label>
+            {enableProductExpiry && (
+              <div className="flex items-start justify-between gap-3 p-3 mr-4 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">تنبيه الصلاحية قبل كم يوماً؟</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">تظهر المادة في تنبيه الشريط العلوي والتقارير عندما يتبقى لانتهاء صلاحيتها هذا العدد من الأيام أو أقل</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <input type="number" min={1} max={365} data-testid="expiry-warn-days" value={expiryWarnDaysInput} onChange={(e) => setExpiryWarnDaysInput(e.target.value)} className="w-20 px-2 py-1.5 text-xs text-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white" />
+                  <span className="text-[11px] text-slate-500">يوم</span>
+                </div>
+              </div>
+            )}
             {enableProductExpiry && (
               <label className="flex items-start justify-between gap-3 p-3 mr-4 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
                 <div>
