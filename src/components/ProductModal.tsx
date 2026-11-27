@@ -278,6 +278,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         if (result.category && result.category !== 'عام') {
           setCategory(result.category);
         }
+        if (result.piecesPerCarton && result.piecesPerCarton > 1) setPiecesPerCarton(result.piecesPerCarton);
         setFoundSuccessSource(result.source);
         if (result.translated === false) { setNotFoundMessage('تعذرت ترجمة الاسم للعربية، فبقي بلغته الأصلية. عدّله يدوياً.'); setTimeout(() => setNotFoundMessage(null), 6000); }
         setTimeout(() => setFoundSuccessSource(null), 5000);
