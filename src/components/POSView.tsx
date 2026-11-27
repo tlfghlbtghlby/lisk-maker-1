@@ -53,6 +53,7 @@ import { ChangeCalculatorModal } from './ChangeCalculatorModal';
 import { ProductThumbPreview } from './ProductImageModal';
 import { SessionBadgeButton } from './SessionBadgeButton';
 import { useDeskMode } from '../utils/uiMode';
+import { cdPost, cdChannel, openCustomerDisplay } from '../utils/customerDisplay';
 
 interface POSViewProps {
   onInvoiceCreated: (invoice: Invoice, andPrint: boolean) => void;
@@ -361,6 +362,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   // «بيع آجل» السريع: اختيار زبون من قائمة ثم حفظ القائمة آجلاً مباشرة
   const [creditPickOpen, setCreditPickOpen] = useState(false);
   const [creditSearch, setCreditSearch] = useState('');
+  // المبلغ المسدَّد من القائمة عند البيع الآجل (يُسجَّل الباقي ديناً)
+  const [creditPaid, setCreditPaid] = useState('');
   const [pendingCreditId, setPendingCreditId] = useState<string | null>(null);
   const [pendingCash, setPendingCash] = useState(false);
   const [debtorsView, setDebtorsViewState] = useState<'cards' | 'list' | 'strip'>(() => {
@@ -1230,7 +1233,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     const action: string = (which === 'enter' ? st.quickEnterAction : st.quickCtrlEnterAction) || (which === 'enter' ? 'cash' : 'print');
     if (action === 'none' || cartItemsRef.current.length === 0) return false;
     if (action === 'cash') quickCashSaleRef.current();
-    else if (action === 'credit') { setCreditSearch(''); setCreditPickOpen(true); }
+    else if (action === 'credit') { setCreditSearch(''); setCreditPaid(''); setCreditPickOpen(true); }
     else handleSaveInvoiceRef.current(action === 'print');
     return true;
   };
@@ -1251,7 +1254,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   const pickCreditCustomer = (id: string) => {
     setCreditPickOpen(false);
-    updateActiveDraft({ saleType: 'credit', selectedCustomerId: id, paidAmount: 0 });
+    const paidNow = Math.min(Math.max(0, Number(String(creditPaid).replace(/[,٬\s]/g, '')) || 0), finalTotal);
+    updateActiveDraft({ saleType: 'credit', selectedCustomerId: id, paidAmount: paidNow });
     setPendingCreditId(id);
   };
 
@@ -1722,6 +1726,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
     setIsSelectRepModalOpen(false);
     setUnfoundList([]);
+    cdPost({ kind: 'done', saleType: saleType === 'credit' ? 'credit' : 'cash', customerName: saleType === 'credit' ? finalCustomerName : undefined, at: Date.now() });
     completeActiveDraft();
     onInvoiceCreated(created, andPrint);
   };
@@ -1924,6 +1929,37 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     window.addEventListener('keydown', onF5);
     return () => window.removeEventListener('keydown', onF5);
   });
+
+  // ===== الشاشة الثانية للزبون: نبثّ فقط (المواد، الخصم، الإجمالي، واسم الزبون الآجل المختار) =====
+  const cdSendRef = useRef<() => void>(() => {});
+  cdSendRef.current = () => {
+    cdPost({
+      kind: 'cart',
+      storeName: settings.storeName || undefined,
+      lines: (promoResult.items as any[])
+        .filter((it) => !it.hiddenFromPrint)
+        .map((it) => ({
+          name: it.productName || it.name || '',
+          qty: `${it.quantity}${it.unitType === 'carton' ? ' كرتون' : it.unit ? ' ' + it.unit : ''}`,
+          price: formatMoney(it.unitPrice),
+          total: formatMoney(it.total),
+          disc: it.discount > 0 ? formatMoney(it.discount) : undefined,
+          gift: !!it.isGift || undefined,
+        })),
+      subtotal: formatMoney(subtotal),
+      discount: discountAmount > 0 ? formatMoney(discountAmount) : undefined,
+      total: formatMoney(finalTotal),
+      customerName: saleType === 'credit' && selectedCustomer ? selectedCustomer.name : undefined,
+      saleType: saleType === 'credit' ? 'credit' : 'cash',
+    });
+  };
+  useEffect(() => { cdSendRef.current(); });
+  useEffect(() => {
+    const c = cdChannel();
+    const h = (e: MessageEvent) => { if (e.data?.kind === 'hello') cdSendRef.current(); };
+    c?.addEventListener('message', h as any);
+    return () => c?.removeEventListener('message', h as any);
+  }, []);
 
   const handleSaveInvoice = (andPrint: boolean) => {
     if (sessionRole === 'employee' && !activeShift) {
@@ -2997,6 +3033,11 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               )}
               <div className="p-2 sm:p-2.5 border-b border-slate-200 bg-slate-50/70 flex flex-col gap-1.5 shrink-0">
                 <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                  {!isMobileMode && !(window as any).Capacitor?.isNativePlatform?.() && (
+                    <button type="button" data-testid="open-customer-display" onClick={() => { if (!openCustomerDisplay()) { setCartErrorNotice('⚠️ اسمح بالنوافذ المنبثقة لفتح شاشة الزبون'); setTimeout(() => setCartErrorNotice(null), 4000); } else { setTimeout(() => cdSendRef.current(), 600); } }}
+                      title="فتح شاشة الزبون (الشاشة الثانية) — اسحبها إلى الشاشة الثانية ثم انقر مرتين لملء الشاشة"
+                      className="px-2 py-1 rounded-md text-[11px] font-bold bg-slate-200/90 text-slate-700 hover:bg-slate-300 cursor-pointer">🖥 شاشة الزبون</button>
+                  )}
                   {settings.quickCreditButton !== true && (
 <div className="flex items-center bg-slate-200/90 p-0.5 rounded-lg text-xs font-bold">
                     <button
@@ -3738,7 +3779,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                       type="button"
                       data-testid="quick-credit"
                       disabled={cartItems.length === 0}
-                      onClick={() => { setCreditSearch(''); setCreditPickOpen(true); }}
+                      onClick={() => { setCreditSearch(''); setCreditPaid(''); setCreditPickOpen(true); }}
                       className="py-3 px-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-black text-sm flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
                       title="اختر زبوناً وتُحفظ القائمة عليه ديناً آجلاً"
                     >
@@ -4433,28 +4474,26 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
       )}
 
       {creditPickOpen && (
-        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3" data-testid="credit-pick" onClick={() => setCreditPickOpen(false)}>
-          <div className="bg-white dark:bg-[#0b1728] rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden" dir="rtl" onClick={(e) => e.stopPropagation()}>
-            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="text-sm font-black text-slate-800 dark:text-white">🧾 دين آجل — اختر الزبون</div>
-                <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600" data-testid="debtors-view-switch">
-                  {([['cards', '▦ مربعات'], ['list', '☰ قائمة'], ['strip', '⋯ شريط']] as const).map(([v, l]) => (
-                    <button key={v} type="button" data-testid={`view-${v}`} onClick={() => setDebtorsView(v)}
-                      className={`px-2 py-1 text-[10px] font-bold cursor-pointer ${debtorsView === v ? 'bg-amber-500 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'}`}>{l}</button>
-                  ))}
-                </div>
-              </div>
+        <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-end justify-center" data-testid="credit-pick" onClick={() => setCreditPickOpen(false)}>
+          <div className="bg-white dark:bg-[#0b1728] rounded-t-2xl shadow-2xl w-full max-h-[92vh] flex flex-col overflow-hidden" data-testid="credit-sheet" dir="rtl" onClick={(e) => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-2">
+              <div className="text-sm font-black text-slate-800 dark:text-white whitespace-nowrap">🧾 دين آجل — اختر الزبون</div>
               <input
                 autoFocus
                 data-testid="credit-search"
                 value={creditSearch}
                 onChange={(e) => setCreditSearch(e.target.value)}
                 placeholder="ابحث باسم الزبون أو رقم هاتفه..."
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white"
+                className="flex-1 min-w-[180px] px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white"
               />
+              <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600" data-testid="debtors-view-switch">
+                {([['cards', '▦ مربعات'], ['list', '☰ قائمة'], ['strip', '⋯ شريط']] as const).map(([v, l]) => (
+                  <button key={v} type="button" data-testid={`view-${v}`} onClick={() => setDebtorsView(v)}
+                    className={`px-2 py-1.5 text-[10px] font-bold cursor-pointer ${debtorsView === v ? 'bg-amber-500 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300'}`}>{l}</button>
+                ))}
+              </div>
             </div>
-            <div className={`overflow-y-auto p-2 ${debtorsView === 'cards' ? 'grid grid-cols-2 gap-2' : debtorsView === 'strip' ? 'flex flex-wrap gap-1.5' : 'space-y-1.5'}`} data-testid="credit-list" data-view={debtorsView}>
+            <div className={`overflow-y-auto p-2 ${debtorsView === 'strip' ? 'flex flex-wrap gap-1.5' : 'grid gap-2'}`} style={debtorsView === 'strip' ? undefined : { gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))' }} data-testid="credit-list" data-view={debtorsView}>
               {customers
                 .filter((c) => {
                   const q = creditSearch.trim().toLowerCase();
@@ -4496,8 +4535,25 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 })}
               {customers.length === 0 && <div className="text-center text-xs text-slate-500 py-6">لا يوجد زبائن مضافون بعد.</div>}
             </div>
-            <div className="p-3 border-t border-slate-200 dark:border-slate-700">
-              <button type="button" onClick={() => setCreditPickOpen(false)} className="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">إلغاء</button>
+            <div className="p-3 border-t border-slate-200 dark:border-slate-700 flex flex-wrap items-center gap-2" data-testid="credit-paid-bar">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">المسدّد من القائمة:</label>
+              <input
+                data-testid="credit-paid"
+                inputMode="decimal"
+                value={creditPaid}
+                onChange={(e) => setCreditPaid(e.target.value)}
+                placeholder="اتركه فارغاً = القائمة كلها دين"
+                className="flex-1 min-w-[200px] px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white"
+              />
+              {(() => {
+                const paidN = Math.min(Math.max(0, Number(String(creditPaid).replace(/[,٬\s]/g, '')) || 0), finalTotal);
+                return (
+                  <span className="text-xs font-bold whitespace-nowrap text-slate-600 dark:text-slate-300" data-testid="credit-remaining">
+                    الإجمالي {formatMoney(finalTotal)} · الباقي دين: <span className="text-rose-600 font-black">{formatMoney(finalTotal - paidN)}</span>
+                  </span>
+                );
+              })()}
+              <button type="button" onClick={() => setCreditPickOpen(false)} className="px-5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer">إلغاء</button>
             </div>
           </div>
         </div>

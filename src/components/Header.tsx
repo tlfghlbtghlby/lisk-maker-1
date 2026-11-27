@@ -1,3 +1,4 @@
+import { getExpiryAlerts } from '../utils/expiryAlerts';
 import React from 'react';
 import { useApp } from '../context/AppContext';
 import { 
@@ -70,6 +71,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
 
   const totalMarketDebt = customers.reduce((sum, cust) => sum + Math.max(0, cust.totalDebt), 0);
   const lowStockCount = products.filter((p) => p.stock <= p.minStock).length;
+  const expiryAlerts = settings.enableProductExpiry === true ? getExpiryAlerts(products, Number((settings as any).expiryWarnDays) || 30) : [];
+  const expiredCount = expiryAlerts.filter((a) => a.days < 0).length;
 
   const isMobile = settings.deviceMode === 'mobile';
   const modern = useModernMode();
@@ -380,6 +383,16 @@ export const Header: React.FC<HeaderProps> = ({ onOpenAuth, compact }) => {
             <div data-m-stat="low" className="bg-rose-950/50 border border-rose-800/60 rounded-lg px-3 py-1.5 flex items-center gap-2 text-rose-200 shrink-0 whitespace-nowrap">
               <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
               <span className="text-xs font-bold">{lowStockCount} مواد قاربت على النفاد بالمخزن</span>
+            </div>
+          )}
+
+          {/* تنبيه المواد التي قاربت أو انتهت صلاحيتها */}
+          {expiryAlerts.length > 0 && (
+            <div data-testid="expiry-alert-chip" className="bg-orange-950/50 border border-orange-800/60 rounded-lg px-3 py-1.5 flex items-center gap-2 text-orange-200 shrink-0 whitespace-nowrap">
+              <AlertTriangle className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+              <span className="text-xs font-bold">
+                {expiredCount > 0 ? `${expiredCount} منتهية الصلاحية` : ''}{expiredCount > 0 && expiryAlerts.length - expiredCount > 0 ? ' · ' : ''}{expiryAlerts.length - expiredCount > 0 ? `${expiryAlerts.length - expiredCount} قاربت على الانتهاء` : ''}
+              </span>
             </div>
           )}
 

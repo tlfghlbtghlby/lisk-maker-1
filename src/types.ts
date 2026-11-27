@@ -657,6 +657,8 @@ export interface StoreSettings {
   /** سعر تصريف الدولار: كم دينارًا يساوي دولار واحد */
   usdRate?: number;
   trackExpiryBatches?: boolean;
+  /** عدد الأيام قبل الانتهاء لإظهار تنبيه «قاربت على انتهاء الصلاحية» (الافتراضي 30) */
+  expiryWarnDays?: number;
   globalBarcodeCapture?: boolean;
   promotions?: Promotion[];
   // طريقة ذكر الخصم في القائمة: عمود «الخصم» أو تطبيق مباشر على السعر دون ذكره

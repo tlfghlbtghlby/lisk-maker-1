@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { soldPieces } from '../utils/soldPieces';
 import { inPeriod } from '../utils/expenses';
+import { ReportsInsights } from './ReportsInsights';
 import { useApp } from '../context/AppContext';
 import { 
   TrendingUp, 
@@ -508,6 +509,8 @@ export const ReportsView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      <ReportsInsights />
 
     </div>
   );

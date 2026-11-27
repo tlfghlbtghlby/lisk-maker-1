@@ -1,4 +1,6 @@
 import {createRoot} from 'react-dom/client';
+import CustomerDisplay from './components/CustomerDisplay';
+import { isCustomerDisplayRoute } from './utils/customerDisplay';
 import App from './App.tsx';
 import './index.css';
 import { installNativeDialogFix } from './utils/nativeDialogFix';
@@ -26,4 +28,5 @@ installPremiumButtons();
 installModalScroll();
 installPopupClamp();
 
-createRoot(document.getElementById('root')!).render(<App />);
+// الشاشة الثانية للزبون: صفحة خفيفة مستقلة بلا حسابات ولا بيانات المتجر
+createRoot(document.getElementById('root')!).render(isCustomerDisplayRoute() ? <CustomerDisplay /> : <App />);
