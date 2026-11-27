@@ -49,7 +49,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   productToEdit,
   initialCode,
 }) => {
-  const { addProduct, updateProduct, products, formatMoney, settings, updateSettings, hasPermission, priceTypeOn } = useApp();
+  const { addProduct, updateProduct, products, formatMoney, settings, updateSettings, hasPermission, priceTypeOn, currentUser } = useApp() as any;
 
   const [code, setCode] = useState('');
   const [extraCodes, setExtraCodes] = useState<string[]>([]);
@@ -128,7 +128,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   });
   const [isSearchingBarcode, setIsSearchingBarcode] = useState(false);
   const [notFoundMessage, setNotFoundMessage] = useState<string | null>(null);
-  const [foundSuccessSource, setFoundSuccessSource] = useState<'community' | 'global' | null>(null);
+  const [foundSuccessSource, setFoundSuccessSource] = useState<'community' | 'global' | 'web' | null>(null);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -272,13 +272,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         setTimeout(() => setFoundSuccessSource(null), 5000);
         return;
       }
-      const result = await lookupProductDetails(clean, pref);
+      const result = await lookupProductDetails(clean, pref, (currentUser as any)?.uid || 'offline_store');
       if (result && result.name) {
         setName(result.name);
         if (result.category && result.category !== 'عام') {
           setCategory(result.category);
         }
         setFoundSuccessSource(result.source);
+        if (result.translated === false) { setNotFoundMessage('تعذرت ترجمة الاسم للعربية، فبقي بلغته الأصلية. عدّله يدوياً.'); setTimeout(() => setNotFoundMessage(null), 6000); }
         setTimeout(() => setFoundSuccessSource(null), 5000);
       } else {
         setNotFoundMessage('لم يتم العثور على اسم المادة تلقائياً. يمكنك كتابتها يدوياً.');
@@ -753,7 +754,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
               <span>
                 {foundSuccessSource === 'community'
                   ? 'تم العثور على اسم وتصنيف المادة من قاعدة بيانات المتاجر المشتركة!'
-                  : 'تم جلب اسم المادة وترجمتها تلقائياً من قواعد البيانات العالمية!'}
+                  : foundSuccessSource === 'web'
+                    ? 'لم تُوجد في القواعد المعتادة، فبحثنا عنها في جوجل وترجمنا اسمها للعربية. راجع الاسم قبل الحفظ.'
+                    : 'تم جلب اسم المادة وترجمتها تلقائياً من قواعد البيانات العالمية!'}
               </span>
             </div>
           )}
