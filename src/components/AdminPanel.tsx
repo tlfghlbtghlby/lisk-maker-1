@@ -48,6 +48,7 @@ import {
 } from 'lucide-react';
 
 import { AiScanLimitsCard } from './AiScanLimitsCard';
+import { BarcodeWebLimitsCard } from './BarcodeWebLimitsCard';
 
 export const AdminPanel: React.FC = () => {
   const [clients, setClients] = useState<UserProfile[]>([]);
@@ -510,6 +511,7 @@ export const AdminPanel: React.FC = () => {
     <div className="bg-slate-900 text-white rounded-2xl border border-emerald-500/40 shadow-xl p-5 sm:p-6 space-y-6">
       
       <AiScanLimitsCard clients={clients as any} />
+      <BarcodeWebLimitsCard />
 
       {/* Admin Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-800 pb-4">

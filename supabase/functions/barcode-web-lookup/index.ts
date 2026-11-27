@@ -6,7 +6,8 @@
 // الرد: { found: boolean, name?: string (عربي كامل مع الحجم), original?: string, category?: string }
 //
 // حدود الاستعمال: نفس آلية scan-items (ai_scan_hit2) بمعرّف منفصل "bc:<storeId>" كي لا يستهلك حصة قراءة الصور.
-//   BARCODE_WEB_PER_STORE_DAILY (افتراضي 150) / BARCODE_WEB_GLOBAL_DAILY (افتراضي 1500)
+//   تُضبط من لوحة تحكم الإدارة (documents: config/barcode_web_limits = {enabled, perStoreDaily, globalLimit})،
+//   وإلا فالقيم الافتراضية من الأسرار BARCODE_WEB_PER_STORE_DAILY (150) / BARCODE_WEB_GLOBAL_DAILY (1500)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
@@ -43,8 +44,18 @@ Deno.serve(async (req) => {
   if (!/^\d{6,14}$/.test(code)) return json({ error: 'bad_barcode' }, 400);
   if (!storeId) return json({ error: 'no_store' }, 400);
 
-  const perStore = Number(Deno.env.get('BARCODE_WEB_PER_STORE_DAILY') ?? 150);
-  const global = Number(Deno.env.get('BARCODE_WEB_GLOBAL_DAILY') ?? 1500);
+  let perStore = Number(Deno.env.get('BARCODE_WEB_PER_STORE_DAILY') ?? 150);
+  let global = Number(Deno.env.get('BARCODE_WEB_GLOBAL_DAILY') ?? 1500);
+  try {
+    const { data: cfg } = await sb.from('documents').select('data').eq('collection', 'config').eq('id', 'barcode_web_limits').maybeSingle();
+    const c: any = cfg?.data;
+    if (c) {
+      if (c.enabled === false) return json({ found: false, error: 'disabled' }, 403);
+      const ps = Number(c.perStoreDaily), gl = Number(c.globalLimit);
+      if (Number.isFinite(ps) && ps >= 0) perStore = Math.min(ps, 2000);
+      if (Number.isFinite(gl) && gl >= 0) global = Math.min(gl, 50000);
+    }
+  } catch (_) { /* استخدم الافتراضي */ }
   const { data: hit, error: hitErr } = await sb.rpc('ai_scan_hit2', { p_store: `bc:${storeId}`, p_store_limit: perStore, p_global_limit: global, p_global_hours: 24 });
   if (hitErr) return json({ error: 'usage_check_failed' }, 500);
   if (hit !== 'ok') return json({ error: hit }, 429);
