@@ -143,6 +143,22 @@ export interface TrashEntry {
   reason: 'deleted' | 'conflict';
   deletedBy?: string;
   details?: string;
+  /** شرح مفصل للسبب (يُبنى وقت الحذف/التعارض ويُعرض في زر «السبب») */
+  explain?: TrashExplain;
+}
+
+export interface TrashExplain {
+  kind: 'deleted' | 'conflict' | 'restore';
+  /** conflict: أين كانت النسخة الخاسرة: على هذا الجهاز أم جاءت من السحابة (جهاز/مستخدم آخر) */
+  loserSide?: 'local' | 'cloud';
+  loserAt?: string;
+  winnerAt?: string;
+  /** المستخدم/الشفت المعروف على هذا الجهاز وقت الحدث */
+  actor?: string;
+  shiftNo?: string | number;
+  /** الفروقات بين النسخة الخاسرة والرابحة (حتى 15 حقلاً) */
+  diffs?: { key: string; loser: string; winner: string }[];
+  diffTotal?: number;
 }
 
 export type Tombstones = Partial<Record<SyncSection, Record<string, string>>>;
@@ -249,6 +265,29 @@ export function mergeTrash(...lists: (TrashEntry[] | undefined)[]): TrashEntry[]
   return purgeTrash(Array.from(map.values())).sort(
     (a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime()
   );
+}
+
+const brief = (v: any): string => {
+  if (v === undefined || v === null || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'نعم' : 'لا';
+  if (Array.isArray(v)) return `قائمة (${v.length} عنصر)`;
+  if (typeof v === 'object') return 'بيانات مركبة';
+  return String(v).slice(0, 80);
+};
+
+/** يبني شرح تعارض مزامنة (لا يغيّر منطق الدمج، يقرأ فقط) */
+export function buildConflictExplain(loser: any, winner: any, loserSide: 'local' | 'cloud', actor?: string): TrashExplain {
+  const all: { key: string; loser: string; winner: string }[] = [];
+  if (loser && winner) {
+    const keys = new Set([...Object.keys(loser), ...Object.keys(winner)]);
+    keys.forEach(k => {
+      if (k === 'id' || VOLATILE_KEYS.has(k)) return;
+      if (stableStringify(loser[k]) === stableStringify(winner[k])) return;
+      all.push({ key: k, loser: brief(loser[k]), winner: brief(winner[k]) });
+    });
+  }
+  const ts = (x: any) => (x?.updatedAt || x?.createdAt || undefined) as string | undefined;
+  return { kind: 'conflict', loserSide, loserAt: ts(loser), winnerAt: ts(winner), actor, diffs: all.slice(0, 15), diffTotal: all.length };
 }
 
 export function makeTrashEntry(

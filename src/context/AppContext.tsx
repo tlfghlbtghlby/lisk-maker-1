@@ -37,7 +37,7 @@ import { findDuplicateGroups } from '../utils/duplicateCleaner';
 import { getPiecePrice } from '../utils/pricing';
 import {
   mergeProducts, mergeInvoices, mergeShifts,
-  mergeCollection, mergeTombstones, mergeTrash, makeTrashEntry, purgeTrash,
+  mergeCollection, mergeTombstones, mergeTrash, makeTrashEntry, buildConflictExplain, purgeTrash,
   TrashEntry, Tombstones, SyncSection,
 } from '../utils/syncEngine';
 import { broadcastSync, subscribeSync, SyncMessage } from '../utils/syncChannel';
@@ -1575,18 +1575,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const since = lastSyncMsRef.current || 0;
     const tombs = mergeTombstones(snap.tombstones, cloud?.tombstones);
     const conflicts: TrashEntry[] = [];
-    const track = (section: SyncSection, label: (x: any) => string, losers: any[]) =>
-      losers.forEach(l => conflicts.push(makeTrashEntry(section, l, label(l), 'conflict', 'مزامنة', 'نسخة قديمة استُبدلت عند المزامنة')));
+    const track = (section: SyncSection, label: (x: any) => string, losers: any[], merged: any[] = [], localList: any[] = []) =>
+      losers.forEach(l => {
+        const w = merged.find((x: any) => String(x?.id) === String(l?.id));
+        const side: 'local' | 'cloud' = localList.includes(l) ? 'local' : 'cloud';
+        conflicts.push({ ...makeTrashEntry(section, l, label(l), 'conflict', 'مزامنة', 'نسخة قديمة استُبدلت عند المزامنة'), explain: buildConflictExplain(l, w, side, side === 'local' ? getActorLabel() : undefined) });
+      });
 
     const prod = mergeCollection<any>(snap.products, cloud?.products || [], tombs.products || {}, since);
-    track('products', x => x.name || 'مادة', prod.losers);
+    track('products', x => x.name || 'مادة', prod.losers, prod.merged, snap.products);
     const cust = mergeCollection<any>(snap.customers, cloud?.customers || [], tombs.customers || {}, since);
-    track('customers', x => x.name || 'زبون', cust.losers);
+    track('customers', x => x.name || 'زبون', cust.losers, cust.merged, snap.customers);
     const inv = mergeCollection<any>(snap.invoices, cloud?.invoices || [], tombs.invoices || {}, since);
-    track('invoices', x => `${x.invoiceNumber || ''} - ${x.customerName || ''}`, inv.losers);
+    track('invoices', x => `${x.invoiceNumber || ''} - ${x.customerName || ''}`, inv.losers, inv.merged, snap.invoices);
     inv.merged.sort((x: any, y: any) => new Date(y.date || 0).getTime() - new Date(x.date || 0).getTime());
     const reps = mergeCollection<any>(snap.settings?.salesReps || [], cloud?.settings?.salesReps || [], tombs.reps || {}, since);
-    track('reps', x => x.name || 'مندوب', reps.losers);
+    track('reps', x => x.name || 'مندوب', reps.losers, reps.merged, snap.settings?.salesReps || []);
 
     // الدفعات: إضافة فقط (دمج بالاتحاد)
     const payMap = new Map<string, any>();
@@ -1976,7 +1980,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!items || items.length === 0) return;
     const nowIso = new Date().toISOString();
     const actor = getActorLabel();
-    const entries = items.map(it => makeTrashEntry(section, it, labelOf(it), 'deleted', actor, details));
+    const entries = items.map(it => ({ ...makeTrashEntry(section, it, labelOf(it), 'deleted', actor, details), explain: { kind: 'deleted' as const, actor, shiftNo: (activeShift as any)?.shiftNumber } }));
     const tombs: Tombstones = { ...stateRef.current.tombstones };
     const secMap = { ...(tombs[section] || {}) };
     items.forEach(it => { secMap[String(it.id)] = nowIso; });
@@ -2000,7 +2004,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const swapOut = (existing: any, label: string) => {
       if (existing) {
         nextTrash = mergeTrash(
-          [makeTrashEntry(entry.section, existing, label, 'conflict', getActorLabel(), 'نسخة حالية استُبدلت عند الاستعادة')],
+          [{ ...makeTrashEntry(entry.section, existing, label, 'conflict', getActorLabel(), 'نسخة حالية استُبدلت عند الاستعادة'), explain: { kind: 'restore' as const, actor: getActorLabel(), loserAt: existing?.updatedAt || existing?.createdAt, winnerAt: entry.deletedAt } }],
           nextTrash
         );
       }
