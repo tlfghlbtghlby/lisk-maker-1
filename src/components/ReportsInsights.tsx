@@ -136,7 +136,7 @@ export const ReportsInsights: React.FC = () => {
             <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2"><CalendarClock className="w-4 h-4 text-orange-500" />قاربت على انتهاء الصلاحية ({expiry.length})</h3>
             {expiryOn && (
               <select value={warnDays} onChange={e => setWarnDays(Number(e.target.value))} className="text-[11px] border border-slate-300 rounded-md px-1.5 py-1 bg-white" data-testid="ins-expiry-days">
-                {[7, 15, 30, 60, 90].map(n => <option key={n} value={n}>خلال {n} يوم</option>)}
+                {Array.from(new Set([7, 15, 30, 60, 90, warnDays])).sort((a, b) => a - b).map(n => <option key={n} value={n}>خلال {n} يوم</option>)}
               </select>
             )}
           </div>
