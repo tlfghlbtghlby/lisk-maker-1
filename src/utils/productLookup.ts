@@ -8,6 +8,8 @@ export interface AutoLookupResult {
   source: 'community' | 'global' | 'web';
   /** false إذا تعذرت الترجمة وبقي الاسم بلغته الأصلية (يحتاج مراجعة المستخدم) */
   translated?: boolean;
+  /** عدد القطع في الكرتون إن وُجد مكتوباً في نتائج البحث (طريقة البحث في جوجل فقط) */
+  piecesPerCarton?: number;
 }
 
 const LATIN = /[A-Za-z]/g;
@@ -76,7 +78,7 @@ async function translateToArabic(text: string): Promise<string> {
 }
 
 // الطريقة الثالثة: بحث جوجل عبر دالة Supabase (Gemini + Google Search) مع ترجمة الاسم الكامل
-async function fetchFromWebSearch(code: string, storeId: string): Promise<{ name: string; category: string; original: string } | null> {
+async function fetchFromWebSearch(code: string, storeId: string): Promise<{ name: string; category: string; original: string; piecesPerCarton?: number } | null> {
   if (!supabaseUrl) return null;
   try {
     const res = await fetch(`${supabaseUrl}/functions/v1/barcode-web-lookup`, {
@@ -87,7 +89,7 @@ async function fetchFromWebSearch(code: string, storeId: string): Promise<{ name
     });
     if (!res.ok) return null;
     const d = await res.json();
-    if (d?.found && d.name) return { name: String(d.name), category: String(d.category || ''), original: String(d.original || '') };
+    if (d?.found && d.name) return { name: String(d.name), category: String(d.category || ''), original: String(d.original || ''), piecesPerCarton: Number(d.piecesPerCarton) > 1 ? Math.floor(Number(d.piecesPerCarton)) : undefined };
   } catch (err) {
     console.warn('Web lookup error:', err);
   }
@@ -279,7 +281,7 @@ export async function lookupProductDetails(
   if (web) {
     // الدالة تُرجع الاسم عربياً أصلاً؛ نتحقق منه ونصلحه إن جاء أجنبياً
     const w = await ensureArabic(web.name);
-    return { name: w.text, category: web.category || 'عام', source: 'web', translated: w.translated };
+    return { name: w.text, category: web.category || 'عام', source: 'web', translated: w.translated, piecesPerCarton: web.piecesPerCarton };
   }
 
   return null;

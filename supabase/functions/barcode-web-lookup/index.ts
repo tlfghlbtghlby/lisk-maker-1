@@ -19,16 +19,18 @@ const cors = {
 };
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 
-const MODELS = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-3.5-flash'];
+// gemini-2.5-flash لم يعد متاحاً (404). الحصة المجانية لكل نموذج منفصلة، فنجرب عدة نماذج بالتتابع.
+const MODELS = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest'];
 
 const prompt = (code: string) => `Use Google Search to identify the retail product whose barcode (EAN/UPC/GTIN) is ${code}.
 Search the exact number "${code}" (also try "${code} barcode"). Only trust results where the barcode number clearly belongs to that product.
 Return ONLY one JSON object, no markdown, in this shape:
-{"found": true|false, "original": "full product name exactly as sold, in its original language, including brand, flavour/variant and size/weight", "arabic": "the same full name translated to Arabic", "category": "short Arabic category"}
+{"found": true|false, "original": "full product name exactly as sold, in its original language, including brand, flavour/variant and size/weight", "arabic": "the same full name translated to Arabic", "category": "short Arabic category", "piecesPerCarton": number or null}
 Rules for "arabic":
 - Fully Arabic: translate descriptive words; transliterate brand names into Arabic letters (e.g. Pepsi → بيبسي).
 - KEEP the size/weight/count and convert units: ml→مل, l/L→لتر, g/gr→غم, kg→كغم, pcs→قطعة, e.g. "Pepsi Can 330ml" → "بيبسي علبة 330 مل".
 - Do not add words that are not in the product name.
+Rules for "piecesPerCarton": the number of retail units in one wholesale carton/case/packet-box, ONLY if a search result states it for this exact product (e.g. "Packet Pcs: 12", "12 x 330ml", "24 pcs per carton"). If not clearly stated return null. Never guess.
 If you cannot find a trustworthy match, return {"found": false}. Never guess.`;
 
 Deno.serve(async (req) => {
@@ -103,6 +105,7 @@ Deno.serve(async (req) => {
         name: String(o.arabic).trim().slice(0, 200),
         original: String(o.original || '').trim().slice(0, 200),
         category: String(o.category || '').trim().slice(0, 60),
+        piecesPerCarton: (() => { const n = Math.floor(Number(o.piecesPerCarton)); return Number.isFinite(n) && n > 1 && n <= 1000 ? n : null; })(),
       });
     } catch (_) { /* جرّب النموذج التالي */ }
   }
