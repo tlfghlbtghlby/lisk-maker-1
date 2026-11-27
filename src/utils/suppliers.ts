@@ -9,7 +9,7 @@ export const fmtDate = (iso?: string) => (iso ? iso.split('-').reverse().join('/
 
 /** تأثير الحركة على الدين الذي علينا: الاستلام يزيده بقدر غير المدفوع، والتسديد ينقصه */
 export const txnEffect = (t: SupplierTxn): number =>
-  t.type === 'purchase' ? (Number(t.total) || 0) - (Number(t.paid) || 0) : -(Number(t.total) || 0);
+  t.type === 'purchase' ? (Number(t.total) || 0) - (Number(t.paid) || 0) : -(Number(t.total) || 0); // payment/return: ينقصان الدين
 
 export const txnsOf = (supplierId: string, txns: SupplierTxn[]) =>
   txns.filter((t) => t.supplierId === supplierId).sort((a, b) => (a.date + a.createdAt).localeCompare(b.date + b.createdAt));

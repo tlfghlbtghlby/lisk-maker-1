@@ -2,15 +2,16 @@ import React, { useMemo, useState } from 'react';
 import { Truck, Users, Plus, Search, Phone, Package, Wallet, Pencil, Trash2, FileText } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Supplier, SupplierTxn } from '../types';
-import { owedTo, txnsOf, txnEffect, fmtDate } from '../utils/suppliers';
+import { owedTo, txnsOf, txnEffect, fmtDate, newId, todayIso } from '../utils/suppliers';
 import { AiScanModal } from './AiScanModal';
 import { useDeskMode } from '../utils/uiMode';
 import { DeskActionBar } from './DeskActionBar';
+import { SupplierReceiptsTab, SupplierProductSearch, EditReceiptModal } from './SupplierHistoryPanels';
 import { SupplierFormModal, SupplierPaymentModal, ReceiveGoodsModal } from './SupplierModals';
 
 /** الموردون: استلام البضاعة وتسجيل الدين علينا والتسديد، مع تبويب خاص بمندوبي الشركات */
 export function SuppliersView() {
-  const { settings, updateSettings, formatMoney, applyStockChanges } = useApp() as any;
+  const { settings, updateSettings, formatMoney, applyStockChanges, products } = useApp() as any;
   const deskUi = useDeskMode();
   const suppliers: Supplier[] = settings.suppliers || [];
   const txns: SupplierTxn[] = settings.supplierTxns || [];
@@ -26,6 +27,13 @@ export function SuppliersView() {
   const [aiScanOpen, setAiScanOpen] = useState(false);
   const [receiveFor, setReceiveFor] = useState<Supplier | 'any' | null>(null);
   const [payFor, setPayFor] = useState<Supplier | null>(null);
+  // نافذة حساب المورد/المندوب: تبويبات ومرشحات (مندوب + فترة)
+  const [dTab, setDTab] = useState<'ledger' | 'receipts' | 'search'>('ledger');
+  const [dRep, setDRep] = useState('');
+  const [dFrom, setDFrom] = useState('');
+  const [dTo, setDTo] = useState('');
+  const [editTxn, setEditTxn] = useState<SupplierTxn | null>(null);
+  const openDetail = (id: string, rep = '') => { setDetailId(id); setDRep(rep); setDFrom(''); setDTo(''); setDTab('ledger'); };
 
   const saveAll = (nextSuppliers: Supplier[], nextTxns: SupplierTxn[]) => updateSettings({ suppliers: nextSuppliers, supplierTxns: nextTxns });
 
@@ -86,7 +94,21 @@ export function SuppliersView() {
       ? 'حذف سجل الاستلام هذا؟ سيُحذف من الدين فقط، أما الكميات التي أُضيفت للمخزون فتبقى (عدّلها من المخزون إن لزم).'
       : 'حذف سند التسديد هذا؟ سيعود المبلغ إلى الدين.';
     if (!window.confirm(msg)) return;
-    saveAll(suppliers, txns.filter((x) => x.id !== t.id));
+    saveAll(suppliers, txns.filter((x) => x.id !== t.id).map((x) => (t.type === 'return' && x.id === t.refTxnId ? { ...x, returned: false } : x)));
+  };
+  // استرجاع قائمة استلام كاملة للمورد: يُنقص المخزون ويُنقص الدين بقيمتها
+  const returnReceipt = (t: SupplierTxn) => {
+    if (t.returned) return;
+    const items = (t.items || []).filter((i) => i.productId && i.pieces > 0);
+    const msg = `استرجاع قائمة الاستلام كاملة (${formatMoney(Number(t.total) || 0)}) للمورد؟\n• يُنقَص من المخزون ${items.length} مادة مسجلة بكمياتها (لا ينزل الرصيد عن صفر).\n• تُسجَّل حركة «مرتجع» تُنقص الدين بقيمة القائمة (وإن كنت دفعت جزءاً منها يصير رصيداً لك عنده).`;
+    if (!window.confirm(msg)) return;
+    const ret: SupplierTxn = {
+      id: newId('stx'), supplierId: t.supplierId, type: 'return', date: todayIso(), total: Number(t.total) || 0,
+      repName: t.repName, invoiceNo: t.invoiceNo, refTxnId: t.id, items: t.items,
+      notes: `مرتجع كامل لقائمة ${t.invoiceNo || fmtDate(t.date)}`, createdAt: new Date().toISOString(),
+    };
+    saveAll(suppliers, [...txns.map((x) => (x.id === t.id ? { ...x, returned: true } : x)), ret]);
+    if (items.length) applyStockChanges(items.map((i) => ({ id: i.productId as string, delta: -i.pieces, note: `استرجاع للمورد · قائمة ${t.invoiceNo || fmtDate(t.date)}` })));
   };
 
   const card = 'bg-white border border-slate-200 rounded-2xl shadow-xs';
@@ -189,7 +211,7 @@ export function SuppliersView() {
                 </tr></thead>
                 <tbody>
                   {rows.map(({ s, owed }, i) => (
-                    <tr key={s.id} onClick={() => setDetailId(s.id)} className="cursor-pointer border-t border-slate-100">
+                    <tr key={s.id} onClick={() => openDetail(s.id)} className="cursor-pointer border-t border-slate-100">
                       <td className="px-3 py-2 text-center">{i + 1}</td>
                       <td className="px-3 py-2 font-extrabold">{s.company}</td>
                       <td className="px-3 py-2">{s.name || '—'}</td>
@@ -204,7 +226,7 @@ export function SuppliersView() {
           ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {rows.map(({ s, owed }) => (
-              <button key={s.id} onClick={() => setDetailId(s.id)} className={`${card} p-3 text-right hover:border-indigo-400 transition`}>
+              <button key={s.id} onClick={() => openDetail(s.id)} className={`${card} p-3 text-right hover:border-indigo-400 transition`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="font-extrabold text-sm truncate">{s.company}</div>
@@ -229,7 +251,7 @@ export function SuppliersView() {
             </tr></thead>
             <tbody>
               {repRows.map((r) => (
-                <tr key={r.key} className="border-t border-slate-100 hover:bg-slate-50">
+                <tr key={r.key} onClick={() => openDetail(r.supplier.id, r.name)} data-testid="rep-row" className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer">
                   <td className="px-3 py-2 font-bold">{r.name}</td>
                   <td className="px-3 py-2">{r.company}</td>
                   <td className="px-3 py-2 font-mono" dir="ltr">{r.phone ? <a href={`tel:${r.phone}`} className="text-indigo-700 hover:underline inline-flex items-center gap-1"><Phone className="w-3 h-3" />{r.phone}</a> : '—'}</td>
@@ -255,11 +277,15 @@ export function SuppliersView() {
       {detail && (() => {
         const list = txnsOf(detail.id, txns);
         let run = Number(detail.openingDebt) || 0;
-        const withBal = list.map((t) => { run += txnEffect(t); return { t, bal: run }; }).reverse();
+        const inScope = (t: SupplierTxn) => (!dRep || (t.repName || '').trim() === dRep.trim()) && (!dFrom || t.date >= dFrom) && (!dTo || t.date <= dTo);
+        const withBal = list.map((t) => { run += txnEffect(t); return { t, bal: run }; }).filter(({ t }) => inScope(t)).reverse();
+        const scoped = list.filter(inScope);
+        const repNames = Array.from(new Set([...(detail.reps || []).map((r) => r.name), ...list.map((t) => t.repName || '')].map((x) => x.trim()).filter(Boolean)));
+        const filtered = !!(dRep || dFrom || dTo);
         const owed = owedTo(detail, txns);
         return (
-          <div className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-3" onMouseDown={(e) => { if (e.target === e.currentTarget) setDetailId(null); }}>
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[94vh] overflow-y-auto" dir="rtl">
+          <div data-testid="supplier-detail" className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-3" onMouseDown={(e) => { if (e.target === e.currentTarget) setDetailId(null); }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[94vh] overflow-y-auto" dir="rtl">
               <div className="sticky top-0 bg-white z-10 px-4 py-3 border-b border-slate-200 flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <h3 className="font-extrabold text-base truncate">{detail.company}</h3>
@@ -290,14 +316,33 @@ export function SuppliersView() {
                 )}
                 {detail.notes && <p className="text-xs text-slate-600 bg-slate-50 rounded-lg px-3 py-2">{detail.notes}</p>}
 
-                <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                <div className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 p-2.5 bg-slate-50" data-testid="detail-filters">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">المندوب</label>
+                    <select value={dRep} onChange={(e) => setDRep(e.target.value)} data-testid="detail-rep" className="border border-slate-300 rounded-lg px-2 py-1.5 text-xs bg-white font-bold">
+                      <option value="">كل المندوبين</option>
+                      {repNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                  <div><label className="block text-[10px] font-bold text-slate-500 mb-0.5">من تاريخ</label><input type="date" value={dFrom} onChange={(e) => setDFrom(e.target.value)} data-testid="detail-from" className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white" /></div>
+                  <div><label className="block text-[10px] font-bold text-slate-500 mb-0.5">إلى تاريخ</label><input type="date" value={dTo} onChange={(e) => setDTo(e.target.value)} data-testid="detail-to" className="border border-slate-300 rounded-lg px-2 py-1 text-xs bg-white" /></div>
+                  {filtered && <button type="button" onClick={() => { setDRep(''); setDFrom(''); setDTo(''); }} className="px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 text-[11px] font-bold">إزالة التصفية</button>}
+                  <div className="flex rounded-lg overflow-hidden border border-slate-300 mr-auto text-[11px] font-bold">
+                    {([['ledger', 'سجل الحساب'], ['receipts', 'القوائم'], ['search', 'بحث مادة']] as const).map(([k, l]) => (
+                      <button key={k} type="button" data-testid={`dtab-${k}`} onClick={() => setDTab(k)} className={`px-3 py-1.5 ${dTab === k ? 'bg-slate-800 text-white' : 'bg-white text-slate-600'}`}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                {dTab === 'receipts' && <SupplierReceiptsTab list={scoped} formatMoney={formatMoney} onPreview={(t) => setOpenTxn(t)} onEdit={(t) => setEditTxn(t)} onReturn={returnReceipt} />}
+                {dTab === 'search' && <SupplierProductSearch list={scoped} products={products || []} formatMoney={formatMoney} />}
+                {dTab === 'ledger' && <div className="rounded-xl border border-slate-200 overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 text-slate-600"><tr>
                       <th className="text-right px-3 py-2">التاريخ</th><th className="text-right px-3 py-2">الحركة</th><th className="text-right px-3 py-2">المندوب</th>
                       <th className="px-3 py-2">المبلغ</th><th className="px-3 py-2">المدفوع</th><th className="px-3 py-2">الرصيد بعدها</th><th className="px-3 py-2"></th>
                     </tr></thead>
                     <tbody>
-                      {detail.openingDebt ? (
+                      {detail.openingDebt && !filtered ? (
                         <tr className="border-t border-slate-100 text-slate-500"><td className="px-3 py-2">—</td><td className="px-3 py-2" colSpan={4}>دين سابق (رصيد افتتاحي)</td><td className="px-3 py-2 text-center font-bold">{formatMoney(detail.openingDebt)}</td><td></td></tr>
                       ) : null}
                       {withBal.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">لا توجد حركات بعد.</td></tr>}
@@ -313,6 +358,8 @@ export function SuppliersView() {
                                 </ul>
                                 {t.notes && <div className="text-[11px] text-slate-500 mt-1">{t.notes}</div>}
                               </details>
+                            ) : t.type === 'return' ? (
+                              <span className="font-bold text-rose-700">مرتجع للمورد{t.invoiceNo ? ` · قائمة ${t.invoiceNo}` : ''}</span>
                             ) : (
                               <span className="font-bold text-indigo-800">تسديد{t.receiptNo ? ` · ${t.receiptNo}` : ''}{t.notes ? <span className="font-normal text-slate-500"> · {t.notes}</span> : null}</span>
                             )}
@@ -326,7 +373,7 @@ export function SuppliersView() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </div>}
               </div>
             </div>
           </div>
@@ -386,6 +433,11 @@ export function SuppliersView() {
           </div>
         );
       })()}
+
+      {editTxn && (
+        <EditReceiptModal t={editTxn} supplier={suppliers.find((x) => x.id === editTxn.supplierId)} onClose={() => setEditTxn(null)}
+          onSave={(n) => { saveAll(suppliers, txns.map((x) => (x.id === n.id ? n : x))); setEditTxn(null); setOpenTxn((o) => (o && o.id === n.id ? n : o)); }} />
+      )}
 
       {formFor && (
         <SupplierFormModal

@@ -1,3 +1,20 @@
+  const changeUnit = (l: Line, unit: Line['unit']) => {
+    const old = multOf(l);
+    const nm = multFor(l, unit);
+    const c = parseFloat(l.cost);
+    patch(l.key, { unit, ...(c > 0 ? { cost: String(Math.round((c / old) * nm * 1000) / 1000) } : {}) });
+  };
+  // تغيير السعة أثناء اختيار «كرتون»: يبقى سعر القطعة ثابتاً ويُعاد حساب سعر الكرتون
+  const changeCap = (l: Line, v: string) => {
+    const p = l.productId ? (products as Product[]).find((x) => x.id === l.productId) : undefined;
+    if (l.unit !== 'carton' || !p) return patch(l.key, { cap: v });
+    const oldM = multOf(l);
+    const nl = { ...l, cap: v };
+    const nm = multOf(nl);
+    const c = parseFloat(l.cost);
+    patch(l.key, { cap: v, ...(c > 0 ? { cost: String(Math.round((c / oldM) * nm * 1000) / 1000) } : {}) });
+  };
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { dozenName } from '../utils/packLabel';
 import { X, Plus, Trash2, Search } from 'lucide-react';
@@ -149,6 +166,10 @@ interface Line {
   unit: 'piece' | 'dozen' | 'carton';
   qty: string;
   cost: string;
+  /** السعة (قطع الكرتون) إن أُدخلت */
+  cap: string;
+  /** سعر البيع للقطعة */
+  sell: string;
   prod: string;
   exp: string;
 }
@@ -169,6 +190,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
   const [lines, setLines] = useState<Line[]>([]);
   const [paid, setPaid] = useState('');
   const [updateCost, setUpdateCost] = useState(true);
+  const [updateSell, setUpdateSell] = useState(true);
   const [q, setQ] = useState('');
   const [error, setError] = useState('');
   const showDates = settings.enableProductExpiry === true;
@@ -184,23 +206,25 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
     return (products as Product[]).filter((p) => p.name.toLowerCase().includes(t) || String(p.code || '').toLowerCase().includes(t)).slice(0, 8);
   }, [q, products]);
 
-  const multOf = (l: Line) => {
+  const capOf = (l: Line, p?: Product) => { const t = Math.floor(parseFloat(l.cap) || 0); return t > 0 ? t : Math.max(1, p?.piecesPerCarton || 1); };
+  const multFor = (l: Line, unit: Line['unit']) => {
     const p = l.productId ? (products as Product[]).find((x) => x.id === l.productId) : undefined;
     if (!p) return 1;
-    return l.unit === 'carton' ? Math.max(1, p.piecesPerCarton || 1) : l.unit === 'dozen' ? Math.max(1, p.piecesPerDozen || 1) : 1;
+    return unit === 'carton' ? capOf(l, p) : unit === 'dozen' ? Math.max(1, p.piecesPerDozen || 1) : 1;
   };
+  const multOf = (l: Line) => multFor(l, l.unit);
   const lineTotal = (l: Line) => (parseFloat(l.qty) || 0) * (parseFloat(l.cost) || 0);
   const total = mode === 'classic' ? clTotal : lines.reduce((s, l) => s + lineTotal(l), 0);
   const paidN = Math.max(0, parseFloat(paid) || 0);
 
   const addProduct = (p: Product) => {
-    setLines((prev) => [...prev, { key: newId('ln'), productId: p.id, name: p.name, unit: 'piece', qty: '', cost: p.costPrice ? String(p.costPrice) : '', prod: '', exp: '' }]);
+    setLines((prev) => [...prev, { key: newId('ln'), productId: p.id, name: p.name, unit: 'piece', qty: '', cost: p.costPrice ? String(p.costPrice) : '', cap: '', sell: p.retailPrice ? String(p.retailPrice) : '', prod: '', exp: '' }]);
     setQ('');
   };
   const addFree = () => {
     const name = q.trim();
     if (!name) return;
-    setLines((prev) => [...prev, { key: newId('ln'), name, unit: 'piece', qty: '', cost: '', prod: '', exp: '' }]);
+    setLines((prev) => [...prev, { key: newId('ln'), name, unit: 'piece', qty: '', cost: '', cap: '', sell: '', prod: '', exp: '' }]);
     setQ('');
   };
   const patch = (key: string, u: Partial<Line>) => setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...u } : l)));
@@ -226,6 +250,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
       if (frac) return setError(`الكمية للمادة «${frac.l.name}» يجب أن تكون عدداً صحيحاً.`);
       const tot = rows.reduce((s, x) => s + x.c.total, 0);
       if (paidN > tot) return setError('المدفوع أكبر من إجمالي القائمة.');
+      const p0 = (l: CLine) => (products as Product[]).find((x) => x.id === l.productId);
       const items: SupplierTxnItem[] = rows.map(({ l, c }) => ({
         ...(l.productId ? { productId: l.productId } : {}),
         name: l.name.trim(),
@@ -237,6 +262,8 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
         ...(c.cartons > 0 ? { cartons: c.cartons, perCarton: c.per } : {}),
         ...(c.loose > 0 ? { loose: c.loose } : {}),
         ...(l.productId && c.oldPiece > 0 ? { oldUnitCost: c.oldPiece } : {}),
+        ...(l.productId && c.sell > 0 ? { sellPrice: c.sell } : {}),
+        ...(c.sellChanged && p0(l) ? { oldSellPrice: p0(l)!.retailPrice } : {}),
         ...(c.disc > 0 ? { discount: Math.round(c.disc) } : {}),
         ...(l.exp ? { expiryDate: l.exp } : {}),
         ...(l.prod ? { productionDate: l.prod } : {}),
@@ -250,6 +277,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
         expiryDate: l.exp || undefined,
         costPrice: updateCost && c.priceChanged && c.effPiece > 0 ? Math.round(c.effPiece * 1000) / 1000 : undefined,
         ...(c.packChanged ? { piecesPerCarton: c.per } : {}),
+        ...(updateSell && c.sellChanged ? { retailPrice: c.sell } : {}),
       }));
       const txn: SupplierTxn = {
         id: newId('stx'), supplierId: sup.id, type: 'purchase', date, total: tot, paid: paidN || undefined,
@@ -278,6 +306,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
         unitLabel: unitLabel(l),
         unitCost,
         total: Math.round(qty * unitCost),
+        ...(l.productId && parseFloat(l.sell) >= 0 && l.sell !== '' ? { sellPrice: parseFloat(l.sell) } : {}),
         ...(l.exp ? { expiryDate: l.exp } : {}),
         ...(l.prod ? { productionDate: l.prod } : {}),
       };
@@ -292,6 +321,15 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
         productionDate: l.prod || undefined,
         expiryDate: l.exp || undefined,
         costPrice: updateCost && parseFloat(l.cost) > 0 ? Math.round((parseFloat(l.cost) / m) * 1000) / 1000 : undefined,
+        ...(() => {
+          const pr = (products as Product[]).find((x) => x.id === l.productId);
+          const out: { piecesPerCarton?: number; retailPrice?: number } = {};
+          const cp = Math.floor(parseFloat(l.cap) || 0);
+          if (pr && cp > 0 && cp !== Math.max(1, pr.piecesPerCarton || 1)) out.piecesPerCarton = cp;
+          const sv = parseFloat(l.sell);
+          if (updateSell && pr && l.sell !== '' && sv >= 0 && Math.abs(sv - (pr.retailPrice || 0)) > 0.0005) out.retailPrice = sv;
+          return out;
+        })(),
       };
     });
     const txn: SupplierTxn = {
@@ -337,7 +375,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
         {mode === 'classic' && (
           <div className="space-y-1.5">
             <ClassicReceiveLines lines={cl} setLines={setCl} products={products as Product[]} formatMoney={formatMoney} showDates={showDates} />
-            <p className="text-[11px] text-slate-500 leading-relaxed">اكتب اسم المادة واختر من الاقتراحات. أي خانة تتركها فارغة تبقى كما هي في المخزون (التعبئة والسعر). السعر القديم يظهر تلقائياً؛ اكتب «السعر الجديد» فقط إذا تغيّر. زر «خصم» لخصم المندوب على هذه القائمة فقط، وسيُحسب في سعر التكلفة. تغيير «تعبئة الكرتون» يعدّل تعبئة المادة نفسها.</p>
+            <p className="text-[11px] text-slate-500 leading-relaxed">اكتب اسم المادة واختر من الاقتراحات. أي خانة تتركها فارغة تبقى كما هي في المخزون (التعبئة والسعر). السعر القديم يظهر تلقائياً؛ اكتب «السعر الجديد» فقط إذا تغيّر. زر «خصم» لخصم المندوب على هذه القائمة فقط، وسيُحسب في سعر التكلفة. «السعر» و«سعر البيع» يُملآن تلقائياً بالسعر الحالي؛ غيّرهما فقط عند الحاجة. تغيير «السعة» يعدّل تعبئة المادة نفسها.</p>
           </div>
         )}
 
@@ -361,7 +399,7 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
 
           {lines.map((l) => {
             const p = l.productId ? (products as Product[]).find((x) => x.id === l.productId) : undefined;
-            const hasCarton = (p?.piecesPerCarton || 1) > 1;
+            const hasCarton = capOf(l, p) > 1;
             const hasDozen = (p?.piecesPerDozen || 0) > 1;
             return (
               <div key={l.key} className="rounded-lg bg-white border border-slate-200 p-2 space-y-2">
@@ -379,15 +417,28 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
                     <select value={l.unit} onChange={(e) => changeUnit(l, e.target.value as Line['unit'])} className={inputCls} disabled={!p || (!hasCarton && !hasDozen)}>
                       <option value="piece">{p?.isWeighted ? 'كغم' : 'قطعة'}</option>
                       {hasDozen && <option value="dozen">{dozenName(p)} ({p?.piecesPerDozen})</option>}
-                      {hasCarton && <option value="carton">كرتون ({p?.piecesPerCarton})</option>}
+                      {hasCarton && <option value="carton">كرتون ({capOf(l, p)})</option>}
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-600 mb-0.5">سعر الشراء للوحدة</label>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-0.5">السعر (للوحدة المختارة)</label>
                     <input type="number" min="0" value={l.cost} onChange={(e) => patch(l.key, { cost: e.target.value })} className={`${inputCls} text-center font-mono`} />
                   </div>
                   <div className="text-xs font-extrabold text-slate-800 text-center pb-2">{formatMoney(lineTotal(l))}</div>
                 </div>
+                {p && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-0.5">السعة (قطع الكرتون)</label>
+                      <input type="number" min="1" disabled={!!p.isWeighted} value={l.cap} onChange={(e) => changeCap(l, e.target.value)} placeholder={String(Math.max(1, p.piecesPerCarton || 1))} data-testid="simple-cap" className={`${inputCls} text-center font-mono`} />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 mb-0.5">سعر البيع (للقطعة)</label>
+                      <input type="number" min="0" value={l.sell} onChange={(e) => patch(l.key, { sell: e.target.value })} data-testid="simple-sell" className={`${inputCls} text-center font-mono ${l.sell !== '' && Math.abs((parseFloat(l.sell) || 0) - (p.retailPrice || 0)) > 0.0005 ? 'border-amber-500 bg-amber-50' : ''}`} />
+                    </div>
+                    <div className="text-[10px] text-slate-500 col-span-2">الحالي: شراء {p.costPrice}/قطعة · بيع {p.retailPrice}</div>
+                  </div>
+                )}
                 {showDates && l.productId && (
                   <div className="grid grid-cols-2 gap-2">
                     <div><label className="block text-[11px] font-bold text-slate-600 mb-0.5">تاريخ الإنتاج</label><input type="date" value={l.prod} onChange={(e) => patch(l.key, { prod: e.target.value })} className={inputCls} /></div>
@@ -402,6 +453,10 @@ export function ReceiveGoodsModal({ supplier, suppliers, onClose, onSave }: {
         <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
           <input type="checkbox" checked={updateCost} onChange={(e) => setUpdateCost(e.target.checked)} className="w-4 h-4 accent-emerald-600" />
           تحديث سعر تكلفة المواد في المخزون بسعر هذا الاستلام
+        </label>
+        <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+          <input type="checkbox" checked={updateSell} onChange={(e) => setUpdateSell(e.target.checked)} className="w-4 h-4 accent-emerald-600" data-testid="recv-update-sell" />
+          تحديث سعر البيع في المخزون إذا غيّرته هنا
         </label>
 
         <div className="grid grid-cols-3 gap-2 items-end rounded-xl bg-emerald-50 border border-emerald-200 p-3">

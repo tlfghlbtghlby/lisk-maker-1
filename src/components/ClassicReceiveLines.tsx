@@ -12,6 +12,8 @@ export interface CLine {
   cartons: string;
   loose: string;
   newPrice: string;
+  /** سعر البيع (للقطعة): يُملأ تلقائياً بسعر المادة الحالي */
+  sell: string;
   priceBy: 'piece' | 'carton';
   disc: string;
   showDisc: boolean;
@@ -19,7 +21,7 @@ export interface CLine {
   exp: string;
 }
 
-export const emptyCLine = (): CLine => ({ key: newId('cl'), name: '', perCarton: '', cartons: '', loose: '', newPrice: '', priceBy: 'piece', disc: '', showDisc: false, prod: '', exp: '' });
+export const emptyCLine = (): CLine => ({ key: newId('cl'), name: '', perCarton: '', cartons: '', loose: '', newPrice: '', sell: '', priceBy: 'piece', disc: '', showDisc: false, prod: '', exp: '' });
 
 export const withTrailingEmpty = (lines: CLine[]): CLine[] => {
   const last = lines[lines.length - 1];
@@ -29,6 +31,7 @@ export const withTrailingEmpty = (lines: CLine[]): CLine[] => {
 export interface CCalc {
   per: number; cartons: number; loose: number; pieces: number;
   oldPiece: number; pricePiece: number; gross: number; disc: number; total: number; effPiece: number;
+  sell: number; sellChanged: boolean;
   hasNew: boolean; packChanged: boolean; priceChanged: boolean; weighted: boolean;
 }
 
@@ -42,13 +45,19 @@ export const calcCLine = (l: CLine, p?: Product): CCalc => {
   const pieces = Math.round((cartons * per + loose) * 1000) / 1000;
   const oldPiece = p?.costPrice || 0;
   const np = parseFloat(l.newPrice);
-  const hasNew = l.newPrice.trim() !== '' && Number.isFinite(np) && np >= 0;
-  const pricePiece = hasNew ? (l.priceBy === 'carton' && !weighted ? np / per : np) : oldPiece;
+  const filled = l.newPrice.trim() !== '' && Number.isFinite(np) && np >= 0;
+  const asPiece = filled ? (l.priceBy === 'carton' && !weighted ? np / per : np) : oldPiece;
+  // السعر المعبّأ تلقائياً بالقديم لا يُعدّ تغييراً
+  const hasNew = filled && (!p || Math.abs(asPiece - oldPiece) > 0.0005);
+  const pricePiece = hasNew ? asPiece : oldPiece;
+  const sellN = parseFloat(l.sell);
+  const sell = l.sell.trim() !== '' && Number.isFinite(sellN) && sellN >= 0 ? sellN : (p?.retailPrice || 0);
+  const sellChanged = !!p && l.sell.trim() !== '' && Number.isFinite(sellN) && sellN >= 0 && Math.abs(sellN - (p.retailPrice || 0)) > 0.0005;
   const gross = pieces * pricePiece;
   const disc = Math.min(gross, Math.max(0, parseFloat(l.disc) || 0));
   const total = Math.round(gross - disc);
   const effPiece = pieces > 0 ? (gross - disc) / pieces : pricePiece;
-  return { per, cartons, loose, pieces, oldPiece, pricePiece, gross, disc, total, effPiece, hasNew, packChanged: !!p && !weighted && typedPer > 0 && typedPer !== prodPer, priceChanged: hasNew || disc > 0, weighted };
+  return { sell, sellChanged, per, cartons, loose, pieces, oldPiece, pricePiece, gross, disc, total, effPiece, hasNew, packChanged: !!p && !weighted && typedPer > 0 && typedPer !== prodPer, priceChanged: hasNew || disc > 0, weighted };
 };
 
 const cell = 'w-full border border-slate-300 rounded-md px-1.5 py-1.5 text-xs text-center font-mono bg-white text-slate-900 focus:outline-none focus:border-emerald-500';
@@ -76,23 +85,25 @@ export function ClassicReceiveLines({ lines, setLines, products, formatMoney, sh
   };
 
   const pick = (key: string, p: Product) => {
-    patch(key, { productId: p.id, name: p.name, perCarton: '', newPrice: '', priceBy: (p.piecesPerCarton || 1) > 1 ? 'carton' : 'piece' });
+    const byCarton = (p.piecesPerCarton || 1) > 1 && !(p.isWeighted || p.unit === 'كغم' || p.unit === 'كيلو');
+    const old = (p.costPrice || 0) * (byCarton ? Math.max(1, p.piecesPerCarton || 1) : 1);
+    patch(key, { productId: p.id, name: p.name, perCarton: '', newPrice: old > 0 ? String(Math.round(old * 1000) / 1000) : '', sell: p.retailPrice ? String(p.retailPrice) : '', priceBy: byCarton ? 'carton' : 'piece' });
     setActive(null);
   };
 
   const colSpan = 9 + (showDates ? 2 : 0);
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
-      <table className="w-full text-xs min-w-[920px]">
+      <table className="w-full text-xs min-w-[980px]">
         <thead className="bg-slate-100 text-[11px] text-slate-700">
           <tr>
             <th className="px-1.5 py-2 w-7">#</th>
             <th className="px-2 py-2 text-right min-w-[190px]">اسم المادة</th>
-            <th className="px-1.5 py-2 w-[74px]">تعبئة الكرتون</th>
+            <th className="px-1.5 py-2 w-[74px]">السعة</th>
             <th className="px-1.5 py-2 w-[70px]">عدد الكراتين</th>
             <th className="px-1.5 py-2 w-[70px]">عدد القطع</th>
-            <th className="px-1.5 py-2 w-[88px]">السعر القديم</th>
-            <th className="px-1.5 py-2 w-[110px]">السعر الجديد</th>
+            <th className="px-1.5 py-2 w-[165px]">السعر</th>
+            <th className="px-1.5 py-2 w-[96px]">سعر البيع <span className="block text-[9px] font-normal text-slate-500">للقطعة</span></th>
             <th className="px-1.5 py-2 w-[86px]">الخصم</th>
             {showDates && <><th className="px-1.5 py-2 w-[110px]">الإنتاج</th><th className="px-1.5 py-2 w-[110px]">الانتهاء</th></>}
             <th className="px-1.5 py-2 w-[92px]">المجموع</th>
@@ -126,17 +137,21 @@ export function ClassicReceiveLines({ lines, setLines, products, formatMoney, sh
                   <td className="px-1.5 py-1"><input type="number" min="1" disabled={empty || c.weighted} value={l.perCarton} onChange={(e) => patch(l.key, { perCarton: e.target.value })} placeholder={p ? String(Math.max(1, p.piecesPerCarton || 1)) : '1'} className={`${cell} ${c.packChanged ? 'border-amber-500 bg-amber-50' : ''}`} title="اتركها فارغة لتبقى تعبئة المادة كما هي" /></td>
                   <td className="px-1.5 py-1"><input type="number" min="0" disabled={empty || c.weighted} value={l.cartons} onChange={(e) => patch(l.key, { cartons: e.target.value })} className={cell} /></td>
                   <td className="px-1.5 py-1"><input type="number" min="0" step={c.weighted ? '0.001' : '1'} disabled={empty} value={l.loose} onChange={(e) => patch(l.key, { loose: e.target.value })} className={cell} /></td>
-                  <td className="px-1.5 py-1 text-center font-mono text-slate-500 bg-slate-50">{empty ? '' : p ? Math.round(oldShown * 100) / 100 : '—'}</td>
                   <td className="px-1.5 py-1">
                     <div className="flex gap-1">
-                      <input type="number" min="0" disabled={empty} value={l.newPrice} onChange={(e) => patch(l.key, { newPrice: e.target.value })} placeholder={p ? 'بلا تغيير' : 'السعر'} className={`${cell} ${c.hasNew ? 'border-amber-500 bg-amber-50' : ''}`} />
+                      <input type="number" min="0" disabled={empty} value={l.newPrice} onChange={(e) => patch(l.key, { newPrice: e.target.value })} placeholder="السعر" className={`${cell} ${c.hasNew ? 'border-amber-500 bg-amber-50' : ''}`} />
                       {!c.weighted && (
-                        <select value={l.priceBy} disabled={empty} onChange={(e) => patch(l.key, { priceBy: e.target.value as CLine['priceBy'] })} className="border border-slate-300 rounded-md text-[10px] bg-white px-0.5" title="السعر للقطعة أم للكرتون">
+                        <select value={l.priceBy} disabled={empty} onChange={(e) => { const by = e.target.value as CLine['priceBy']; const v = parseFloat(l.newPrice); patch(l.key, { priceBy: by, ...(Number.isFinite(v) && l.newPrice.trim() !== '' ? { newPrice: String(Math.round((by === 'carton' ? v * c.per : v / c.per) * 1000) / 1000) } : {}) }); }} className="border border-slate-300 rounded-md text-[10px] bg-white px-0.5" title="السعر للقطعة أم للكرتون">
                           <option value="piece">قطعة</option>
                           <option value="carton">كرتون</option>
                         </select>
                       )}
                     </div>
+                  {p && c.hasNew && <div className="text-[9px] text-slate-500 text-center mt-0.5">كان {Math.round(oldShown * 100) / 100}</div>}
+                  </td>
+                  <td className="px-1.5 py-1">
+                    <input type="number" min="0" disabled={empty} value={l.sell} onChange={(e) => patch(l.key, { sell: e.target.value })} placeholder="سعر البيع" title="سعر بيع القطعة (يُملأ بالسعر الحالي ويتغير فقط إذا عدّلته)" className={`${cell} ${c.sellChanged ? 'border-amber-500 bg-amber-50' : ''}`} />
+                    {p && c.sellChanged && <div className="text-[9px] text-slate-500 text-center mt-0.5">كان {p.retailPrice}</div>}
                   </td>
                   <td className="px-1.5 py-1 text-center">
                     {l.showDisc ? (

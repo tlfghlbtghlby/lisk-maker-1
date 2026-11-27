@@ -67,6 +67,8 @@ export interface StockChangeInput {
   costPrice?: number;
   /** تعبئة الكرتون الجديدة للمادة (القائمة الكلاسيكية) */
   piecesPerCarton?: number;
+  /** سعر بيع المفرق الجديد للقطعة (استلام البضاعة) */
+  retailPrice?: number;
 }
 
 export const CURRENT_APP_VERSION = (pkg as any)?.version || '2.0.0';
@@ -2227,7 +2229,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (realDiff > 0 && (ch.productionDate || ch.expiryDate)) b = addBatch(b, realDiff, ch.productionDate || '', ch.expiryDate || '');
           batches = reconcileBatches(b, newStock);
         }
-        const next: Product = { ...t, stock: newStock, costPrice: newCost, ...(typeof ch.piecesPerCarton === 'number' && ch.piecesPerCarton >= 1 ? { piecesPerCarton: Math.floor(ch.piecesPerCarton) } : {}), purchaseLog: log, ...(batches !== undefined ? { expiryBatches: batches } : {}), updatedAt: new Date().toISOString() };
+        const next: Product = { ...t, stock: newStock, costPrice: newCost, ...(realDiff > 0 && typeof ch.retailPrice === 'number' && ch.retailPrice >= 0 ? { retailPrice: ch.retailPrice } : {}), ...(typeof ch.piecesPerCarton === 'number' && ch.piecesPerCarton >= 1 ? { piecesPerCarton: Math.floor(ch.piecesPerCarton) } : {}), purchaseLog: log, ...(batches !== undefined ? { expiryBatches: batches } : {}), updatedAt: new Date().toISOString() };
         updated = updated.map(p => (p.id === ch.id ? next : p));
       }
       if (updated === prev) return prev;
