@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     if (!apiKey) return json({ diag: true, hasKey: false });
     const code = new URL(req.url).searchParams.get('barcode') || '8695280836498';
     const out: any[] = [];
-    for (const model of MODELS) {
+    for (const model of MODELS.slice(0, 2)) {
       try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: 'POST',
@@ -53,6 +53,15 @@ Deno.serve(async (req) => {
         out.push({ model, status: r.status, body: t });
       } catch (e) { out.push({ model, error: String(e).slice(0, 200) }); }
     }
+    // تشخيص إضافي: طلب عادي بلا بحث جوجل، لنعرف هل المفتاح كله بلا حصة أم أداة البحث وحدها
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Reply with the single word: ok' }] }] }), signal: AbortSignal.timeout(20000),
+      });
+      const raw = (await r.text().catch(() => '')).replaceAll(apiKey, '***');
+      out.push({ model: 'gemini-3.8-flash (NO search tool)', status: r.status, summary: raw.slice(0, 200) });
+    } catch (e) { out.push({ model: 'plain', error: String(e).slice(0, 150) }); }
     return json({ diag: true, hasKey: true, code, results: out });
   }
   if (req.method !== 'POST') return json({ error: 'method' }, 405);
