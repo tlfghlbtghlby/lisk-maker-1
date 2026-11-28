@@ -1337,7 +1337,8 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   const pickCreditCustomer = (id: string) => {
     setCreditPickOpen(false);
-    const paidNow = Math.min(Math.max(0, Number(String(creditPaid).replace(/[,٬\s]/g, '')) || 0), finalTotal);
+    // المسدَّد قد يزيد عن قيمة القائمة: الزيادة تُخصم من الدين القديم للزبون
+    const paidNow = Math.max(0, Number(String(creditPaid).replace(/[,٬\s]/g, '')) || 0);
     updateActiveDraft({ saleType: 'credit', selectedCustomerId: id, paidAmount: paidNow });
     setPendingCreditId(id);
   };
@@ -4654,10 +4655,14 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                 className="flex-1 min-w-[200px] px-3 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white"
               />
               {(() => {
-                const paidN = Math.min(Math.max(0, Number(String(creditPaid).replace(/[,٬\s]/g, '')) || 0), finalTotal);
+                const paidN = Math.max(0, Number(String(creditPaid).replace(/[,٬\s]/g, '')) || 0);
+                const extra = Math.max(0, paidN - finalTotal);
                 return (
                   <span className="text-xs font-bold whitespace-nowrap text-slate-600 dark:text-slate-300" data-testid="credit-remaining">
-                    الإجمالي {formatMoney(finalTotal)} · الباقي دين: <span className="text-rose-600 font-black">{formatMoney(finalTotal - paidN)}</span>
+                    الإجمالي {formatMoney(finalTotal)} ·{' '}
+                    {extra > 0
+                      ? <>زيادة تُخصم من الدين القديم: <span className="text-emerald-600 font-black">{formatMoney(extra)}</span></>
+                      : <>الباقي دين: <span className="text-rose-600 font-black">{formatMoney(finalTotal - paidN)}</span></>}
                   </span>
                 );
               })()}
