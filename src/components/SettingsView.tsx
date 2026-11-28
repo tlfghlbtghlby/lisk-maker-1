@@ -305,6 +305,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
   const [enableUsdPricing, setEnableUsdPricing] = useState<boolean>(settings.enableUsdPricing === true);
   const [usdRateInput, setUsdRateInput] = useState<string>(String(settings.usdRate || 1500));
   const [trackExpiryBatches, setTrackExpiryBatches] = useState<boolean>(settings.trackExpiryBatches !== false);
+  const [posProductSort, setPosProductSort] = useState<string>(settings.posProductSort || 'newest');
   const [expiryWarnDaysInput, setExpiryWarnDaysInput] = useState<string>(String(settings.expiryWarnDays || 30));
   const [globalBarcodeCapture, setGlobalBarcodeCapture] = useState<boolean>(settings.globalBarcodeCapture !== false);
   const [promoDiscountDisplay, setPromoDiscountDisplay] = useState<'column' | 'hidden'>(settings.promoDiscountDisplay === 'hidden' ? 'hidden' : 'column');
@@ -618,6 +619,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
       enableUsdPricing,
       usdRate: parseFloat(usdRateInput) > 0 ? parseFloat(usdRateInput) : (settings.usdRate || 1500),
       trackExpiryBatches,
+      posProductSort,
       expiryWarnDays: Math.min(365, Math.max(1, Math.floor(parseFloat(expiryWarnDaysInput) || 30))),
       globalBarcodeCapture,
       allowMultiDeviceShifts,
@@ -2125,6 +2127,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ initialTab = 'store'
                   <span className="text-[11px] text-slate-500 font-normal">عند حفظ سعر جديد تُحدَّث تلقائيًا أسعار كل المواد المسعّرة بالدولار.</span>
                 </div>
               )}
+            </div>
+            <div className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700">
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">ترتيب المواد في نقطة البيع</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">الأحدث إضافةً يظهر في الأعلى افتراضياً. وإذا سحبت المواد بزر «ترتيب المواد» في نقطة البيع يصير الترتيب «حسب ترتيبي».</span>
+              </div>
+              <select data-testid="pos-product-sort" value={posProductSort} onChange={(e) => setPosProductSort(e.target.value)} className="shrink-0 px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#070e1b] text-slate-900 dark:text-white">
+                <option value="newest">الأحدث إضافةً أولاً</option>
+                <option value="oldest">الأقدم إضافةً أولاً</option>
+                <option value="alpha">أبجدي (أ ← ي)</option>
+                <option value="alpha_desc">أبجدي عكسي (ي ← أ)</option>
+                <option value="stock_low">الأقل مخزوناً أولاً</option>
+                <option value="stock_high">الأكثر مخزوناً أولاً</option>
+                <option value="custom">حسب ترتيبي (بالسحب)</option>
+              </select>
             </div>
             <label className="flex items-start justify-between gap-3 p-3 rounded-xl bg-white dark:bg-[#0b1728] border border-slate-200 dark:border-slate-700 cursor-pointer">
               <div>
