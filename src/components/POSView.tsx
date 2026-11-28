@@ -418,6 +418,35 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
+  // ارتفاع جهة القائمة (اليسرى) وتغيير حجمها من الحواف والزاوية
+  const cartPanelRef = useRef<HTMLDivElement>(null);
+  const cartInnerRef = useRef<HTMLDivElement>(null);
+  const [cartHeight, setCartHeight] = useState<number | null>(() => {
+    try { const v = parseInt(localStorage.getItem('pos_cart_height') || '', 10); return v >= 300 ? v : null; } catch { return null; }
+  });
+  const startCartResize = (ev: React.PointerEvent, mode: 'w' | 'h' | 'both') => {
+    ev.preventDefault(); ev.stopPropagation();
+    const el = cartPanelRef.current; if (!el) return;
+    const r = el.getBoundingClientRect();
+    const sx = ev.clientX, sy = ev.clientY, sw = r.width, sh = (cartInnerRef.current || el).getBoundingClientRect().height;
+    const maxW = (splitWrapRef.current?.getBoundingClientRect().width || 1400) - 360;
+    const move = (e: PointerEvent) => {
+      if (mode !== 'h') setCartWidth(Math.max(300, Math.min(Math.round(sw + (sx - e.clientX)), maxW)));
+      if (mode !== 'w') setCartHeight(Math.max(300, Math.min(Math.round(sh + (e.clientY - sy)), 2400)));
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      document.body.style.userSelect = ''; document.body.style.cursor = '';
+      setCartWidth((cur) => { try { if (cur) localStorage.setItem('pos_cart_width', String(cur)); } catch {} return cur; });
+      setCartHeight((cur) => { try { if (cur) localStorage.setItem('pos_cart_height', String(cur)); } catch {} return cur; });
+    };
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = mode === 'w' ? 'col-resize' : mode === 'h' ? 'row-resize' : 'nesw-resize';
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  const resetCartSize = () => { setCartWidth(null); setCartHeight(null); try { localStorage.removeItem('pos_cart_width'); localStorage.removeItem('pos_cart_height'); } catch {} };
   const entryCartonRef = useRef<HTMLInputElement>(null);
   const entryPieceRef = useRef<HTMLInputElement>(null);
   const entryQtyRef = useRef<HTMLInputElement>(null);
@@ -571,9 +600,62 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
   const getPiecePrice = (p: Parameters<typeof getPiecePriceBase>[0], t: PriceType): number => getPiecePriceBase(p, t, priceFallbacks);
   const resolveFor = (p: Parameters<typeof getPiecePriceBase>[0], t: PriceType): number | null => resolvePiecePrice(p, t, priceFallbacks);
 
+  // ترتيب المواد: حسب الإعدادات (الأحدث/الأقدم/أبجدي/المخزون) أو ترتيبي اليدوي بالسحب
+  const [prodOrder, setProdOrder] = useState<string[]>(() => {
+    try { const a = JSON.parse(localStorage.getItem('pos_product_order') || 'null'); return Array.isArray(a) ? a : []; } catch { return []; }
+  });
+  const [prodEdit, setProdEdit] = useState(false);
+  const sortMode: string = settings.posProductSort || 'newest';
+  const sortedAll = useMemo(() => {
+    const idx = new Map<string, number>();
+    products.forEach((p, i) => { if (p && p.id && !idx.has(p.id)) idx.set(p.id, i); });
+    const ts = (p: Product) => { const t = Date.parse(p.createdAt || ''); return isNaN(t) ? 0 : t; };
+    const arr = products.filter((p) => p && p.id);
+    const tie = (a: Product, b: Product) => (idx.get(a.id) || 0) - (idx.get(b.id) || 0);
+    const cmpName = (a: Product, b: Product) => String(a.name || '').localeCompare(String(b.name || ''), 'ar');
+    switch (sortMode) {
+      case 'oldest': return [...arr].sort((a, b) => ts(a) - ts(b) || -tie(a, b));
+      case 'alpha': return [...arr].sort((a, b) => cmpName(a, b) || tie(a, b));
+      case 'alpha_desc': return [...arr].sort((a, b) => -cmpName(a, b) || tie(a, b));
+      case 'stock_low': return [...arr].sort((a, b) => (a.stock - b.stock) || tie(a, b));
+      case 'stock_high': return [...arr].sort((a, b) => (b.stock - a.stock) || tie(a, b));
+      case 'custom': {
+        const pos = new Map<string, number>(); prodOrder.forEach((id, i) => pos.set(id, i));
+        // المواد الجديدة (غير المرتبة يدوياً) تظهر في الأعلى
+        const newOnes = arr.filter((p) => !pos.has(p.id)).sort((a, b) => ts(b) - ts(a) || tie(a, b));
+        const known = arr.filter((p) => pos.has(p.id)).sort((a, b) => (pos.get(a.id)! - pos.get(b.id)!));
+        return [...newOnes, ...known];
+      }
+      default: return [...arr].sort((a, b) => ts(b) - ts(a) || tie(a, b));
+    }
+  }, [products, sortMode, prodOrder]);
+  const pDragRef = useRef<string | null>(null);
+  const [pDragOver, setPDragOver] = useState<string | null>(null);
+  const saveProdOrder = (a: string[]) => { setProdOrder(a); try { localStorage.setItem('pos_product_order', JSON.stringify(a)); } catch {} };
+  const prodDragProps = (prod: Product) => ({
+    draggable: prodEdit,
+    onDragStart: (e: React.DragEvent) => { if (!prodEdit) return; pDragRef.current = prod.id; try { e.dataTransfer.setData('text/plain', prod.id); e.dataTransfer.effectAllowed = 'move'; } catch {} },
+    onDragOver: (e: React.DragEvent) => { if (!prodEdit) return; e.preventDefault(); if (pDragOver !== prod.id) setPDragOver(prod.id); },
+    onDragEnd: () => { pDragRef.current = null; setPDragOver(null); },
+    onDrop: (e: React.DragEvent) => {
+      if (!prodEdit) return;
+      e.preventDefault();
+      const from = pDragRef.current; pDragRef.current = null; setPDragOver(null);
+      if (!from || from === prod.id) return;
+      const ids = sortedAll.map((p) => p.id);
+      const fi = ids.indexOf(from), ti = ids.indexOf(prod.id);
+      if (fi < 0 || ti < 0) return;
+      ids.splice(fi, 1);
+      ids.splice(ti, 0, from);
+      saveProdOrder(ids);
+      if (sortMode !== 'custom') updateSettings({ posProductSort: 'custom' } as any);
+    },
+    ...(prodEdit ? { style: { outline: pDragOver === prod.id ? '2px solid #10b981' : '2px dashed #f59e0b', outlineOffset: 1, cursor: 'grab' } as React.CSSProperties } : {}),
+  });
+
   const filteredProducts = useMemo(() => {
     const seen = new Set<string>();
-    return products.filter((prod) => {
+    return sortedAll.filter((prod) => {
       if (!prod || !prod.id) return false;
       if (seen.has(prod.id)) return false;
       seen.add(prod.id);
@@ -586,7 +668,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         matchAr(prod.category, q);
       return matchCat && matchSearch;
     });
-  }, [products, selectedCategory, searchQuery]);
+  }, [sortedAll, selectedCategory, searchQuery]);
 
   const [displayLimit, setDisplayLimit] = useState(48);
 
@@ -695,7 +777,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   const [giftMenu, setGiftMenu] = useState<{ x: number; y: number; product: Product } | null>(null);
   // ترتيب عناصر الشريط العلوي (كليك يمين ← تغيير ← سحب). يُحفظ على هذا الجهاز فقط.
-  const TB_DEFAULT = ['search', 'views', 'scan', 'new', 'return'];
+  const TB_DEFAULT = ['search', 'views', 'arrange', 'scan', 'new', 'return'];
   const [tbOrder, setTbOrder] = useState<string[]>(() => {
     try {
       const a = JSON.parse(localStorage.getItem('pos_topbar_order') || 'null');
@@ -957,6 +1039,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
   // مادة نُقر عليها بالماوس: إن كان الفصل مفعلاً تُفتح لوحة الإدخال، وإلا تُضاف كما كان سابقاً
   const handleProductClick = (prod: Product) => {
+    if (prodEdit) return;
     if (classicMode) classicAddAndFocus(prod, false);
     else if (sepMode) openEntry(prod, false);
     else addWithDefaultUnit(prod, 'click');
@@ -2401,6 +2484,21 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     <span className="hidden sm:inline">أشرطة</span>
                   </button>
                 </div>
+                <div {...tbProps('arrange')} className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    data-testid="prod-arrange"
+                    onClick={() => setProdEdit((v) => !v)}
+                    className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition cursor-pointer ${prodEdit ? 'bg-amber-500 text-white border-amber-600' : 'bg-slate-100 text-slate-600 border-slate-200 hover:text-slate-900'}`}
+                    title="رتّب المواد بالسحب والإفلات كما تشاء"
+                  >
+                    <span>↔</span>
+                    <span className="hidden sm:inline">{prodEdit ? 'تم الترتيب' : 'ترتيب المواد'}</span>
+                  </button>
+                  {prodEdit && (
+                    <button type="button" data-testid="prod-arrange-reset" onClick={() => { saveProdOrder([]); updateSettings({ posProductSort: 'newest' } as any); }} className="px-2 py-1.5 rounded-xl text-xs font-bold bg-white border border-amber-300 text-amber-800 cursor-pointer" title="إرجاع الترتيب التلقائي (الأحدث أولاً)">إرجاع</button>
+                  )}
+                </div>
 
                 {isAndroidApp() && (
                 <button
@@ -2622,6 +2720,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
                     const rest = ppc ? Math.round((prod.stock - cartons * ppc) * 1000) / 1000 : prod.stock;
                     return (
                       <div
+                        {...prodDragProps(prod)}
                         key={`${prod.id}_${pIdx}`}
                         data-kb-index={pIdx}
                         onClick={() => handleProductClick(prod)}
@@ -2670,6 +2769,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
                     return (
                       <div
+                        {...prodDragProps(prod)}
                         key={`${prod.id}_${pIdx}`}
                         data-kb-index={pIdx}
                         onClick={() => handleProductClick(prod)}
@@ -2757,6 +2857,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
 
                     return (
                       <div
+                        {...prodDragProps(prod)}
                         key={`${prod.id}_${pIdx}`}
                         data-kb-index={pIdx}
                         onContextMenu={(e) => {
@@ -3008,7 +3109,7 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
         {!isMobileMode && isLgScreen && !listMode && (
           <div
             onPointerDown={startSplitDrag}
-            onDoubleClick={() => { setCartWidth(null); try { localStorage.removeItem('pos_cart_width'); } catch {} }}
+            onDoubleClick={resetCartSize}
             title="اسحب لتغيير العرض (نقرتان للإرجاع للوضع الافتراضي)"
             className="group cursor-col-resize flex items-center justify-center touch-none"
           >
@@ -3016,7 +3117,14 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
           </div>
         )}
         {(!isMobileMode || mobileTab === 'cart') && (
-          <div className={`${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} lg:sticky lg:top-2 flex flex-col min-w-0 ${listMode ? 'mx-auto w-full' : ''}`} style={listMode ? { maxWidth: paperW } : undefined}>
+          <div ref={cartPanelRef} className={`${isMobileMode ? 'w-full' : (isLgScreen ? '' : 'col-span-12')} lg:sticky lg:top-2 flex flex-col min-w-0 relative ${!isMobileMode && isLgScreen && !listMode ? 'self-start' : ''} ${listMode ? 'mx-auto w-full' : ''}`} style={listMode ? { maxWidth: paperW } : undefined}>
+            {!isMobileMode && isLgScreen && !listMode && (
+              <>
+                <div data-testid="cart-resize-left" onPointerDown={(e) => startCartResize(e, 'w')} onDoubleClick={resetCartSize} title="اسحب لتغيير العرض (نقرتان للإرجاع)" className="absolute left-0 top-8 bottom-8 w-2 z-20 cursor-col-resize touch-none hover:bg-emerald-400/40 rounded" />
+                <div data-testid="cart-resize-bottom" onPointerDown={(e) => startCartResize(e, 'h')} onDoubleClick={resetCartSize} title="اسحب لتغيير الارتفاع (نقرتان للإرجاع)" className="absolute left-8 right-8 bottom-0 h-2 z-20 cursor-row-resize touch-none hover:bg-emerald-400/40 rounded" />
+                <div data-testid="cart-resize-corner" onPointerDown={(e) => startCartResize(e, 'both')} onDoubleClick={resetCartSize} title="اسحب لتغيير العرض والارتفاع معاً" className="absolute left-0 bottom-0 w-5 h-5 z-30 cursor-nesw-resize touch-none bg-emerald-500/30 hover:bg-emerald-500/60 rounded-tr-lg" />
+              </>
+            )}
             {isMobileMode && (
               <div className="flex items-center justify-between bg-white p-2 rounded-xl border border-slate-200 mb-2">
                 <button
@@ -3033,9 +3141,9 @@ export const POSView: React.FC<POSViewProps> = ({ onInvoiceCreated, onOpenNewPro
               </div>
             )}
             
-            <div data-testid={listMode ? 'list-mode-paper' : undefined} className={`bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden ${listMode ? 'border-2 border-emerald-700/60 shadow-xl' : 'border-slate-200'} ${
-              !isMobileMode ? 'lg:h-[calc(100vh-80px)]' : 'h-full'
-            }`}>
+            <div ref={cartInnerRef} data-testid={listMode ? 'list-mode-paper' : undefined} className={`bg-white rounded-xl border shadow-sm flex flex-col overflow-hidden ${listMode ? 'border-2 border-emerald-700/60 shadow-xl' : 'border-slate-200'} ${
+              !isMobileMode ? (cartHeight && !listMode ? '' : 'lg:h-[calc(100vh-80px)]') : 'h-full'
+            }`} style={!isMobileMode && isLgScreen && cartHeight && !listMode ? { height: cartHeight } : undefined}>
               {listMode && (
                 <div className="px-4 py-2 bg-gradient-to-l from-emerald-800 to-emerald-600 text-white flex items-center justify-between gap-2 shrink-0">
                   <span className="text-sm font-black">📋 قائمة بيع — {settings.storeName || 'المفكر المحاسبي'}</span>

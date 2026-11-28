@@ -659,6 +659,8 @@ export interface StoreSettings {
   trackExpiryBatches?: boolean;
   /** عدد الأيام قبل الانتهاء لإظهار تنبيه «قاربت على انتهاء الصلاحية» (الافتراضي 30) */
   expiryWarnDays?: number;
+  /** ترتيب المواد في نقطة البيع: newest | oldest | alpha | alpha_desc | stock_low | stock_high | custom */
+  posProductSort?: string;
   globalBarcodeCapture?: boolean;
   promotions?: Promotion[];
   // طريقة ذكر الخصم في القائمة: عمود «الخصم» أو تطبيق مباشر على السعر دون ذكره
